@@ -42,6 +42,7 @@ A floating HUD panel for the DeepSeek Harness web chat: session state, context u
 | Subagents | All descendant subagents of the current session (indented by depth) with Running/Completed states; click to jump to the subagent session page; shown only when subagents exist |
 | Tasks | The current session's todo list with Completed/Pending states and a `1/3` style counter, refreshed live; shown only when tasks exist |
 | MCP | Every MCP server of DSH with its **global** enabled state; the switch toggles the server globally (writes the profile's `cordis.patch.yml`) and the page refreshes afterwards |
+| Balance | DeepSeek balance (top-up + granted, reusing dsh-account-usage data; "Open" jumps to the open platform); shown only when dsh-account-usage is installed and `DEEPSEEK_PLATFORM_TOKEN` is configured |
 
 **Mutual exclusion**: opening the better-sidebar right panel auto-closes the HUD; after manually closing the right panel the HUD reopens automatically. Clicking the "HUD panel" button while the right panel is open closes the sidebar first, then opens the HUD (if the auto-close fails due to version incompatibility, the HUD opens deferred as soon as the sidebar closes).
 
@@ -61,11 +62,13 @@ After installation, the "HUD panel" button appears at the top-right of the chat 
 
 ## 🧭 Usage
 
-- **HUD panel**: floats at the top-right of the chat page, 300px wide; its height is capped at the composer's bottom edge (when fully extended the panel bottom aligns with the composer bottom, with a 96% viewport-height fallback) and scrolls internally when content overflows; chat content and the composer automatically shift left so nothing overlaps.
-- **Settings menu**: the gear (dashboard icon) at the top-right of the Session module opens a menu to toggle "Context window / git / Subagents / Tasks / MCP" modules; the Session module is always shown.
+- **HUD panel**: floats at the top-right of the chat page, 300px wide; its height is capped at the composer's bottom edge (when fully extended the panel bottom aligns with the composer bottom, never exceeding the visible chat-page height — an 8px bottom margin is kept) and scrolls internally when content overflows (the scrollbar appears only while the panel is being scrolled); chat content and the composer automatically shift left so nothing overlaps.
+- **Settings menu**: the gear (dashboard icon) at the top-right of the Session module opens a menu to toggle "Context window / git / Subagents / Tasks / MCP / Balance" modules (Balance is listed only when available), with "Cancel / Confirm" buttons at the bottom to discard or save the selection; the Session module is always shown.
 - **Context window**: the bar color switches automatically with occupancy; "Compact" is available while the session is idle and disabled with a reason while it runs.
 - **git module**: refreshes every 5 seconds while the panel is open; the git graph popup shows the last 80 commits across all refs.
 - **MCP module**: switches toggle DSH's **global** MCP server state (stored in the `dsh-awesome-hud mcp states` block of the profile's `cordis.patch.yml`); the page auto-refreshes after the change. The module stays visible with an empty state when no MCP server exists.
+- **Balance module**: sits below the Context window module and shows the DeepSeek balance (top-up + granted combined); the "Open" button opens platform.deepseek.com; refreshes on the same schedule as dsh-account-usage (immediately when the panel opens, then every 60 seconds, with an additional 30-second host-side cache). The module — and its settings row — are hidden unless dsh-account-usage is installed and the `DEEPSEEK_PLATFORM_TOKEN` credential is configured.
+- **Icons**: settings-menu icons use the full-opacity theme color; in dark mode every icon is inverted with the theme.
 
 ## ⚙️ Compatibility
 
@@ -83,13 +86,13 @@ After installation, the "HUD panel" button appears at the top-right of the chat 
 | --- | --- |
 | Host | Node.js ESM, `ctx.webServer` prefix routes, `ctx.settings`, `ctx.tools.guard`, `ctx.subagents`, `ctx.compaction`, `ctx.subprocess` |
 | Client | Plain JavaScript ModuleLoader bundle, React (`react.createElement`), Cordis Slots (`conversation.session.header.utilities` / `shell.overlay`), CSS theme variables |
-| Data | Client session projections (`ctx.sessions.list` / `workspaces` / `modelDirectories`) + dedicated host API (git / MCP / subagents / compaction) |
+| Data | Client session projections (`ctx.sessions.list` / `workspaces` / `modelDirectories`) + dedicated host API (git / MCP / subagents / compaction) + the dsh-account-usage balance route (reused) |
 | Tests | `node --test` (git parsing, MCP parsing, status derivation, settings normalization, trust fence; in `test/`) |
 
 ## 🗺️ Roadmap
 
 - [x] "HUD panel" header button and panel toggle
-- [x] Session / Context window / git / Subagents / Tasks / MCP modules
+- [x] Session / Context window / git / Subagents / Tasks / MCP / Balance modules
 - [x] Mutual exclusion with the dsh-better-sidebar right panel
 - [x] HUD settings menu (persisted in host settings)
 - [x] Light/dark themes and bilingual zh/en UI
