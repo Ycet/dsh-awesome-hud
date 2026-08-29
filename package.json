@@ -1,6 +1,6 @@
 {
   "name": "dsh-awesome-hud",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "DSH web 插件：聊天页右上角「HUD面板」悬浮面板，展示会话状态、上下文窗口占用与一键压缩、git 分支与变更、子代理任务、待办任务、MCP 启停；与 better-sidebar 右侧栏互斥协作，模块可见性可在 HUD 设置菜单中按 profile 持久化。",
   "type": "module",
   "main": "lib/index.js",
