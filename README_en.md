@@ -26,7 +26,6 @@ A floating HUD panel for the DeepSeek Harness web chat: session state, context u
 - [🖼️ Screenshots](#️-screenshots)
 - [⚙️ Compatibility](#️-compatibility)
 - [🔧 Tech Stack](#-tech-stack)
-- [🗺️ Roadmap](#️-roadmap)
 - [📄 License](#-license)
 
 ---
@@ -125,15 +124,6 @@ HUD settings menu: module toggles plus the "Usage module content" group.
 | Client | Native JavaScript ModuleLoader bundle, React (`react.createElement`), Cordis Slots (`conversation.session.header.utilities` / `shell.overlay`), CSS theme variables |
 | Data sources | Client-side session projection (`ctx.sessions.list` / `workspaces` / `modelDirectories`) + own host APIs (git / MCP / subagents / compaction) + reused dsh-account-usage balance/usage routes |
 | Tests | `node --test` (git parsing, MCP parsing, status derivation, settings normalization, trust fence; in `test/`) |
-
-## 🗺️ Roadmap
-
-- [x] HUD panel button and toggle
-- [x] Session / Context window / git / Subagents / Tasks / MCP / Usage modules
-- [x] Mutual exclusion with the dsh-better-sidebar right sidebar
-- [x] HUD settings menu (persisted in host settings)
-- [x] Light/dark themes and bilingual zh/en
-- [ ] Drag-to-resize panel width (fixed 300px for now)
 
 ## 📄 License
 

@@ -26,7 +26,6 @@
 - [🖼️ 界面截图](#️-界面截图)
 - [⚙️ 兼容性](#️-兼容性)
 - [🔧 技术栈](#-技术栈)
-- [🗺️ 路线图](#️-路线图)
 - [📄 许可证](#-许可证)
 
 ---
@@ -125,15 +124,6 @@ HUD 设置菜单：模块勾选 + 「用量模块内容」分组开关。
 | Client 侧 | 原生 JavaScript ModuleLoader bundle、React（`react.createElement`）、Cordis Slots（`conversation.session.header.utilities` / `shell.overlay`）、CSS 主题变量 |
 | 数据来源 | 客户端会话投影（`ctx.sessions.list` / `workspaces` / `modelDirectories`）+ 自有 host API（git / MCP / 子代理 / 压缩）+ dsh-account-usage 余额/用量路由（复用） |
 | 测试 | `node --test`（git 解析、MCP 解析、状态推导、设置收敛、信任围栏；位于 `test/`） |
-
-## 🗺️ 路线图
-
-- [x] 「HUD面板」头部按钮与面板开合
-- [x] 会话 / 上下文窗口 / git / 子代理 / 任务 / MCP / 用量 七个模块
-- [x] 与 dsh-better-sidebar 右侧栏互斥协作
-- [x] HUD 设置菜单（host settings 持久化）
-- [x] 浅/深主题与中英文双语
-- [ ] 面板宽度拖拽调节（暂定：固定 300px）
 
 ## 📄 许可证
 
