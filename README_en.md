@@ -62,13 +62,14 @@ After installation, the "HUD panel" button appears at the top-right of the chat 
 
 ## 🧭 Usage
 
-- **HUD panel**: floats at the top-right of the chat page, 300px wide; its height is capped at the composer's bottom edge (when fully extended the panel bottom aligns with the composer bottom, never exceeding the visible chat-page height — an 8px bottom margin is kept) and scrolls internally when content overflows (the scrollbar appears only while the panel is being scrolled); chat content and the composer automatically shift left so nothing overlaps.
+- **HUD panel**: floats at the top-right of the chat page, 300px wide; its height is capped at the composer's bottom edge (when fully extended the panel bottom aligns with the composer bottom, never exceeding the visible chat-page height — an 8px bottom margin is kept) and scrolls internally when content overflows (the scrollbar appears only while scrolling and fades out 2s after scrolling stops); chat content and the composer automatically shift left so nothing overlaps.
 - **Settings menu**: the gear (dashboard icon) at the top-right of the Session module opens a menu to toggle "Context window / git / Subagents / Tasks / MCP / Balance" modules (Balance is listed only when available), with "Cancel / Confirm" buttons at the bottom to discard or save the selection; the Session module is always shown.
 - **Context window**: the bar color switches automatically with occupancy; "Compact" is available while the session is idle and disabled with a reason while it runs.
 - **git module**: refreshes every 5 seconds while the panel is open; the git graph popup shows the last 80 commits across all refs.
-- **MCP module**: switches toggle DSH's **global** MCP server state (stored in the `dsh-awesome-hud mcp states` block of the profile's `cordis.patch.yml`); the page auto-refreshes after the change. The module stays visible with an empty state when no MCP server exists.
+- **MCP module**: switches toggle DSH's **global** MCP server state (stored in the `dsh-awesome-hud mcp states` block of the profile's `cordis.patch.yml`); the page auto-refreshes after the change; the module is expanded by default. It stays visible with an empty state when no MCP server exists.
 - **Balance module**: sits below the Context window module and shows the DeepSeek balance (top-up + granted combined); the "Open" button opens platform.deepseek.com; refreshes on the same schedule as dsh-account-usage (immediately when the panel opens, then every 60 seconds, with an additional 30-second host-side cache). The module — and its settings row — are hidden unless dsh-account-usage is installed and the `DEEPSEEK_PLATFORM_TOKEN` credential is configured.
 - **Icons**: settings-menu icons use the full-opacity theme color; in dark mode every icon is inverted with the theme.
+- **Fold state**: each module's collapsed/expanded state survives page refreshes (localStorage); the Session module uses the DSH favicon.
 
 ## ⚙️ Compatibility
 
