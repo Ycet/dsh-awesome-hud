@@ -5,19 +5,6 @@
 
 <div align="center">
 
-# dsh-awesome-hud
-
-A floating HUD panel for the DeepSeek Harness web chat: session state, context usage with one-click compaction, git changes, subagents, tasks, and MCP toggles — all at a glance.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
-
-<p align="center">
-  <img src="docs/hud-light.png" alt="HUD on the DSH chat page (light theme)" width="46%" />
-  <img src="docs/hud-dark.png" alt="HUD on the DSH chat page (dark theme)" width="46%" />
-</p>
-
-</div>
-
 ---
 
 > [!NOTE]
@@ -38,15 +25,15 @@ A floating HUD panel for the DeepSeek Harness web chat: session state, context u
 
 ## ✨ Features
 
-| Module | Description |
-| --- | --- |
-| Session | Current workspace name, session name, session state (Running / Awaiting approval / Idle / Awaiting answer / Waiting for subagents), model provider, model, reasoning effort; the gear at its top-right opens HUD settings |
-| Context window | Context occupancy bar (green ≤40% / yellow ≤90% / red >90%), used/limit tokens, one-click "Compact" for the current session |
-| git | Current branch, changed-file count, uncommitted files with `+xx/-xx` lines, and a "git graph" popup (all refs, last 80 commits); shown only when the workspace is a git repo |
-| Subagents | All descendant subagents of the current session (indented by depth) with Running/Completed states; click to jump to the subagent session page; shown only when subagents exist |
-| Tasks | The current session's todo list with Completed/Pending states and a `1/3` style counter, refreshed live; shown only when tasks exist |
-| MCP | Every MCP server of DSH with its **global** enabled state; the switch toggles the server globally (writes the profile's `cordis.patch.yml`) and the page refreshes afterwards |
-| Usage | DeepSeek balance (top-up + granted) and OpenCode Go usage percents for the three windows (oc-go 5h/1w/1m usage, percentages only, reusing dsh-account-usage data; "Open" jumps to the open platform); DeepSeek and OpenCode Go are shown independently — only DeepSeek shows the balance row, only an active OpenCode subscription shows the three usage rows, and the module hides when neither is configured |
+| Module         | Description                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session        | Current workspace name, session name, session state (Running / Awaiting approval / Idle / Awaiting answer / Waiting for subagents), model provider, model, reasoning effort; the gear at its top-right opens HUD settings                                                                                                                                                                                       |
+| Context window | Context occupancy bar (green ≤40% / yellow ≤90% / red >90%), used/limit tokens, one-click "Compact" for the current session                                                                                                                                                                                                                                                                                   |
+| git            | Current branch, changed-file count, uncommitted files with`+xx/-xx` lines, and a "git graph" popup (all refs, last 80 commits); shown only when the workspace is a git repo                                                                                                                                                                                                                                   |
+| Subagents      | All descendant subagents of the current session (indented by depth) with Running/Completed states; click to jump to the subagent session page; shown only when subagents exist                                                                                                                                                                                                                                  |
+| Tasks          | The current session's todo list with Completed/Pending states and a`1/3` style counter, refreshed live; shown only when tasks exist                                                                                                                                                                                                                                                                           |
+| MCP            | Every MCP server of DSH with its**global** enabled state; the switch toggles the server globally (writes the profile's `cordis.patch.yml`) and the page refreshes afterwards                                                                                                                                                                                                                            |
+| Usage          | DeepSeek balance (top-up + granted) and OpenCode Go usage percents for the three windows (oc-go 5h/1w/1m usage, percentages only, reusing dsh-account-usage data; "Open" jumps to the open platform); DeepSeek and OpenCode Go are shown independently — only DeepSeek shows the balance row, only an active OpenCode subscription shows the three usage rows, and the module hides when neither is configured |
 
 **Mutual exclusion**: opening the better-sidebar right panel auto-closes the HUD; after manually closing the right panel the HUD reopens automatically. Clicking the "HUD panel" button while the right panel is open closes the sidebar first, then opens the HUD (if the auto-close fails due to version incompatibility, the HUD opens deferred as soon as the sidebar closes).
 
@@ -111,31 +98,30 @@ After installation, the "HUD panel" button appears at the top-right of the chat 
 
 ## ⚙️ Compatibility
 
-| Item | Version / Notes |
-| --- | --- |
-| DeepSeek Harness | `0.1.1-rc.2` (other rc lines not individually verified; the plugin degrades via optional services + feature detection) |
+| Item               | Version / Notes                                                                                                                                                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DeepSeek Harness   | `0.1.1-rc.2` (other rc lines not individually verified; the plugin degrades via optional services + feature detection)                                                                                                  |
 | dsh-better-sidebar | `0.16.1` (panel state observed via the public `ctx.betterSidebar` service; auto-close relies on its collapse-button DOM feature and falls back to deferred opening on failure — the HUD works standalone regardless) |
-| Platforms | macOS verified; Windows/Linux theoretically compatible (same git command behavior) |
-| Theme | Follows light/dark themes (`--dsw-alias-*` tokens) |
-| Language | 简体中文 / English, follows the DSH locale |
+| Platforms          | macOS verified; Windows/Linux theoretically compatible (same git command behavior)                                                                                                                                        |
+| Theme              | Follows light/dark themes (`--dsw-alias-*` tokens)                                                                                                                                                                      |
+| Language           | 简体中文 / English, follows the DSH locale                                                                                                                                                                                |
 
 ## 🔧 Tech Stack
 
-| Category | Content |
-| --- | --- |
-| Host | Node.js ESM, `ctx.webServer` prefix routes, `ctx.settings`, `ctx.tools.guard`, `ctx.subagents`, `ctx.compaction`, `ctx.subprocess` |
-| Client | Plain JavaScript ModuleLoader bundle, React (`react.createElement`), Cordis Slots (`conversation.session.header.utilities` / `shell.overlay`), CSS theme variables |
-| Data | Client session projections (`ctx.sessions.list` / `workspaces` / `modelDirectories`) + dedicated host API (git / MCP / subagents / compaction) + the dsh-account-usage balance route (reused) |
-| Tests | `node --test` (git parsing, MCP parsing, status derivation, settings normalization, trust fence; in `test/`) |
+| Category | Content                                                                                                                                                                                             |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Host     | Node.js ESM,`ctx.webServer` prefix routes, `ctx.settings`, `ctx.tools.guard`, `ctx.subagents`, `ctx.compaction`, `ctx.subprocess`                                                       |
+| Client   | Plain JavaScript ModuleLoader bundle, React (`react.createElement`), Cordis Slots (`conversation.session.header.utilities` / `shell.overlay`), CSS theme variables                            |
+| Data     | Client session projections (`ctx.sessions.list` / `workspaces` / `modelDirectories`) + dedicated host API (git / MCP / subagents / compaction) + the dsh-account-usage balance route (reused) |
+| Tests    | `node --test` (git parsing, MCP parsing, status derivation, settings normalization, trust fence; in `test/`)                                                                                    |
 
 ## 🗺️ Roadmap
 
-- [x] "HUD panel" header button and panel toggle
-- [x] Session / Context window / git / Subagents / Tasks / MCP / Usage modules
-- [x] Mutual exclusion with the dsh-better-sidebar right panel
-- [x] HUD settings menu (persisted in host settings)
-- [x] Light/dark themes and bilingual zh/en UI
-- [ ] Draggable panel width (planned: fixed 300px for now)
+- [X] "HUD panel" header button and panel toggle
+- [X] Session / Context window / git / Subagents / Tasks / MCP / Usage modules
+- [X] Mutual exclusion with the dsh-better-sidebar right panel
+- [X] HUD settings menu (persisted in host settings)
+- [X] Light/dark themes and bilingual zh/en UI
 
 ## 📄 License
 
