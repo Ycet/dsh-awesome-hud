@@ -11,7 +11,10 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
-![HUD 面板预览](docs/HUD_preview.png)
+<p align="center">
+  <img src="docs/hud-light.png" alt="HUD 在 DSH 聊天页中的效果（浅色主题）" width="46%" />
+  <img src="docs/hud-dark.png" alt="HUD 在 DSH 聊天页中的效果（深色主题）" width="46%" />
+</p>
 
 </div>
 
@@ -25,6 +28,7 @@
 - [✨ 功能列表](#-功能列表)
 - [🚀 快速开始](#-快速开始)
 - [🧭 使用说明](#-使用说明)
+- [🖼️ 界面截图](#️-界面截图)
 - [⚙️ 兼容性](#️-兼容性)
 - [🔧 技术栈](#-技术栈)
 - [🗺️ 路线图](#️-路线图)
@@ -68,14 +72,42 @@ dsh plugin --profile web add dsh-awesome-hud@link:<absolute-path-to-plugin>
 - **git 模块**：每 5 秒随面板打开自动刷新；「git graph」弹窗展示当前仓库（全部引用）最近 80 条提交图；HEAD 指向版本以放大的白色填充圆点 + 蓝色描边标记（原「HEAD」徽章已移除）。
 - **MCP 模块**：开关控制 dsh 全局的 MCP 服务启停（写入 profile `cordis.patch.yml` 的 `dsh-awesome-hud mcp states` 块）；切换后页面自动刷新生效；模块默认展开。无任何 MCP 服务时模块仍展示空状态。
 - **用量模块**：位于「上下文窗口」模块下方。数据复用 dsh-account-usage 插件路由（host 侧各有 30s/60s 缓存），面板打开时立即加载、之后每 60 秒轮询；四行数据均缩进展示，行首分别带 DeepSeek / OpenCode Go 图标；模块支持折叠，默认展开（折叠状态经 localStorage 持久化）。
-  - **DeepSeek 余额**：展示余额合计（充值 + 赠送），「跳转」按钮弹出选择菜单，可跳转 deepseek 开放平台或 opencode go 用量页；仅当已配置 `DEEPSEEK_PLATFORM_TOKEN` 时展示该行。
-  - **OpenCode Go 用量**：三行分别展示 oc-go 5h / 1w / 1m 窗口用量**百分比**；仅当已配置 OpenCode Go Key 且订阅有效（`/api/account-usage/opencode` 返回 `ok + keySource`）时展示；未配置 Key（`no-key`）或未订阅/订阅到期（`unauthorized`）时不展示。
+  - **DeepSeek 余额**：展示余额合计（充值 + 赠送），「跳转」按钮弹出选择菜单，可跳转 deepseek 开放平台或 opencode go 用量页；**点击具体余额数值**可直接打开设置面板「账户」分区的 deepseek 标签页；仅当已配置 `DEEPSEEK_PLATFORM_TOKEN` 时展示该行。
+  - **OpenCode Go 用量**：三行分别展示 oc-go 5h / 1w / 1m 窗口用量**百分比**，**点击具体百分比数值**可直接打开设置面板「账户」分区的 opencode go 标签页；仅当已配置 OpenCode Go Key 且订阅有效（`/api/account-usage/opencode` 返回 `ok + keySource`）时展示；未配置 Key（`no-key`）或未订阅/订阅到期（`unauthorized`）时不展示。
   - **模块可见性**：DeepSeek 与 OpenCode Go 各自独立——仅 DeepSeek 可用只显示余额行；仅 OpenCode 订阅中只显示用量三行；二者均未配置时模块与设置项整体隐藏。
   - **可配置内容**：在 HUD 设置菜单「用量模块内容」分组中可分别勾选展示/隐藏「DeepSeek 余额」与「OpenCode Go 用量」（默认全展示，host settings 持久化，随 profile 同步）。
 - **git 变更模块**：变更文件左侧状态标识按类型着色——修改 `M` 黄色、新增 `A` 蓝色、删除 `D` 红色、未跟踪 `?` 灰色（重命名 `R` / 复制 `C` 蓝色）。
 - **图标**：设置菜单图标使用全不透明度主题色；深色模式下全部图标随主题反转显示。
 - **折叠状态**：各模块折叠/展开状态刷新页面后保持（localStorage）；「会话」模块图标使用 DSH favicon。
 - **新开会话页**：新建/空白会话（无会话记录）页面默认不展示 HUD；进入真实会话后自动恢复之前状态（不覆盖用户记忆）。
+
+## 🖼️ 界面截图
+
+<p align="center">
+  <img src="docs/hud-settings.png" alt="HUD 设置菜单" width="46%" />
+</p>
+
+**设置菜单**：齿轮按钮打开模块勾选菜单，并可在「用量模块内容」分组中分别开关 DeepSeek 余额与 OpenCode Go 用量。
+
+<p align="center">
+  <img src="docs/module-session.png" alt="「会话」模块" width="46%" />
+  <img src="docs/module-context.png" alt="「上下文窗口」模块" width="46%" />
+</p>
+
+<p align="center">
+  <img src="docs/module-usage.png" alt="「用量」模块" width="46%" />
+  <img src="docs/module-git.png" alt="「git 变更」模块" width="46%" />
+</p>
+
+<p align="center">
+  <img src="docs/module-subagents.png" alt="「子代理任务」模块" width="46%" />
+  <img src="docs/module-tasks.png" alt="「任务」模块" width="46%" />
+</p>
+
+<p align="center">
+  <img src="docs/module-mcp.png" alt="「MCP」模块" width="46%" />
+  <img src="docs/git-graph.png" alt="「git graph」界面" width="46%" />
+</p>
 
 ## ⚙️ 兼容性
 

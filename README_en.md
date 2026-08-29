@@ -11,7 +11,10 @@ A floating HUD panel for the DeepSeek Harness web chat: session state, context u
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
-![HUD panel preview](docs/HUD_preview.png)
+<p align="center">
+  <img src="docs/hud-light.png" alt="HUD on the DSH chat page (light theme)" width="46%" />
+  <img src="docs/hud-dark.png" alt="HUD on the DSH chat page (dark theme)" width="46%" />
+</p>
 
 </div>
 
@@ -25,6 +28,7 @@ A floating HUD panel for the DeepSeek Harness web chat: session state, context u
 - [✨ Features](#-features)
 - [🚀 Quick Start](#-quick-start)
 - [🧭 Usage](#-usage)
+- [🖼️ Screenshots](#️-screenshots)
 - [⚙️ Compatibility](#️-compatibility)
 - [🔧 Tech Stack](#-tech-stack)
 - [🗺️ Roadmap](#️-roadmap)
@@ -68,14 +72,42 @@ After installation, the "HUD panel" button appears at the top-right of the chat 
 - **git module**: refreshes every 5 seconds while the panel is open; the git graph popup shows the last 80 commits across all refs; the HEAD commit is marked with an enlarged white-filled, blue-stroked dot (the former "HEAD" badge is removed).
 - **MCP module**: switches toggle DSH's **global** MCP server state (stored in the `dsh-awesome-hud mcp states` block of the profile's `cordis.patch.yml`); the page auto-refreshes after the change; the module is expanded by default. It stays visible with an empty state when no MCP server exists.
 - **Usage module**: sits below the Context window module. It reuses the dsh-account-usage routes (30s/60s host-side caches); loads immediately when the panel opens and polls every 60 seconds; the four rows are indented, each led by a DeepSeek / OpenCode Go icon; the module is collapsible and expanded by default (fold state persists in localStorage).
-  - **DeepSeek balance**: shows the total (top-up + granted); the "Open" button pops up a menu to jump to the deepseek open platform or the opencode go usage page; this row appears only when `DEEPSEEK_PLATFORM_TOKEN` is configured.
-  - **OpenCode Go usage**: three rows showing the **percentage** of the oc-go 5h / 1w / 1m windows; shown only with a configured OpenCode Go Key and an active subscription (the `/api/account-usage/opencode` route returns `ok + keySource`); hidden for a missing Key (`no-key`) or an expired/subscription-less state (`unauthorized`).
+  - **DeepSeek balance**: shows the total (top-up + granted); the "Open" button pops up a menu to jump to the deepseek open platform or the opencode go usage page; **clicking the balance figure** opens the deepseek tab of the settings Account page directly; this row appears only when `DEEPSEEK_PLATFORM_TOKEN` is configured.
+  - **OpenCode Go usage**: three rows showing the **percentage** of the oc-go 5h / 1w / 1m windows; **clicking a percentage** opens the opencode go tab of the settings Account page directly; shown only with a configured OpenCode Go Key and an active subscription (the `/api/account-usage/opencode` route returns `ok + keySource`); hidden for a missing Key (`no-key`) or an expired/subscription-less state (`unauthorized`).
   - **Module visibility**: DeepSeek and OpenCode Go are independent — only DeepSeek shows the balance row, only an active OpenCode subscription shows the three rows, and the module (plus its settings row) hides when neither is configured.
   - **Configurable content**: the "Usage module content" group in the HUD settings menu toggles showing/hiding the "DeepSeek balance" and "OpenCode Go usage" rows independently (both shown by default; persisted in host settings and synced with the profile).
 - **git module**: the status letter at the left of each changed file is colored by type — modified `M` yellow, added `A` blue, deleted `D` red, untracked `?` gray (renamed `R` / copied `C` blue).
 - **Icons**: settings-menu icons use the full-opacity theme color; in dark mode every icon is inverted with the theme.
 - **Fold state**: each module's collapsed/expanded state survives page refreshes (localStorage); the Session module uses the DSH favicon.
 - **Blank session page**: the HUD is hidden by default on a new/blank session page; it restores when you enter a real session (without overwriting your saved state).
+
+## 🖼️ Screenshots
+
+<p align="center">
+  <img src="docs/hud-settings.png" alt="HUD settings menu" width="46%" />
+</p>
+
+**Settings menu**: the gear button opens the module visibility menu, and the "Usage module content" group independently toggles the DeepSeek balance and OpenCode Go usage rows.
+
+<p align="center">
+  <img src="docs/module-session.png" alt="Session module" width="46%" />
+  <img src="docs/module-context.png" alt="Context window module" width="46%" />
+</p>
+
+<p align="center">
+  <img src="docs/module-usage.png" alt="Usage module" width="46%" />
+  <img src="docs/module-git.png" alt="git changes module" width="46%" />
+</p>
+
+<p align="center">
+  <img src="docs/module-subagents.png" alt="Subagents module" width="46%" />
+  <img src="docs/module-tasks.png" alt="Tasks module" width="46%" />
+</p>
+
+<p align="center">
+  <img src="docs/module-mcp.png" alt="MCP module" width="46%" />
+  <img src="docs/git-graph.png" alt="git graph interface" width="46%" />
+</p>
 
 ## ⚙️ Compatibility
 
