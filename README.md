@@ -48,6 +48,17 @@ HUD在dsh中的效果（深色主题）
 
 ## 🚀 快速开始
 
+**方式一：从 GitHub 远程安装（推荐）**
+
+```bash
+# 1. 安装（要求本机 git 可访问 GitHub）
+dsh plugin --profile web add github:Ycet/dsh-awesome-hud
+
+# 2. 重启 DSH Web 服务并刷新页面
+```
+
+**方式二：从本地源码安装（开发）**
+
 ```bash
 # 1. 安装（将 <absolute-path-to-plugin> 替换为本地源码目录绝对路径）
 dsh plugin --profile web add dsh-awesome-hud@link:<absolute-path-to-plugin>

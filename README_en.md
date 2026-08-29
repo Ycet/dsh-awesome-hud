@@ -48,6 +48,17 @@ HUD in DSH (dark theme)
 
 ## 🚀 Quick Start
 
+**Option 1: install from GitHub remotely (recommended)**
+
+```bash
+# 1. Install (requires git access to GitHub on this machine)
+dsh plugin --profile web add github:Ycet/dsh-awesome-hud
+
+# 2. Restart the DSH Web service and refresh the page
+```
+
+**Option 2: install from local source (development)**
+
 ```bash
 # 1. Install (replace <absolute-path-to-plugin> with your local source directory)
 dsh plugin --profile web add dsh-awesome-hud@link:<absolute-path-to-plugin>
