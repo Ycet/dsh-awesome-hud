@@ -1,0 +1,100 @@
+# dsh-awesome-hud
+
+[![简体中文](https://img.shields.io/badge/简体中文-red?style=for-the-badge)](README.md)
+[![English](https://img.shields.io/badge/English-blue?style=for-the-badge)](README_en.md)
+
+<div align="center">
+
+# dsh-awesome-hud
+
+为 DeepSeek Harness Web 聊天页打造的悬浮 HUD 面板：会话状态、上下文占用与一键压缩、git 变更、子代理、任务与 MCP 启停，一目了然。
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+
+![HUD 面板预览](docs/HUD_preview.png)
+
+</div>
+
+---
+
+> [!NOTE]
+> 一个 DSH Web 插件（`dsh.bundle.patch` 通道安装）。浏览页面右上角新增「HUD面板」按钮，点击开合悬浮面板；面板与 [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) 右侧栏互斥协作，互不遮挡。
+
+## 📑 目录
+
+- [✨ 功能列表](#-功能列表)
+- [🚀 快速开始](#-快速开始)
+- [🧭 使用说明](#-使用说明)
+- [⚙️ 兼容性](#️-兼容性)
+- [🔧 技术栈](#-技术栈)
+- [🗺️ 路线图](#️-路线图)
+- [📄 许可证](#-许可证)
+
+---
+
+## ✨ 功能列表
+
+| 模块 | 说明 |
+| --- | --- |
+| 会话 | 当前工作区名称、会话名称、会话状态（任务中/待审批/空闲中/待回答/等待子任务）、模型提供商/模型名/推理等级；右上角「HUD 设置」勾选展示模块 |
+| 上下文窗口 | 上下文占用进度条（0–40% 绿 / 40–90% 黄 / >90% 红）、已用/上限 tokens、一键「压缩」当前会话上下文 |
+| git | 当前分支、变更文件数量、未提交文件及 `+xx/-xx` 行数、「git graph」弹窗（全引用最近 80 条）；仅在有 git 仓库时展示 |
+| 子代理 | 当前会话全部后代子代理（按层级缩进）、执行中/已完成状态，点击跳转子代理会话页；仅在有子代理时展示 |
+| 任务 | 当前会话待办任务列表、已完成/待完成状态与计数（如 `1/3`），随任务列表实时刷新；仅在有任务时展示 |
+| MCP | 接入的全部 MCP 服务及启用状态，按会话启用/禁用某个 MCP 工具（禁用后该会话调用即被拒绝） |
+
+**互斥协作**：打开 better-sidebar 右侧边栏会自动关闭 HUD；手动关闭右侧边栏后 HUD 自动恢复。点击「HUD面板」按钮时若右侧边栏已打开，则先自动关闭侧边栏再打开 HUD（若版本兼容性导致自动关闭失败，HUD 会延迟到右侧边栏关闭后自动打开）。
+
+## 🚀 快速开始
+
+```bash
+# 1. 安装（将 <absolute-path-to-plugin> 替换为本地源码目录绝对路径）
+dsh plugin --profile web add dsh-awesome-hud@link:<absolute-path-to-plugin>
+
+# 2. 重启 DSH Web 服务并刷新页面
+```
+
+安装完成后，聊天页右上角（「打开工作区」按钮左侧）出现「HUD面板」按钮，点击即可开合。
+
+> [!NOTE]
+> HUD 面板默认展开；再次点击按钮或刷新页面会记住上次的开合状态（localStorage）。模块可见性（除「会话」外的 5 个模块）保存在 DSH profile 设置中，跨浏览器/设备随 profile 同步。
+
+## 🧭 使用说明
+
+- **HUD 面板**：悬浮于聊天页右上角，宽度 300px，高度最高为网页高度的 80%，内容超出时面板内部滚动；聊天内容与输入框随面板展开自动向左让位，不会重叠。
+- **设置菜单**：「会话」模块右上角齿轮（主面板图标）打开菜单，可勾选展示「上下文窗口 / git / 子代理任务 / 任务 / MCP」模块；「会话」模块恒展示。
+- **上下文窗口**：进度条颜色随占用率自动切换；「压缩」在会话空闲时可用，运行中按钮禁用并提示原因。
+- **git 模块**：每 5 秒随面板打开自动刷新；「git graph」弹窗展示当前仓库（全部引用）最近 80 条提交图。
+- **MCP 模块**：开关按会话记忆（随 DSH profile 持久化）；被禁用 MCP 的工具在对应会话中执行时会被拒绝并返回原因。
+
+## ⚙️ 兼容性
+
+| 项目 | 版本/说明 |
+| --- | --- |
+| DeepSeek Harness | `0.1.1-rc.2`（其余 rc 线未逐个验证；插件以可选服务 + 特征检测方式降级） |
+| dsh-better-sidebar | `0.16.1`（通过公开服务 `ctx.betterSidebar` 监听面板状态；自动关闭依赖其折叠按钮 DOM 特征，失败时按「延迟打开」降级，不影响 HUD 独立使用） |
+| 平台 | macOS 已验证；Windows/Linux 仅理论兼容（git 命令行为一致） |
+| 主题 | 跟随深浅主题（使用 `--dsw-alias-*` 主题 token） |
+| 语言 | 简体中文 / English，跟随 DSH locale |
+
+## 🔧 技术栈
+
+| 类别 | 内容 |
+| --- | --- |
+| Host 侧 | Node.js ESM、`ctx.webServer` 前缀路由、`ctx.settings`、`ctx.tools.guard`、`ctx.subagents`、`ctx.compaction`、`ctx.subprocess` |
+| Client 侧 | 原生 JavaScript ModuleLoader bundle、React（`react.createElement`）、Cordis Slots（`conversation.session.header.utilities` / `shell.overlay`）、CSS 主题变量 |
+| 数据来源 | 客户端会话投影（`ctx.sessions.list` / `workspaces` / `modelDirectories`）+ 自有 host API（git / MCP / 子代理 / 压缩） |
+| 测试 | `node --test`（git 解析、MCP 解析、状态推导、设置收敛、信任围栏；位于 `test/`） |
+
+## 🗺️ 路线图
+
+- [x] 「HUD面板」头部按钮与面板开合
+- [x] 会话 / 上下文窗口 / git / 子代理 / 任务 / MCP 六个模块
+- [x] 与 dsh-better-sidebar 右侧栏互斥协作
+- [x] HUD 设置菜单（host settings 持久化）
+- [x] 浅/深主题与中英文双语
+- [ ] 面板宽度拖拽调节（暂定：固定 300px）
+
+## 📄 许可证
+
+[MIT](LICENSE)
