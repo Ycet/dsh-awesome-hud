@@ -42,7 +42,7 @@ A floating HUD panel for the DeepSeek Harness web chat: session state, context u
 | Subagents | All descendant subagents of the current session (indented by depth) with Running/Completed states; click to jump to the subagent session page; shown only when subagents exist |
 | Tasks | The current session's todo list with Completed/Pending states and a `1/3` style counter, refreshed live; shown only when tasks exist |
 | MCP | Every MCP server of DSH with its **global** enabled state; the switch toggles the server globally (writes the profile's `cordis.patch.yml`) and the page refreshes afterwards |
-| Balance | DeepSeek balance (top-up + granted, reusing dsh-account-usage data; "Open" jumps to the open platform); shown only when dsh-account-usage is installed and `DEEPSEEK_PLATFORM_TOKEN` is configured |
+| Usage | DeepSeek balance (top-up + granted) and OpenCode Go usage percents for the three windows (oc-go 5h/1w/1m usage, percentages only, reusing dsh-account-usage data; "Open" jumps to the open platform); DeepSeek and OpenCode Go are shown independently — only DeepSeek shows the balance row, only an active OpenCode subscription shows the three usage rows, and the module hides when neither is configured |
 
 **Mutual exclusion**: opening the better-sidebar right panel auto-closes the HUD; after manually closing the right panel the HUD reopens automatically. Clicking the "HUD panel" button while the right panel is open closes the sidebar first, then opens the HUD (if the auto-close fails due to version incompatibility, the HUD opens deferred as soon as the sidebar closes).
 
@@ -63,11 +63,15 @@ After installation, the "HUD panel" button appears at the top-right of the chat 
 ## 🧭 Usage
 
 - **HUD panel**: floats at the top-right of the chat page, 300px wide; its height is capped at the composer's bottom edge (when fully extended the panel bottom aligns with the composer bottom, never exceeding the visible chat-page height — an 8px bottom margin is kept) and scrolls internally when content overflows (the scrollbar appears only while scrolling and fades out 2s after scrolling stops); chat content and the composer automatically shift left so nothing overlaps.
-- **Settings menu**: the gear (dashboard icon) at the top-right of the Session module opens a menu to toggle "Context window / git / Subagents / Tasks / MCP / Balance" modules (Balance is listed only when available), with "Cancel / Confirm" buttons at the bottom to discard or save the selection; the Session module is always shown.
+- **Settings menu**: the gear (dashboard icon) at the top-right of the Session module opens a menu to toggle "Context window / Usage / git / Subagents / Tasks / MCP" modules (Usage is listed only when available), with "Cancel / Confirm" buttons at the bottom to discard or save the selection; the Session module is always shown.
 - **Context window**: the bar color switches automatically with occupancy; "Compact" is available while the session is idle and disabled with a reason while it runs.
-- **git module**: refreshes every 5 seconds while the panel is open; the git graph popup shows the last 80 commits across all refs.
+- **git module**: refreshes every 5 seconds while the panel is open; the git graph popup shows the last 80 commits across all refs; the HEAD commit is marked with an enlarged white-filled, blue-stroked dot (the former "HEAD" badge is removed).
 - **MCP module**: switches toggle DSH's **global** MCP server state (stored in the `dsh-awesome-hud mcp states` block of the profile's `cordis.patch.yml`); the page auto-refreshes after the change; the module is expanded by default. It stays visible with an empty state when no MCP server exists.
-- **Balance module**: sits below the Context window module and shows the DeepSeek balance (top-up + granted combined); the "Open" button opens platform.deepseek.com; refreshes on the same schedule as dsh-account-usage (immediately when the panel opens, then every 60 seconds, with an additional 30-second host-side cache). The module — and its settings row — are hidden unless dsh-account-usage is installed and the `DEEPSEEK_PLATFORM_TOKEN` credential is configured.
+- **Usage module**: sits below the Context window module. It reuses the dsh-account-usage routes (30s/60s host-side caches); loads immediately when the panel opens and polls every 60 seconds; the four rows are indented, each led by a DeepSeek / OpenCode Go icon; the module is collapsible and expanded by default (fold state persists in localStorage).
+  - **DeepSeek balance**: shows the total (top-up + granted); the "Open" button pops up a menu to jump to the deepseek open platform or the opencode go usage page; this row appears only when `DEEPSEEK_PLATFORM_TOKEN` is configured.
+  - **OpenCode Go usage**: three rows showing the **percentage** of the oc-go 5h / 1w / 1m windows; shown only with a configured OpenCode Go Key and an active subscription (the `/api/account-usage/opencode` route returns `ok + keySource`); hidden for a missing Key (`no-key`) or an expired/subscription-less state (`unauthorized`).
+  - **Module visibility**: DeepSeek and OpenCode Go are independent — only DeepSeek shows the balance row, only an active OpenCode subscription shows the three rows, and the module (plus its settings row) hides when neither is configured.
+- **git module**: the status letter at the left of each changed file is colored by type — modified `M` yellow, added `A` blue, deleted `D` red, untracked `?` gray (renamed `R` / copied `C` blue).
 - **Icons**: settings-menu icons use the full-opacity theme color; in dark mode every icon is inverted with the theme.
 - **Fold state**: each module's collapsed/expanded state survives page refreshes (localStorage); the Session module uses the DSH favicon.
 - **Blank session page**: the HUD is hidden by default on a new/blank session page; it restores when you enter a real session (without overwriting your saved state).
@@ -94,7 +98,7 @@ After installation, the "HUD panel" button appears at the top-right of the chat 
 ## 🗺️ Roadmap
 
 - [x] "HUD panel" header button and panel toggle
-- [x] Session / Context window / git / Subagents / Tasks / MCP / Balance modules
+- [x] Session / Context window / git / Subagents / Tasks / MCP / Usage modules
 - [x] Mutual exclusion with the dsh-better-sidebar right panel
 - [x] HUD settings menu (persisted in host settings)
 - [x] Light/dark themes and bilingual zh/en UI
