@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { deriveSessionStatus, subagentStatusKey } from "../lib/status.js";
-import { MODULE_KEYS, defaultModules, normalizeSettings, sanitizeModulesPatch } from "../lib/settings.js";
+import { MODULE_KEYS, defaultModules, defaultUsageDisplay, normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch } from "../lib/settings.js";
 
 test("状态优先级：待审批 > 待回答 > 等待子任务 > 任务中 > 空闲中", () => {
 	assert.equal(deriveSessionStatus({ running: true, pendingInteraction: "approval", subagentActive: true }), "awaiting-approval");
@@ -45,4 +45,28 @@ test("sanitizeModulesPatch", () => {
 	assert.equal(sanitizeModulesPatch({ git: "yes" }), null); // 无合法布尔
 	assert.equal(sanitizeModulesPatch({ git: false, other: 1 }).patch.git, false);
 	assert.equal(sanitizeModulesPatch(null), null);
+});
+
+test("defaultUsageDisplay 全键且默认展示", () => {
+	const usage = defaultUsageDisplay();
+	assert.deepEqual(Object.keys(usage).sort(), ["deepseek", "opencode"]);
+	assert.ok(Object.values(usage).every(Boolean));
+});
+
+test("sanitizeUsagePatch：只接受 deepseek/opencode 布尔", () => {
+	assert.deepEqual(sanitizeUsagePatch({ deepseek: false }), { patch: { deepseek: false }, changed: false });
+	assert.deepEqual(sanitizeUsagePatch({ opencode: true }), { patch: { opencode: true }, changed: false });
+	assert.equal(sanitizeUsagePatch({ deepseek: "yes" }), null);
+	assert.equal(sanitizeUsagePatch({ other: true }), null); // 白名单外键
+	assert.equal(sanitizeUsagePatch({}), null);
+	assert.equal(sanitizeUsagePatch(null), null);
+});
+
+test("normalizeSettings：usage 缺失/损坏收敛为默认", () => {
+	assert.deepEqual(normalizeSettings(null).usage, defaultUsageDisplay());
+	assert.deepEqual(normalizeSettings({ usage: { deepseek: false } }).usage, { deepseek: false, opencode: true });
+	assert.deepEqual(normalizeSettings({ modules: {} }).usage, defaultUsageDisplay());
+	assert.deepEqual(normalizeSettings({ usage: { deepseek: "x" } }).usage, defaultUsageDisplay());
+	// 历史设置（无 usage 字段）仍可完整收敛
+	assert.deepEqual(normalizeSettings({ modules: { git: false } }).usage, defaultUsageDisplay());
 });

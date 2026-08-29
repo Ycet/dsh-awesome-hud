@@ -63,7 +63,7 @@ dsh plugin --profile web add dsh-awesome-hud@link:<absolute-path-to-plugin>
 ## 🧭 使用说明
 
 - **HUD 面板**：悬浮于聊天页右上角，宽度 300px，高度上限为输入框底部（面板撑满时底部与输入框底部平齐，且不超过聊天页可视高度，留 8px 底距），内容超出时面板内部滚动（滚动条仅在面板滚动时显示，停止 2s 后渐隐）；聊天内容与输入框随面板展开自动向左让位，不会重叠。
-- **设置菜单**：「会话」模块右上角齿轮（主面板图标）打开菜单，可勾选展示「上下文窗口 / 用量 / git / 子代理任务 / 任务 / MCP」模块（用量仅在其可用时列出），底部「取消 / 确认」按钮丢弃或保存勾选；「会话」模块恒展示。
+- **设置菜单**：「会话」模块右上角齿轮（主面板图标）打开菜单，可勾选展示「上下文窗口 / 用量 / git / 子代理任务 / 任务 / MCP」模块（用量仅在其可用时列出），底部「取消 / 确认」按钮丢弃或保存勾选；「会话」模块恒展示。用量可用时，菜单内额外提供「用量模块内容」分组，可分别开关 DeepSeek 余额与 OpenCode Go 用量两行组的展示。
 - **上下文窗口**：进度条颜色随占用率自动切换；「压缩」在会话空闲时可用，运行中按钮禁用并提示原因。
 - **git 模块**：每 5 秒随面板打开自动刷新；「git graph」弹窗展示当前仓库（全部引用）最近 80 条提交图；HEAD 指向版本以放大的白色填充圆点 + 蓝色描边标记（原「HEAD」徽章已移除）。
 - **MCP 模块**：开关控制 dsh 全局的 MCP 服务启停（写入 profile `cordis.patch.yml` 的 `dsh-awesome-hud mcp states` 块）；切换后页面自动刷新生效；模块默认展开。无任何 MCP 服务时模块仍展示空状态。
@@ -71,6 +71,7 @@ dsh plugin --profile web add dsh-awesome-hud@link:<absolute-path-to-plugin>
   - **DeepSeek 余额**：展示余额合计（充值 + 赠送），「跳转」按钮弹出选择菜单，可跳转 deepseek 开放平台或 opencode go 用量页；仅当已配置 `DEEPSEEK_PLATFORM_TOKEN` 时展示该行。
   - **OpenCode Go 用量**：三行分别展示 oc-go 5h / 1w / 1m 窗口用量**百分比**；仅当已配置 OpenCode Go Key 且订阅有效（`/api/account-usage/opencode` 返回 `ok + keySource`）时展示；未配置 Key（`no-key`）或未订阅/订阅到期（`unauthorized`）时不展示。
   - **模块可见性**：DeepSeek 与 OpenCode Go 各自独立——仅 DeepSeek 可用只显示余额行；仅 OpenCode 订阅中只显示用量三行；二者均未配置时模块与设置项整体隐藏。
+  - **可配置内容**：在 HUD 设置菜单「用量模块内容」分组中可分别勾选展示/隐藏「DeepSeek 余额」与「OpenCode Go 用量」（默认全展示，host settings 持久化，随 profile 同步）。
 - **git 变更模块**：变更文件左侧状态标识按类型着色——修改 `M` 黄色、新增 `A` 蓝色、删除 `D` 红色、未跟踪 `?` 灰色（重命名 `R` / 复制 `C` 蓝色）。
 - **图标**：设置菜单图标使用全不透明度主题色；深色模式下全部图标随主题反转显示。
 - **折叠状态**：各模块折叠/展开状态刷新页面后保持（localStorage）；「会话」模块图标使用 DSH favicon。
