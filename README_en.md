@@ -61,7 +61,7 @@ After installation, the "HUD panel" button appears at the top-right of the chat 
 
 ## 🧭 Usage
 
-- **HUD panel**: floats at the top-right of the chat page, 300px wide, at most 80% of the page height with internal scrolling; chat content and the composer automatically shift left so nothing overlaps.
+- **HUD panel**: floats at the top-right of the chat page, 300px wide; its height is capped at the composer's bottom edge (when fully extended the panel bottom aligns with the composer bottom, with a 96% viewport-height fallback) and scrolls internally when content overflows; chat content and the composer automatically shift left so nothing overlaps.
 - **Settings menu**: the gear (dashboard icon) at the top-right of the Session module opens a menu to toggle "Context window / git / Subagents / Tasks / MCP" modules; the Session module is always shown.
 - **Context window**: the bar color switches automatically with occupancy; "Compact" is available while the session is idle and disabled with a reason while it runs.
 - **git module**: refreshes every 5 seconds while the panel is open; the git graph popup shows the last 80 commits across all refs.
