@@ -7,11 +7,13 @@
 
 A floating HUD panel for the DeepSeek Harness web chat: session state, context usage with one-click compaction, git changes, subagents, tasks, and MCP toggles — all at a glance.
 
-<figure align="center">
-  <img src="docs/hud-light.png" alt="HUD in DSH (light theme)" width="46%" />
-  <img src="docs/hud-dark.png" alt="HUD in DSH (dark theme)" width="46%" />
-  <figcaption>HUD in DSH (light theme) ｜ HUD in DSH (dark theme)</figcaption>
-</figure>
+HUD in DSH (light theme)
+
+![alt text](docs/hud-light.png)
+
+HUD in DSH (dark theme)
+
+![alt text](docs/hud-dark.png)
 
 ---
 
@@ -75,36 +77,41 @@ After installation, a "HUD panel" button appears at the top-right of the chat pa
 
 ## 🖼️ Screenshots
 
-<figure align="center">
-  <img src="docs/hud-settings.png" alt="HUD settings" width="46%" />
-  <figcaption>HUD Settings</figcaption>
-</figure>
+### HUD Settings
 
-HUD settings menu: module toggles plus the "Usage module content" group.
+![alt text](docs/hud-settings.png)
 
-<figure align="center">
-  <img src="docs/module-session.png" alt="Session module" width="46%" />
-  <img src="docs/module-context.png" alt="Context window module" width="46%" />
-  <figcaption>Session module ｜ Context window module</figcaption>
-</figure>
+### Session module
 
-<figure align="center">
-  <img src="docs/module-usage.png" alt="Usage module" width="46%" />
-  <img src="docs/module-git.png" alt="git changes module" width="46%" />
-  <figcaption>Usage module ｜ git changes module</figcaption>
-</figure>
+![alt text](docs/module-session.png)
 
-<figure align="center">
-  <img src="docs/module-subagents.png" alt="Subagents module" width="46%" />
-  <img src="docs/module-tasks.png" alt="Tasks module" width="46%" />
-  <figcaption>Subagents module ｜ Tasks module</figcaption>
-</figure>
+### Context window module
 
-<figure align="center">
-  <img src="docs/module-mcp.png" alt="MCP module" width="46%" />
-  <img src="docs/git-graph.png" alt="git graph interface" width="46%" />
-  <figcaption>MCP module ｜ git graph interface</figcaption>
-</figure>
+![alt text](docs/module-context.png)
+
+### Usage module
+
+![alt text](docs/module-usage.png)
+
+### git changes module
+
+![alt text](docs/module-git.png)
+  
+### Subagents module
+
+![alt text](docs/module-subagents.png)
+
+### Tasks module
+
+![alt text](docs/module-tasks.png)
+
+### MCP module
+
+![alt text](docs/module-mcp.png)
+
+### git graph interface
+
+![alt text](docs/git-graph.png)
 
 ## ⚙️ Compatibility
 
