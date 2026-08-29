@@ -26,18 +26,17 @@ test("defaultModules 全键", () => {
 });
 
 test("normalizeSettings 收敛损坏数据", () => {
-	const out = normalizeSettings({ version: 3, modules: { git: false }, mcpDisabled: { s1: ["github", "github"], s2: "bad" } });
+	const out = normalizeSettings({ version: 3, modules: { git: false } });
 	assert.equal(out.version, 3);
 	assert.equal(out.modules.git, false);
 	assert.equal(out.modules.context, true); // 缺失字段回默认
-	assert.deepEqual(out.mcpDisabled.s1, ["github"]); // 去重
-	assert.deepEqual(out.mcpDisabled.s2, []); // 非数组收敛为空
+	// 旧版 mcpDisabled 字段不再收敛（会话级禁用已移除）
+	assert.equal("mcpDisabled" in out, false);
 });
 
 test("normalizeSettings 非对象输入", () => {
 	const out = normalizeSettings(null);
 	assert.deepEqual(out.modules, defaultModules());
-	assert.deepEqual(out.mcpDisabled, {});
 });
 
 test("sanitizeModulesPatch", () => {

@@ -41,7 +41,7 @@ A floating HUD panel for the DeepSeek Harness web chat: session state, context u
 | git | Current branch, changed-file count, uncommitted files with `+xx/-xx` lines, and a "git graph" popup (all refs, last 80 commits); shown only when the workspace is a git repo |
 | Subagents | All descendant subagents of the current session (indented by depth) with Running/Completed states; click to jump to the subagent session page; shown only when subagents exist |
 | Tasks | The current session's todo list with Completed/Pending states and a `1/3` style counter, refreshed live; shown only when tasks exist |
-| MCP | Every MCP server connected to DSH with per-session enable switches; disabling a server denies that session's calls to its tools |
+| MCP | Every MCP server of DSH with its **global** enabled state; the switch toggles the server globally (writes the profile's `cordis.patch.yml`) and the page refreshes afterwards |
 
 **Mutual exclusion**: opening the better-sidebar right panel auto-closes the HUD; after manually closing the right panel the HUD reopens automatically. Clicking the "HUD panel" button while the right panel is open closes the sidebar first, then opens the HUD (if the auto-close fails due to version incompatibility, the HUD opens deferred as soon as the sidebar closes).
 
@@ -65,7 +65,7 @@ After installation, the "HUD panel" button appears at the top-right of the chat 
 - **Settings menu**: the gear (dashboard icon) at the top-right of the Session module opens a menu to toggle "Context window / git / Subagents / Tasks / MCP" modules; the Session module is always shown.
 - **Context window**: the bar color switches automatically with occupancy; "Compact" is available while the session is idle and disabled with a reason while it runs.
 - **git module**: refreshes every 5 seconds while the panel is open; the git graph popup shows the last 80 commits across all refs.
-- **MCP module**: switches are remembered per session (persisted with the DSH profile); tools of a disabled server are denied for that session with an explanatory reason.
+- **MCP module**: switches toggle DSH's **global** MCP server state (stored in the `dsh-awesome-hud mcp states` block of the profile's `cordis.patch.yml`); the page auto-refreshes after the change. The module stays visible with an empty state when no MCP server exists.
 
 ## ⚙️ Compatibility
 
