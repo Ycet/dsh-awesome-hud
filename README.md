@@ -70,6 +70,7 @@ dsh plugin --profile web add dsh-awesome-hud@link:<absolute-path-to-plugin>
 - **余额模块**：位于「上下文窗口」模块下方，展示 DeepSeek 余额（= 充值余额 + 赠送余额），「跳转」按钮打开 platform.deepseek.com；刷新规则与 dsh-account-usage 一致（面板打开时立即加载，之后每 60 秒轮询，其 host 侧另有 30 秒缓存）。仅当已安装 dsh-account-usage 插件且配置了 `DEEPSEEK_PLATFORM_TOKEN` 令牌时展示，否则模块与设置项整体隐藏。
 - **图标**：设置菜单图标使用全不透明度主题色；深色模式下全部图标随主题反转显示。
 - **折叠状态**：各模块折叠/展开状态刷新页面后保持（localStorage）；「会话」模块图标使用 DSH favicon。
+- **新开会话页**：新建/空白会话（无会话记录）页面默认不展示 HUD；进入真实会话后自动恢复之前状态（不覆盖用户记忆）。
 
 ## ⚙️ 兼容性
 

@@ -70,6 +70,7 @@ After installation, the "HUD panel" button appears at the top-right of the chat 
 - **Balance module**: sits below the Context window module and shows the DeepSeek balance (top-up + granted combined); the "Open" button opens platform.deepseek.com; refreshes on the same schedule as dsh-account-usage (immediately when the panel opens, then every 60 seconds, with an additional 30-second host-side cache). The module — and its settings row — are hidden unless dsh-account-usage is installed and the `DEEPSEEK_PLATFORM_TOKEN` credential is configured.
 - **Icons**: settings-menu icons use the full-opacity theme color; in dark mode every icon is inverted with the theme.
 - **Fold state**: each module's collapsed/expanded state survives page refreshes (localStorage); the Session module uses the DSH favicon.
+- **Blank session page**: the HUD is hidden by default on a new/blank session page; it restores when you enter a real session (without overwriting your saved state).
 
 ## ⚙️ Compatibility
 
