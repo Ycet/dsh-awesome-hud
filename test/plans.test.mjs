@@ -13,15 +13,24 @@ function toolCall(seq, time, callId, plan) {
 	};
 }
 
-/** 构造一条工具结果事件；error 传 true 表示审批被拒（抛错）。 */
+/** 构造一条工具结果事件（真实结构：配对键在 message.content[0].toolCallId；失败时 data.error 与块 isError 同时出现）。 */
 function toolResult(seq, time, callId, error = false) {
 	return {
 		type: "tool/result",
 		seq,
 		time,
 		data: {
-			callId,
-			message: { role: "tool", content: [{ type: "text", text: error ? "rejected" : "Plan approved" }] },
+			turn: 1,
+			step: 1,
+			message: {
+				role: "user",
+				content: [{
+					type: "tool-result",
+					toolCallId: callId,
+					content: [{ type: "text", text: error ? "rejected" : "Plan approved" }],
+					...(error ? { isError: true } : {}),
+				}],
+			},
 			...(error ? { error: { name: "Error", code: "tool-error" } } : {}),
 		},
 	};
@@ -175,4 +184,35 @@ test("callId 缺失时用 seq 兜底生成 id", () => {
 	const plans = scanPlanEvents(events);
 	assert.equal(plans.length, 1);
 	assert.equal(plans[0].id, "plan-7");
+});
+
+test("结果块 isError=true 单独出现时也判为拒审", () => {
+	// 兼容：旧结构 data.callId 仍可配对；仅块级 isError 无 data.error 也废弃
+	const call = { type: "tool/call", seq: 1, time: 1000, data: { name: "exit_plan_mode", callId: "c1", arguments: JSON.stringify({ plan: PLAN_A }) } };
+	const bad = {
+		type: "tool/result",
+		seq: 2,
+		time: 2000,
+		data: {
+			callId: "c1", // 旧结构直接配对键
+			message: { role: "user", content: [{ type: "tool-result", toolCallId: "c1", content: [{ type: "text", text: "rejected" }], isError: true }] },
+		},
+	};
+	assert.equal(scanPlanEvents([call, bad])[0].status, PLAN_STATUS.DISCARDED);
+});
+
+test("仅 data.error（无块 isError）也判为拒审", () => {
+	const call = toolCall(1, 1000, "c1", PLAN_A);
+	const result = {
+		type: "tool/result",
+		seq: 2,
+		time: 2000,
+		data: {
+			turn: 1,
+			step: 1,
+			message: { role: "user", content: [{ type: "tool-result", toolCallId: "c1", content: [{ type: "text", text: "kept planning" }] }] },
+			error: { name: "Error", code: "tool-error" },
+		},
+	};
+	assert.equal(scanPlanEvents([call, result])[0].status, PLAN_STATUS.DISCARDED);
 });
