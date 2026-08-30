@@ -28,9 +28,9 @@ test("parsePorcelainZ 基本条目", () => {
 	const input = " M lib/a.js\0?? docs/b.md\0M  src/x.ts\0";
 	const rows = parsePorcelainZ(input);
 	assert.equal(rows.length, 3);
-	assert.deepEqual(rows[0], { status: "M", path: "lib/a.js" });
-	assert.deepEqual(rows[1], { status: "?", path: "docs/b.md" });
-	assert.deepEqual(rows[2], { status: "M", path: "src/x.ts" });
+	assert.deepEqual(rows[0], { status: "M", path: "lib/a.js", staged: false, unstaged: true });
+	assert.deepEqual(rows[1], { status: "?", path: "docs/b.md", staged: false, unstaged: true });
+	assert.deepEqual(rows[2], { status: "M", path: "src/x.ts", staged: true, unstaged: false });
 });
 
 test("parsePorcelainZ 重命名(新路径在前)与忽略条目", () => {
@@ -38,7 +38,21 @@ test("parsePorcelainZ 重命名(新路径在前)与忽略条目", () => {
 	const input = "R  new.js\0old.js\0!! node_modules\0";
 	const rows = parsePorcelainZ(input);
 	assert.equal(rows.length, 1);
-	assert.deepEqual(rows[0], { status: "R", path: "new.js", oldPath: "old.js" });
+	assert.deepEqual(rows[0], { status: "R", path: "new.js", oldPath: "old.js", staged: true, unstaged: false });
+});
+
+test("parsePorcelainZ staged/unstaged 双列分组", () => {
+	// MM：暂存与未暂存均有变更； AM：添加已暂存+内容修改未暂存；D ：删除已暂存； D：删除未暂存
+	const input = "MM both.js\0AM staged-plus-modified.txt\0D  deleted-staged.txt\0 D deleted-unstaged.txt\0A  added-staged.txt\0 M modified-unstaged.txt\0?? new-file.txt\0";
+	const rows = parsePorcelainZ(input);
+	assert.equal(rows.length, 7);
+	assert.deepEqual(rows[0], { status: "M", path: "both.js", staged: true, unstaged: true });
+	assert.deepEqual(rows[1], { status: "A", path: "staged-plus-modified.txt", staged: true, unstaged: true });
+	assert.deepEqual(rows[2], { status: "D", path: "deleted-staged.txt", staged: true, unstaged: false });
+	assert.deepEqual(rows[3], { status: "D", path: "deleted-unstaged.txt", staged: false, unstaged: true });
+	assert.deepEqual(rows[4], { status: "A", path: "added-staged.txt", staged: true, unstaged: false });
+	assert.deepEqual(rows[5], { status: "M", path: "modified-unstaged.txt", staged: false, unstaged: true });
+	assert.deepEqual(rows[6], { status: "?", path: "new-file.txt", staged: false, unstaged: true });
 });
 
 test("parsePorcelainZ 空输入与多余分隔", () => {
