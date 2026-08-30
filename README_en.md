@@ -95,41 +95,53 @@ After installation, a "HUD panel" button appears at the top-right of the chat pa
 
 ## 🖼️ Screenshots
 
-### HUD Settings
+### Module Previews
+
+#### HUD Settings
 
 ![alt text](docs/hud-settings.png)
 
-### Session module
+#### Session module
 
 ![alt text](docs/module-session.png)
 
-### Context window module
+#### Context window module
 
 ![alt text](docs/module-context.png)
 
-### Usage module
+#### Usage module
 
 ![alt text](docs/module-usage.png)
 
-### git changes module
+#### git changes module
 
 ![alt text](docs/module-git.png)
   
-### Subagents module
+#### Subagents module
 
 ![alt text](docs/module-subagents.png)
 
-### Tasks module
+#### Tasks module
 
 ![alt text](docs/module-tasks.png)
 
-### MCP module
+#### Plan list module
+
+![alt text](docs/module-plan-list.png)
+
+#### MCP module
 
 ![alt text](docs/module-mcp.png)
 
-### git graph interface
+### Other interfaces
+
+#### git graph interface
 
 ![alt text](docs/git-graph.png)
+
+#### Plan content interface
+
+![alt text](docs/plan-content.png)
 
 ## ⚙️ Compatibility
 

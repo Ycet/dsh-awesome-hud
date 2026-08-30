@@ -95,41 +95,53 @@ dsh plugin --profile web add dsh-awesome-hud@link:<absolute-path-to-plugin>
 
 ## 🖼️ 界面截图
 
-### HUD 设置菜单
+### 各模块预览
+
+#### HUD 设置菜单
 
 ![alt text](docs/hud-settings.png)
 
-### 「会话」模块
+#### 「会话」模块
 
 ![alt text](docs/module-session.png)
 
-### 「上下文窗口」模块
+#### 「上下文窗口」模块
 
 ![alt text](docs/module-context.png)
 
-### 「用量」模块
+#### 「用量」模块
 
 ![alt text](docs/module-usage.png)
 
-### 「git变更」模块
+#### 「git变更」模块
 
 ![alt text](docs/module-git.png)
 
-### 「子代理任务」模块
+#### 「子代理任务」模块
 
 ![alt text](docs/module-subagents.png)
 
-### 「任务」模块
+#### 「任务」模块
 
 ![alt text](docs/module-tasks.png)
 
-### 「MCP」模块
+#### 「计划清单」模块
+
+![alt text](docs/module-plan-list.png)
+
+#### 「MCP」模块
 
 ![alt text](docs/module-mcp.png)
 
-### 「git graph」界面
+### 其他界面
+
+#### 「git graph」界面
 
 ![alt text](docs/git-graph.png)
+
+#### 「计划清单」界面
+
+![alt text](docs/plan-content.png)
 
 ## ⚙️ 兼容性
 
