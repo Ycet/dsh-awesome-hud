@@ -1,10 +1,10 @@
-// dsh-awesome-hud — AI 提交信息规范辅助单测（formatStyledDate / findPackageMeta / extractSessionContext）
+// dsh-awesome-hud — AI 提交信息规范辅助单测（formatStyledDate / findPackageMeta / extractSessionContext / 版本校验）
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, writeFile, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { formatStyledDate, findPackageMeta, extractSessionContext } from "../lib/index.js";
+import { formatStyledDate, findPackageMeta, extractSessionContext, parseVersion, versionIsGreater, validateGeneratedVersion, isUserSpecifiedNote } from "../lib/index.js";
 
 test("formatStyledDate：YYMMDD 固定格式", () => {
 	assert.equal(formatStyledDate(new Date(2026, 7, 30)), "260830");
@@ -100,4 +100,65 @@ test("extractSessionContext：非文本块忽略、空输入", () => {
 	assert.equal(extractSessionContext(events), "");
 	assert.equal(extractSessionContext(null), "");
 	assert.equal(extractSessionContext([]), "");
+});
+
+test("parseVersion / versionIsGreater：提取与逐段数值比较边界", () => {
+	assert.deepEqual(parseVersion("v0.6.2"), [0, 6, 2]);
+	assert.deepEqual(parseVersion("0.6.2"), [0, 6, 2]); // package.json 无 v 前缀
+	assert.deepEqual(parseVersion("version 0.6.2"), [0, 6, 2]); // 宽松接受人类措辞
+	assert.deepEqual(parseVersion("[260830] dsh-awesome-hud v1.2.3：修复"), [1, 2, 3]);
+	assert.equal(parseVersion("v0.6"), null); // 不足三段
+	assert.equal(parseVersion("修复了页面样式"), null);
+	assert.equal(parseVersion(""), null);
+	assert.equal(parseVersion(null), null);
+	// 逐段数值比较（非字符串比较）
+	assert.equal(versionIsGreater([0, 6, 10], [0, 6, 2]), true);
+	assert.equal(versionIsGreater([0, 7, 0], [0, 6, 99]), true);
+	assert.equal(versionIsGreater([1, 0, 0], [0, 99, 99]), true);
+	assert.equal(versionIsGreater([0, 6, 2], [0, 6, 2]), false);
+	assert.equal(versionIsGreater([0, 6, 1], [0, 6, 2]), false);
+	assert.equal(versionIsGreater([1, 5, 0], [2, 0, 0]), false);
+	assert.equal(versionIsGreater("bad", [0, 6, 2]), false);
+});
+
+test("validateGeneratedVersion：递增通过 / 相等与回退拦截 / 格式异常", () => {
+	const current = "0.6.2";
+	// 递增通过（修复→修订、新功能→次、破坏性→主）
+	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v0.6.3：修复了登录页面的样式问题", current), { ok: true });
+	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v0.7.0：新增 git 模块", current), { ok: true });
+	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v1.0.0：破坏性重构", current), { ok: true });
+	// 相等/回退拦截
+	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v0.6.2：修复了登录页面的样式问题", current), { ok: false, reason: "not-incremented" });
+	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v0.6.0：修复了登录页面的样式问题", current), { ok: false, reason: "not-incremented" });
+	// 格式异常（无 vX.Y.Z / 空消息）
+	const malformed = validateGeneratedVersion("[260830] dsh-awesome-hud 修复了登录页面的样式问题", current);
+	assert.equal(malformed.ok, false);
+	assert.equal(malformed.reason, "malformed");
+	assert.equal(validateGeneratedVersion("", current).ok, false);
+});
+
+test("validateGeneratedVersion：无当前版本/当前版本不可解析时跳过校验", () => {
+	// 无 package.json（current 为 null/空）
+	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v0.6.2：修复", null), { ok: true });
+	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v0.6.2：修复", ""), { ok: true });
+	assert.deepEqual(validateGeneratedVersion("随便写点内容", null), { ok: true });
+	// 当前版本格式异常 → 跳过校验
+	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v0.6.2：修复", "not-semver"), { ok: true });
+	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v99.99.99：修复", "not-semver"), { ok: true });
+});
+
+test("isUserSpecifiedNote：用户明确指定备注时命中，否则不命中", () => {
+	const events = [
+		{ type: "user/message", seq: 1, data: { role: "user", content: [{ type: "text", text: "请把提交备注写成：修复了登录页面的样式问题" }], source: { kind: "user" } } },
+		{ type: "user/message", seq: 2, data: { role: "user", content: [{ type: "text", text: "稍等" }], source: { kind: "user" } } },
+		{ type: "user/message", seq: 3, data: { role: "user", content: [{ type: "text", text: "工作区通知" }], source: { kind: "plugin" } } },
+		{ type: "assistant/message", seq: 4, data: { role: "assistant", message: { role: "assistant", content: [{ type: "text", text: "好的" }] } } },
+	];
+	// 命中：生成正文被用户直接消息包含（标点/空白差异不影响）
+	assert.equal(isUserSpecifiedNote("[260830] dsh-awesome-hud v0.6.2：修复了登录页面的样式问题", events), true);
+	// 未命中：正文不在任何用户直接消息中
+	assert.equal(isUserSpecifiedNote("[260830] dsh-awesome-hud v0.7.1：新增批量暂存功能", events), false);
+	// events 不可用 → false
+	assert.equal(isUserSpecifiedNote("[260830] dsh-awesome-hud v0.7.1：新增批量暂存功能", null), false);
+	assert.equal(isUserSpecifiedNote("[260830] dsh-awesome-hud v0.7.1：新增批量暂存功能", [null, undefined]), false);
 });
