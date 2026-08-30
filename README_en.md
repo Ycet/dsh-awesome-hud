@@ -102,10 +102,6 @@ After installation, a "HUD panel" button appears at the top-right of the chat pa
 
 ### Module Previews
 
-#### HUD Settings
-
-![alt text](docs/hud-settings.png)
-
 #### Session module
 
 ![alt text](docs/module-session.png)
@@ -140,9 +136,17 @@ After installation, a "HUD panel" button appears at the top-right of the chat pa
 
 ### Other interfaces
 
+#### HUD Settings
+
+![alt text](docs/hud-settings.png)
+
 #### git graph interface
 
 ![alt text](docs/git-graph.png)
+
+#### git commit interface
+
+![alt text](docs/git-commit.png)
 
 #### Plan content interface
 

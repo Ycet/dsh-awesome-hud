@@ -102,10 +102,6 @@ dsh plugin --profile web add dsh-awesome-hud@link:<absolute-path-to-plugin>
 
 ### 各模块预览
 
-#### HUD 设置菜单
-
-![alt text](docs/hud-settings.png)
-
 #### 「会话」模块
 
 ![alt text](docs/module-session.png)
@@ -140,9 +136,17 @@ dsh plugin --profile web add dsh-awesome-hud@link:<absolute-path-to-plugin>
 
 ### 其他界面
 
+#### HUD 设置菜单
+
+![alt text](docs/hud-settings.png)
+
 #### 「git graph」界面
 
 ![alt text](docs/git-graph.png)
+
+#### 「git commit」界面
+
+![alt text](docs/git-commit.png)
 
 #### 「计划清单」界面
 
