@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { formatStyledDate, findPackageMeta, extractSessionContext, parseVersion, versionIsGreater, validateGeneratedVersion, isUserSpecifiedNote } from "../lib/index.js";
+import { formatStyledDate, findPackageMeta, extractSessionContext, parseVersion, versionIsGreater, validateGeneratedVersion, isUserSpecifiedNote, bumpVersion, fixVersionInMessage } from "../lib/index.js";
 
 test("formatStyledDate：YYMMDD 固定格式", () => {
 	assert.equal(formatStyledDate(new Date(2026, 7, 30)), "260830");
@@ -161,4 +161,42 @@ test("isUserSpecifiedNote：用户明确指定备注时命中，否则不命中"
 	// events 不可用 → false
 	assert.equal(isUserSpecifiedNote("[260830] dsh-awesome-hud v0.7.1：新增批量暂存功能", null), false);
 	assert.equal(isUserSpecifiedNote("[260830] dsh-awesome-hud v0.7.1：新增批量暂存功能", [null, undefined]), false);
+});
+
+test("bumpVersion：按变更类型计算目标版本（修复→修订、新增→次、破坏→主、缺省→修订）", () => {
+	// 修复/文档/性能 → 修订号 +1
+	assert.equal(bumpVersion("0.6.4", "修复了登录页面的样式问题"), "0.6.5");
+	assert.equal(bumpVersion("0.6.4", "更新 README 文档"), "0.6.5");
+	assert.equal(bumpVersion("0.6.4", ""), "0.6.5");
+	assert.equal(bumpVersion("0.6.4", "性能优化"), "0.6.5");
+	// 新增功能 → 次版本 +1，修订归零
+	assert.equal(bumpVersion("0.6.4", "新增 git 模块"), "0.7.0");
+	assert.equal(bumpVersion("0.6.4", "新增了一个新接口"), "0.7.0");
+	assert.equal(bumpVersion("0.6.4", "feat: add feature"), "0.7.0");
+	// 破坏/重大重构 → 主版本 +1，次修归零
+	assert.equal(bumpVersion("0.6.4", "破坏性变更，无法兼容旧版本"), "1.0.0");
+	assert.equal(bumpVersion("0.6.4", "breaking change"), "1.0.0");
+	// 当前版本不可解析 → null
+	assert.equal(bumpVersion("not-semver", "修复"), null);
+	assert.equal(bumpVersion(null, "修复"), null);
+});
+
+test("fixVersionInMessage：强制替换/补充版本号", () => {
+	const pkg = { name: "dsh-awesome-hud", version: "0.6.4" };
+	// 模型未递增（仍为当前版本）→ 按修复类内容强制 0.6.5
+	assert.equal(
+		fixVersionInMessage("[260831] dsh-awesome-hud v0.6.4：修复了登录页面的样式问题", pkg, "0.6.4"),
+		"[260831] dsh-awesome-hud v0.6.5：修复了登录页面的样式问题");
+	// 新增功能内容 → 次版本
+	assert.equal(
+		fixVersionInMessage("[260831] dsh-awesome-hud v0.6.4：新增 git 模块", pkg, "0.6.4"),
+		"[260831] dsh-awesome-hud v0.7.0：新增 git 模块");
+	// 无版本号但已知项目名 → 在日期后补「项目名 v目标：」
+	assert.equal(
+		fixVersionInMessage("[260831] 修复了登录页面的样式问题", pkg, "0.6.4"),
+		"[260831] dsh-awesome-hud v0.6.5：修复了登录页面的样式问题");
+	// 无版本号且项目名未知 → 原样返回
+	assert.equal(fixVersionInMessage("[260831] 修复了登录页面的样式问题", null, "0.6.4"), "[260831] 修复了登录页面的样式问题");
+	// 当前版本不可解析 → 原样返回
+	assert.equal(fixVersionInMessage("[260831] dsh-awesome-hud v0.6.4：修复", pkg, "bad"), "[260831] dsh-awesome-hud v0.6.4：修复");
 });
