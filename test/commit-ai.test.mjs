@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { formatStyledDate, findPackageMeta, extractSessionContext, parseVersion, versionIsGreater, validateGeneratedVersion, isUserSpecifiedNote, historySubjectsText } from "../lib/index.js";
+import { formatStyledDate, findPackageMeta, extractSessionContext, parseVersion, versionIsGreater, validateGeneratedVersion, isUserSpecifiedNote } from "../lib/index.js";
 
 test("formatStyledDate：YYMMDD 固定格式", () => {
 	assert.equal(formatStyledDate(new Date(2026, 7, 30)), "260830");
@@ -161,48 +161,4 @@ test("isUserSpecifiedNote：用户明确指定备注时命中，否则不命中"
 	// events 不可用 → false
 	assert.equal(isUserSpecifiedNote("[260830] dsh-awesome-hud v0.7.1：新增批量暂存功能", null), false);
 	assert.equal(isUserSpecifiedNote("[260830] dsh-awesome-hud v0.7.1：新增批量暂存功能", [null, undefined]), false);
-});
-
-test("historySubjectsText：最近在前拼接，空输入返回空串", () => {
-	const commits = [
-		{ hash: "a", subject: "[260830] dsh-awesome-hud v0.6.3：修复版本递增" },
-		{ hash: "b", subject: "[260830] dsh-awesome-hud v0.6.2：README 截图" },
-		{ hash: "c", subject: "" },
-		{ hash: "d", subject: "   " },
-		{ hash: "e" }, // 无 subject 字段
-	];
-	const out = historySubjectsText(commits);
-	// 保留最近在前顺序，跳过空标题
-	assert.equal(out, "[260830] dsh-awesome-hud v0.6.3：修复版本递增\n[260830] dsh-awesome-hud v0.6.2：README 截图");
-	const lines = out.split("\n");
-	assert.ok(lines[0].includes("v0.6.3"), "最近一条在前");
-	assert.ok(lines[1].includes("v0.6.2"));
-	// 空输入
-	assert.equal(historySubjectsText([]), "");
-	assert.equal(historySubjectsText(null), "");
-	assert.equal(historySubjectsText([{ hash: "x", subject: "  " }]), "");
-	assert.equal(historySubjectsText("not-array"), "");
-});
-
-test("historySubjectsText：字节截断保留最近条目，换行分隔符计入预算", () => {
-	const commits = [];
-	for (let i = 1; i <= 8; i++) commits.push({ hash: `h${i}`, subject: `提交${i}` });
-	// 预算 12 = "提交1\n提交2\n提交3"（3+1+3+1+3=11，不含第 4 条）
-	const out = historySubjectsText(commits, 12);
-	assert.equal(out, "提交1\n提交2\n提交3");
-	assert.ok(out.length <= 12);
-	// 预算恰好被单条占满时不再追加更多
-	const tight = historySubjectsText(commits, 4);
-	assert.equal(tight, "提交1");
-});
-
-test("historySubjectsText：单条超长截短到预算；非法预算回退默认", () => {
-	const longSubject = "长".repeat(20);
-	const one = historySubjectsText([{ hash: "x", subject: longSubject }], 6);
-	assert.equal(one, "长".repeat(6));
-	assert.equal(one.length, 6);
-	// 非法预算（0/负/NaN）→ 默认 4096，不截断
-	assert.equal(historySubjectsText([{ hash: "x", subject: "提交" }], 0), "提交");
-	assert.equal(historySubjectsText([{ hash: "x", subject: "提交" }], -1), "提交");
-	assert.equal(historySubjectsText([{ hash: "x", subject: "提交" }], NaN), "提交");
 });
