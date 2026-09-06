@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseRefs, parseNameStatusLine, parseGitLogOutput, layoutGraph } from "../lib/graph.js";
+import { parseRefs, parseNameStatusLine, parseGitLogOutput, layoutGraph, slicePage } from "../lib/graph.js";
 
 test("parseRefs：HEAD -> 分支 / 标签 / 远程分支", () => {
 	assert.deepEqual(parseRefs("HEAD -> dev"), [
@@ -118,4 +118,39 @@ test("layoutGraph：空输入安全", () => {
 	const { cols, rows } = layoutGraph([]);
 	assert.equal(cols, 1);
 	assert.deepEqual(rows, []);
+});
+
+test("slicePage：80 条内无下一页，超出后截断并标记 hasMore", () => {
+	const mk = (n) => Array.from({ length: n }, (_, i) => ({ hash: `c${i}`, parents: [] }));
+	assert.deepEqual(slicePage(mk(0)), { commits: [], hasMore: false });
+	assert.deepEqual(slicePage(mk(80)), { commits: mk(80), hasMore: false });
+	const r81 = slicePage(mk(81));
+	assert.equal(r81.commits.length, 80);
+	assert.equal(r81.hasMore, true);
+	assert.equal(r81.commits[79].hash, "c79");
+	const r100 = slicePage(mk(100), 80);
+	assert.equal(r100.commits.length, 80);
+	assert.equal(r100.hasMore, true);
+	// 非数组输入安全
+	assert.deepEqual(slicePage(null), { commits: [], hasMore: false });
+	assert.deepEqual(slicePage(undefined), { commits: [], hasMore: false });
+});
+
+test("layoutGraph：分页累计追加后首页各行布局完全不变（跨页泳道连续前提）", () => {
+	const mk = (hash, parents) => ({ hash, parents, refs: [], subject: "s", date: "1 hour ago", files: [] });
+	const rowOf = (row) => ({ col: row.col, continued: row.continued, edges: row.edges, passThrough: row.passThrough, lane: row.lane, straight: row.straight });
+	// 90 提交主链（子前父后）+ 3 提交侧分支（含并入主链的合并提交）
+	const commits = [];
+	for (let i = 89; i >= 0; i -= 1) commits.push(mk(`m${i}`, i === 0 ? [] : [`m${i - 1}`]));
+	commits.push(mk("b2", ["b1", "m85"]));
+	commits.push(mk("b1", ["b0"]));
+	commits.push(mk("b0", ["m40"]));
+	const page1 = commits.slice(0, 80);
+
+	const onlyPage1 = layoutGraph(page1).rows.map(rowOf);
+	const cumulative = layoutGraph(commits).rows.slice(0, 80).map(rowOf);
+	assert.deepEqual(cumulative, onlyPage1);
+	// 夹具有效性：剩余页非空、累计行数与提交总数一致
+	assert.equal(commits.length - 80, 13);
+	assert.equal(layoutGraph(commits).rows.length, 93);
 });
