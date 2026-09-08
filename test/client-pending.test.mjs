@@ -13,7 +13,7 @@ test("HUD client reads rc.1 pending interactions through the standard root hook"
   ]);
   const pkg = JSON.parse(packageText);
 
-  assert.equal(pkg.version, "0.10.22");
+  assert.equal(pkg.version, "0.11.0");
   assert.ok(pkg.dsh.client.inject.includes("@deepseek-ai/dsh-client-ui-session"));
   assert.match(source, /function HudPanel\(\{ useSessionPendingInteraction = useNoPendingInteraction \}\)/);
   assert.match(source, /const pending = useSessionPendingInteraction\(\(snapshot\) =>/);
@@ -31,7 +31,7 @@ test("HUD-03 reserves only the conversation body so rc.1 width handles and turn 
   ]);
   const pkg = JSON.parse(packageText);
 
-  assert.equal(pkg.version, "0.10.22");
+  assert.equal(pkg.version, "0.11.0");
   assert.match(source, /const TURN_NAVIGATION_RIGHT_GAP = 12;/);
   assert.match(source, /const TURN_NAVIGATION_MIN_COLUMN_WIDTH = 720;/);
   assert.match(source, /const conversationRoot = sessionHost\?\.closest\("\[data-phase\]"\) \?\? null;/);

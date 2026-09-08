@@ -12,6 +12,7 @@ import {
 	parseCheckoutConflict,
 	parseStatusShort,
 	sanitizeGitCommit,
+	sanitizeGitResetMode,
 	parseMergeLocalChanges,
 	parseMergeConflictFiles,
 	anyChange,
@@ -28,6 +29,16 @@ test("statusLetter 映射", () => {
 	assert.equal(statusLetter("C "), "C");
 	assert.equal(statusLetter(""), "?");
 	assert.equal(statusLetter("X"), "?");
+});
+
+test("sanitizeGitResetMode 仅接受 soft / mixed / hard", () => {
+	assert.equal(sanitizeGitResetMode("soft"), "soft");
+	assert.equal(sanitizeGitResetMode("mixed"), "mixed");
+	assert.equal(sanitizeGitResetMode("hard"), "hard");
+	assert.equal(sanitizeGitResetMode("mix"), null);
+	assert.equal(sanitizeGitResetMode("--hard"), null);
+	assert.equal(sanitizeGitResetMode("HARD"), null);
+	assert.equal(sanitizeGitResetMode(null), null);
 });
 
 test("parsePorcelainZ 基本条目", () => {
