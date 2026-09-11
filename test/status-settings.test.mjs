@@ -49,13 +49,14 @@ test("sanitizeModulesPatch", () => {
 
 test("defaultUsageDisplay 全键且默认展示", () => {
 	const usage = defaultUsageDisplay();
-	assert.deepEqual(Object.keys(usage).sort(), ["deepseek", "opencode"]);
+	assert.deepEqual(Object.keys(usage).sort(), ["codex", "deepseek", "opencode"]);
 	assert.ok(Object.values(usage).every(Boolean));
 });
 
-test("sanitizeUsagePatch：只接受 deepseek/opencode 布尔", () => {
+test("sanitizeUsagePatch：只接受 deepseek/opencode/codex 布尔", () => {
 	assert.deepEqual(sanitizeUsagePatch({ deepseek: false }), { patch: { deepseek: false }, changed: false });
 	assert.deepEqual(sanitizeUsagePatch({ opencode: true }), { patch: { opencode: true }, changed: false });
+	assert.deepEqual(sanitizeUsagePatch({ codex: false }), { patch: { codex: false }, changed: false });
 	assert.equal(sanitizeUsagePatch({ deepseek: "yes" }), null);
 	assert.equal(sanitizeUsagePatch({ other: true }), null); // 白名单外键
 	assert.equal(sanitizeUsagePatch({}), null);
@@ -64,7 +65,7 @@ test("sanitizeUsagePatch：只接受 deepseek/opencode 布尔", () => {
 
 test("normalizeSettings：usage 缺失/损坏收敛为默认", () => {
 	assert.deepEqual(normalizeSettings(null).usage, defaultUsageDisplay());
-	assert.deepEqual(normalizeSettings({ usage: { deepseek: false } }).usage, { deepseek: false, opencode: true });
+	assert.deepEqual(normalizeSettings({ usage: { deepseek: false } }).usage, { deepseek: false, opencode: true, codex: true });
 	assert.deepEqual(normalizeSettings({ modules: {} }).usage, defaultUsageDisplay());
 	assert.deepEqual(normalizeSettings({ usage: { deepseek: "x" } }).usage, defaultUsageDisplay());
 	// 历史设置（无 usage 字段）仍可完整收敛

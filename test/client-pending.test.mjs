@@ -13,7 +13,7 @@ test("HUD client reads rc.1 pending interactions through the standard root hook"
   ]);
   const pkg = JSON.parse(packageText);
 
-  assert.equal(pkg.version, "0.11.0");
+  assert.equal(pkg.version, "0.13.3");
   assert.ok(pkg.dsh.client.inject.includes("@deepseek-ai/dsh-client-ui-session"));
   assert.match(source, /function HudPanel\(\{ useSessionPendingInteraction = useNoPendingInteraction \}\)/);
   assert.match(source, /const pending = useSessionPendingInteraction\(\(snapshot\) =>/);
@@ -21,7 +21,8 @@ test("HUD client reads rc.1 pending interactions through the standard root hook"
   assert.match(source, /pendingInteraction: pending\?\.kind/);
   assert.doesNotMatch(source, /pendingInteraction: summary\?\.pendingInteraction/);
   assert.match(source, /function HudPanelRoot\(\{ useSessionPendingInteraction \}\)/);
-  assert.match(source, /react\.createElement\(HudPanel, \{ useSessionPendingInteraction \}\)/);
+  assert.match(source, /react\.createElement\(HudPanel, \{/);
+  assert.match(source, /useSessionPendingInteraction,/);
 });
 
 test("HUD-03 reserves only the conversation body so rc.1 width handles and turn navigation remain usable", async () => {
@@ -31,11 +32,13 @@ test("HUD-03 reserves only the conversation body so rc.1 width handles and turn 
   ]);
   const pkg = JSON.parse(packageText);
 
-  assert.equal(pkg.version, "0.11.0");
+  assert.equal(pkg.version, "0.13.3");
   assert.match(source, /const TURN_NAVIGATION_RIGHT_GAP = 12;/);
   assert.match(source, /const TURN_NAVIGATION_MIN_COLUMN_WIDTH = 720;/);
-  assert.match(source, /const conversationRoot = sessionHost\?\.closest\("\[data-phase\]"\) \?\? null;/);
-  assert.match(source, /const conversationBody = conversationRoot\?\.querySelector\("\[data-conversation-scroll\]"\)\?\.parentElement \?\? null;/);
+  // 新建会话页没有 conversation.session 宿主，改由滚动容器反查会话根
+  assert.match(source, /const sessionRoot = sessionHost\?\.closest\("\[data-phase\]"\) \?\? null;/);
+  assert.match(source, /const conversationRoot = sessionRoot \?\? scrollEl\?\.closest\("\[data-phase\]"\) \?\? null;/);
+  assert.match(source, /const conversationBody = scrollEl\?\.parentElement \?\? null;/);
   assert.match(source, /conversationBody\.style\.setProperty\("margin-right", `\$\{PANEL_WIDTH\}px`\);/);
   assert.match(source, /conversationBody\.style\.setProperty\("--dsh-awesome-hud-column-width", `\$\{Math\.round\(columnWidth\)\}px`\);/);
   assert.match(source, /conversationBody\.style\.setProperty\("--dsh-chat-content-width", HUD_CONTENT_WIDTH\);/);
