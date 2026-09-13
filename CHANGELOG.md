@@ -8,6 +8,27 @@
 - **记录粒度**：`v0.10.0` 及以后逐版本详细记录；早期 `v0.1.0` – `v0.9.3`（2026-08-29 – 09-05 的高频迭代）以版本时间线汇总，细节可查 git 历史。
 - 条目末尾的短哈希（如 `3268b01`）为对应提交，便于追溯。
 
+## [0.14.0] - 2026-09-12
+
+### 新增 / Added
+
+- **git graph 右键菜单新增「从此处创建分支」**：位于「合并至当前分支」下方同一分组内；点击后**该菜单项原位**展开为输入框 + 「取消」/「确认」图标按钮（图标复用插件既有的 `close` / `check` 资产）。
+  - 输入框为空（`trim()` 后）时「确认」按钮置灰；确认后以被右键的提交为起点执行 `git checkout -b <名称> <提交>` 并切换到新分支，成功 toast 后菜单关闭、git 快照与 graph 首页刷新，新分支标签随即显示为蓝色当前分支。
+  - `git/create-branch` 新增可选 `commit` 参数：未传时保持「从当前 HEAD 创建」的既有行为，旧客户端不受影响；传入但非法（非 40 位十六进制）直接报错。
+  - 重名分支沿用 Host 预检并提示，**输入内容保留**便于改名重试；切换被本地修改阻塞时复用 `parseCheckoutConflict` 结构化错误，toast 列出受影响文件，不自动 stash、不强制切换。
+  - 键盘：`Enter` 不触发创建；`Escape` 先取消输入行并恢复为原菜单项（再按一次才关闭整个菜单），菜单级 Escape 处理器改为读取 `branchCreateOpenRef` 以规避闭包过期。
+  - Git 续作状态（merge / rebase / cherry-pick / revert）守卫复用菜单打开时已有的 `git/reset-status` 结果（`operation-in-progress`），零新增 Host 调用。
+- 新增中英文字案（`gitBranchCreateHere` / `gitBranchCreatedHere` / `gitBranchCreateBlocked`）与 `.hud-git-menu-branch-create` 行内布局样式；菜单位置估算同步扩充一项。
+- 测试：新增 `test/graph-branch-create.test.mjs`（9 个用例，覆盖 Host 可选 commit、原位输入行、置灰语义、键盘行为、成功/失败路径、菜单顺序与几何、双语文案）；`test/client-pending.test.mjs` 版本断言更新为 `0.14.0`。全量 `npm test` 155 个用例通过。
+
+### English
+
+- Added **Create branch here** to the git graph commit context menu, directly below "Merge into current branch" in the same group. Clicking it replaces the item in place with a text input plus Cancel / Confirm icon buttons (reusing the plugin's existing `close` / `check` icon assets).
+  - The confirm button is disabled while the input is empty after trimming. Confirming runs `git checkout -b <name> <commit>` from the right-clicked commit, switches to the new branch, and on success shows a toast, closes the menu, and refreshes both the git snapshot and the graph so the new branch label turns into the blue current branch.
+  - `git/create-branch` now accepts an optional `commit` argument; omitting it keeps the previous HEAD-based behaviour, so older clients are unaffected.
+  - Duplicate branch names keep the typed name for retry, and a checkout blocked by local changes reuses the structured `parseCheckoutConflict` error to list the affected files — nothing is stashed and no forced checkout is performed.
+  - Enter never submits, Escape cancels the input first, and the entry is disabled while another Git operation is in progress, reusing the existing `git/reset-status` pre-check.
+
 ## [0.13.4] - 2026-09-11
 
 ### 新增 / Added
