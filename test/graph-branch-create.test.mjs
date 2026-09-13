@@ -31,6 +31,18 @@ test("git/create-branch reports local-changes conflicts with the structured chec
   assert.match(body, /withGitWrite\(ctx, payload/);
 });
 
+test("graph menu state always initializes the branch-create field (regression: undefined .text crash)", async () => {
+  const client = await readFile(join(root, "lib/client.js"), "utf8");
+
+  // openMenu 必须显式初始化该字段：缺失时 undefined 会被误判为「已展开」，读取 .text 直接抛错使整个菜单渲染失败
+  assert.match(client, /setMenu\(\{ x, y, commit, reset: \{ allowed: null, code: "checking" \}, confirmMode: null, branchCreate: null \}\);/);
+  // 读取统一走归一化后的 branchCreate，禁止直接读 menu.branchCreate.text
+  assert.doesNotMatch(client, /menu\.branchCreate\.text/);
+  assert.match(client, /const branchCreate = menu !== null && menu\.branchCreate !== null && menu\.branchCreate !== undefined \? menu\.branchCreate : null;/);
+  assert.match(client, /branchCreateOpenRef\.current = branchCreate !== null;/);
+  assert.match(client, /if \(menu === null \|\| branchCreate === null \|\| branchCreateBusy \|\| onCreateBranch === null\) return;/);
+});
+
 test("git graph right-click menu gains a create-branch entry in the merge group", async () => {
   const client = await readFile(join(root, "lib/client.js"), "utf8");
 
@@ -76,7 +88,7 @@ test("Enter never submits the inline branch input and Escape cancels it first", 
   // 菜单级 Escape 处理器：输入行展开时先取消输入行，再按一次才关闭整个菜单
   assert.match(client, /if \(branchCreateOpenRef\.current === true\) \{ cancelBranchCreate\(\); return; \}/);
   assert.match(client, /const branchCreateOpenRef = react\.useRef\(false\);/);
-  assert.match(client, /branchCreateOpenRef\.current = menu !== null && menu\.branchCreate !== null;/);
+  assert.match(client, /branchCreateOpenRef\.current = branchCreate !== null;/);
 });
 
 test("successful creation toasts, closes the menu and refreshes snapshot plus graph", async () => {

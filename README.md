@@ -28,7 +28,7 @@ HUD在dsh中的效果（深色主题）
 - [🖼️ 界面截图](#️-界面截图)
 - [⚙️ 兼容性](#️-兼容性)
 - [🔧 技术栈](#-技术栈)
-- [⬆️ 升级说明（v0.11.x → v0.14.0）](#️-升级说明v011x--v0140)
+- [⬆️ 升级说明（v0.11.x → v0.14.1）](#️-升级说明v011x--v0141)
 - [📄 许可证](#-许可证)
 
 ---
@@ -197,7 +197,9 @@ dsh plugin --profile web add dsh-awesome-hud@link:<absolute-path-to-plugin>
 | 数据来源  | 客户端会话投影（`ctx.sessions.list` / `workspaces` / `modelDirectories`）+ 自有 host API（git / MCP / 子代理 / 计划清单 / 压缩）+ dsh-account-usage 余额/用量路由（复用） |
 | 测试      | `node --test`（git 解析、MCP 解析、状态推导、计划清单推导、设置收敛、信任围栏；位于 `test/`）                                                                               |
 
-## ⬆️ 升级说明（v0.11.x → v0.14.0）
+## ⬆️ 升级说明（v0.11.x → v0.14.1）
+
+**v0.14.1：修复 git graph 右键菜单无法打开**：菜单初始状态缺少「从此处创建分支」输入行字段时会被误判为「已展开」并读取输入内容，抛出 `Cannot read properties of undefined (reading 'text')` 使整个右键菜单渲染失败。现已显式初始化该字段，并对读取统一做 `null` / `undefined` 归一化保护。
 
 **v0.14.0：git graph 支持「从此处创建分支」**：提交行右键菜单在「合并至当前分支」下方新增该项。点击后原位展开输入框与「取消」/「确认」图标按钮，确认即基于该提交执行 `git checkout -b` 并跳转到新分支；输入为空时确认按钮置灰，重复分支名与本地修改阻塞均给出提示且保留输入内容，Enter 不触发创建、Escape 取消输入，Git 操作进行中时该项置灰。
 

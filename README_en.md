@@ -28,7 +28,7 @@ HUD in DSH (dark theme)
 - [🖼️ Screenshots](#️-screenshots)
 - [⚙️ Compatibility](#️-compatibility)
 - [🔧 Tech Stack](#-tech-stack)
-- [⬆️ Upgrade Notes (v0.11.x → v0.14.0)](#️-upgrade-notes-v011x--v0140)
+- [⬆️ Upgrade Notes (v0.11.x → v0.14.1)](#️-upgrade-notes-v011x--v0141)
 - [📄 License](#-license)
 
 ---
@@ -198,7 +198,9 @@ After installation, a "HUD panel" button appears at the top-right of the chat pa
 | Data sources | Client-side session projection (`ctx.sessions.list` / `workspaces` / `modelDirectories`) + own host APIs (git / MCP / subagents / plan list / compaction) + reused dsh-account-usage balance/usage routes |
 | Tests        | `node --test` (git parsing, MCP parsing, status derivation, plan-list derivation, settings normalization, trust fence; in `test/`)                                                                          |
 
-## ⬆️ Upgrade Notes (v0.11.x → v0.14.0)
+## ⬆️ Upgrade Notes (v0.11.x → v0.14.1)
+
+**v0.14.1: fixed the git graph context menu failing to open**: when the menu's initial state lacked the branch-create input field, it was mistaken for "expanded" and reading its content threw `Cannot read properties of undefined (reading 'text')`, which broke the entire context menu. The field is now initialized explicitly and every read is normalized against `null` / `undefined`.
 
 **v0.14.0: "Create branch here" in the git graph**: the commit-row context menu gained this entry right below "Merge into current branch". Clicking it expands in place into a text input with "Cancel" / "Confirm" icon buttons; confirming creates and switches to a branch at that commit via `git checkout -b`. The confirm button is disabled while the input is empty, duplicate names and local-change blocks show a toast while keeping the typed name, Enter never submits, Escape cancels the input, and the entry stays disabled while another Git operation is in progress.
 

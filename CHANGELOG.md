@@ -8,6 +8,20 @@
 - **记录粒度**：`v0.10.0` 及以后逐版本详细记录；早期 `v0.1.0` – `v0.9.3`（2026-08-29 – 09-05 的高频迭代）以版本时间线汇总，细节可查 git 历史。
 - 条目末尾的短哈希（如 `3268b01`）为对应提交，便于追溯。
 
+## [0.14.1] - 2026-09-12
+
+### 修复 / Fixed
+
+- **修复 git graph 右键菜单无法打开**：菜单初始状态未包含「从此处创建分支」的输入行字段（`branchCreate`），判断「是否已展开」时只排除了 `null` 而漏掉 `undefined`，于是渲染时直接读取 `menu.branchCreate.text` 抛出 `Cannot read properties of undefined (reading 'text')`，导致整个右键菜单渲染失败（HUD 显示「HUD 渲染异常」）。
+  - 修复方式：`openMenu` 显式初始化 `branchCreate: null`，并在组件内新增归一化常量 `branchCreate`（把 `null` / `undefined` 统一收敛为 `null`），所有判断与读取一律改走该常量；输入框 `onChange` 同步补上 `undefined` 防御。
+- 测试：`test/graph-branch-create.test.mjs` 增加 1 个针对该缺陷的回归用例（断言 `openMenu` 初始化字段、禁止出现 `menu.branchCreate.text` 直接读取、归一化常量与守卫表达式存在），用例总数 10；全量 `npm test` 156 个用例通过。
+
+### English
+
+- **Fixed the git graph context menu failing to open**: the menu's initial state omitted the branch-create input field (`branchCreate`), and the "is expanded" check only excluded `null`, so rendering read `menu.branchCreate.text` and threw `Cannot read properties of undefined (reading 'text')`, which broke the whole menu (surfaced as a HUD render error).
+  - `openMenu` now initializes `branchCreate: null`, a normalized `branchCreate` constant collapses `null` / `undefined` into `null`, and every check and read goes through it; the input's `onChange` also guards against `undefined`.
+- Tests: added a regression case for this defect; the full suite now runs 156 passing tests.
+
 ## [0.14.0] - 2026-09-12
 
 ### 新增 / Added
