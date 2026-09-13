@@ -8,6 +8,19 @@
 - **记录粒度**：`v0.10.0` 及以后逐版本详细记录；早期 `v0.1.0` – `v0.9.3`（2026-08-29 – 09-05 的高频迭代）以版本时间线汇总，细节可查 git 历史。
 - 条目末尾的短哈希（如 `3268b01`）为对应提交，便于追溯。
 
+## [0.13.4] - 2026-09-11
+
+### 新增 / Added
+
+- **「便笺」模块新增「清空」按钮**：按钮位于「添加至对话」左侧；输入框为空时置灰，有内容时首次点击进入红色二次确认态，再次点击后清空当前工作区便笺。
+- 确认态支持点击其他区域、Escape 或 2 秒超时取消；清空成功后焦点回到输入框，并通过工作区存储与事件同步到其他已打开会话。
+- 新增中英文文案、深浅主题适配、禁用语义和持久化失败提示；补充便笺清空交互回归测试。
+
+### English
+
+- Added a **Clear** button to the Notes module, placed to the left of Add to chat. It is disabled for empty notes; with content, the first click enters a red confirmation state and the second click clears the workspace-shared note.
+- Clicking elsewhere, pressing Escape or waiting 2 seconds cancels confirmation. Successful clears focus the textarea and synchronize with other open sessions in the same workspace; storage failures preserve the original content and show an error toast.
+
 ## [0.13.3] - 2026-09-11
 
 ### 新增 / Added
