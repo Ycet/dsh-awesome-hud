@@ -124,6 +124,11 @@ test("resolveTargetWorkspace 新建会话页取最近更新的非空工作区，
   assert.equal(inSession.gitSessionId, "s2");
   assert.equal(inSession.sendSessionId, "s2");
 
+  // 新版主视图绑定可先于旧列表的 current 更新，仍须以当前会话定位工作区。
+  const staleList = context.resolveTargetWorkspace(snapshot, items, "s1");
+  assert.equal(staleList.path, "/ws/old");
+  assert.equal(staleList.gitSessionId, "s1");
+
   // 无任何存活会话 → 空结果（调用方降级）
   const none = context.resolveTargetWorkspace({ current: undefined, byId: {}, archivedSessionIds: [] }, []);
   assert.equal(none.path, null);

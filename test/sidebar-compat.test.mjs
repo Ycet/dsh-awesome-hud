@@ -25,10 +25,14 @@ function setup({ hud = true, official = false, legacy = false, officialStuck = f
   const context = vm.createContext({
     getHudOpen: () => open, setHudOpen: value => { open = value; },
     window: {
+      innerWidth: 1200,
       setTimeout: (fn) => { pendingTimers.push(fn); return pendingTimers.length; },
       clearTimeout: (id) => { pendingTimers[id - 1] = null; },
     },
-    document: { body: {}, querySelector: selector => selector === "[data-dsh-toggle-cluster]"
+    document: { body: {}, querySelectorAll: () => official ? [{
+      closest: () => null,
+      getBoundingClientRect: () => ({ left: 900, right: 1200, width: 300 }),
+    }] : [], querySelector: selector => selector === "[data-dsh-toggle-cluster]"
       ? { querySelectorAll: () => [{ click() { legacy = false; notify(); } }] }
       : { getAttribute: () => official ? "true" : null } },
     MutationObserver: class {

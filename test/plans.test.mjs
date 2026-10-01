@@ -13,7 +13,7 @@ function toolCall(seq, time, callId, plan) {
 	};
 }
 
-/** 构造一条工具结果事件（真实结构：配对键在 message.content[0].toolCallId；失败时 data.error 与块 isError 同时出现）。 */
+/** 旧嵌套结果格式的兼容性夹具；桌面新版消息见 desktopResult。 */
 function toolResult(seq, time, callId, error = false) {
 	return {
 		type: "tool/result",
@@ -42,6 +42,63 @@ function planMode(seq, time, active) {
 
 const PLAN_A = "# 计划A\n\n步骤1\n步骤2";
 const PLAN_B = "## 计划B\n\n- 事项1\n- 事项2";
+
+/** rc.2 的工具消息：配对键和错误标记位于 message，而不是 content 的结果块。 */
+function desktopResult(callId, { error = false, sourceOnly = false } = {}) {
+	return {
+		type: "tool/result", seq: 2, time: 2000,
+		data: { turn: 1, step: 1, message: {
+			role: "tool", source: { kind: "tool", callId },
+			...(!sourceOnly ? { toolCallId: callId } : {}),
+			isError: error,
+			content: [{ type: "text", text: error ? "The user chose to keep planning" : "Plan approved" }],
+		} },
+	};
+}
+
+test("桌面审批成功后退出计划模式，仍为已执行而非已废弃", () => {
+	assert.equal(scanPlanEvents([
+		toolCall(1, 1000, "c1", PLAN_A), desktopResult("c1"), planMode(3, 3000, false),
+	])[0].status, PLAN_STATUS.APPROVED);
+});
+
+test("桌面拒审结束审查后应为已废弃而非持续待审批", () => {
+	assert.equal(scanPlanEvents([
+		toolCall(1, 1000, "c1", PLAN_A), desktopResult("c1", { error: true }),
+	])[0].status, PLAN_STATUS.DISCARDED);
+});
+
+test("旧消息 source.callId 仍能识别审批通过", () => {
+	assert.equal(scanPlanEvents([
+		toolCall(1, 1000, "c1", PLAN_A), desktopResult("c1", { sourceOnly: true }),
+	])[0].status, PLAN_STATUS.APPROVED);
+});
+
+test("新版审批结果只有 data.error 时也应废弃，不能将工具失败视为执行", () => {
+	const result = desktopResult("c1");
+	result.data.error = { name: "Error", code: "tool-error" };
+	assert.equal(scanPlanEvents([toolCall(1, 1000, "c1", PLAN_A), result])[0].status, PLAN_STATUS.DISCARDED);
+});
+
+test("日志缺少 seq 时，退出只废弃它之前尚无结论的计划", () => {
+	const events = [
+		toolCall(1, 1000, "c1", PLAN_A), planMode(2, 2000, false), toolCall(3, 3000, "c2", PLAN_B),
+	].map(({ seq, ...event }) => event);
+	assert.deepEqual(scanPlanEvents(events).map(plan => plan.status), [PLAN_STATUS.DISCARDED, PLAN_STATUS.PENDING]);
+});
+
+test("旧消息中无关结果块的错误不能污染当前计划审批", () => {
+	const result = toolResult(2, 2000, "c1");
+	result.data.message.content.push({ type: "tool-result", toolCallId: "other", isError: true });
+	assert.equal(scanPlanEvents([toolCall(1, 1000, "c1", PLAN_A), result])[0].status, PLAN_STATUS.APPROVED);
+});
+
+test("多次桌面审查独立配对，拒审重提不会影响已批准的计划", () => {
+	assert.deepEqual(scanPlanEvents([
+		toolCall(1, 1000, "c1", PLAN_A), desktopResult("c1", { error: true }),
+		toolCall(3, 3000, "c2", PLAN_B), desktopResult("c2"), planMode(5, 5000, false),
+	]).map(plan => plan.status), [PLAN_STATUS.DISCARDED, PLAN_STATUS.APPROVED]);
+});
 
 test("空日志 → 无计划", () => {
 	assert.deepEqual(scanPlanEvents([]), []);

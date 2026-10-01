@@ -13,26 +13,19 @@ test("HUD client reads rc.1 pending interactions through the standard root hook"
   ]);
   const pkg = JSON.parse(packageText);
 
-  assert.equal(pkg.version, "0.14.1");
   assert.ok(pkg.dsh.client.inject.includes("@deepseek-ai/dsh-client-ui-session"));
   assert.match(source, /function HudPanel\(\{ useSessionPendingInteraction = useNoPendingInteraction \}\)/);
   assert.match(source, /const pending = useSessionPendingInteraction\(\(snapshot\) =>/);
   assert.match(source, /current === undefined \? undefined : snapshot\?\.get\?\.\(current\)/);
   assert.match(source, /pendingInteraction: pending\?\.kind/);
   assert.doesNotMatch(source, /pendingInteraction: summary\?\.pendingInteraction/);
-  assert.match(source, /function HudPanelRoot\(\{ useSessionPendingInteraction \}\)/);
+  assert.match(source, /function HudPanelRoot\(\{ useSessionPendingInteraction, usePanelInfo \}\)/);
   assert.match(source, /react\.createElement\(HudPanel, \{/);
   assert.match(source, /useSessionPendingInteraction,/);
 });
 
 test("HUD-03 reserves only the conversation body so rc.1 width handles and turn navigation remain usable", async () => {
-  const [source, packageText] = await Promise.all([
-    readFile(join(root, "lib/client.js"), "utf8"),
-    readFile(join(root, "package.json"), "utf8")
-  ]);
-  const pkg = JSON.parse(packageText);
-
-  assert.equal(pkg.version, "0.14.1");
+  const source = await readFile(join(root, "lib/client.js"), "utf8");
   assert.match(source, /const TURN_NAVIGATION_RIGHT_GAP = 12;/);
   assert.match(source, /const TURN_NAVIGATION_MIN_COLUMN_WIDTH = 720;/);
   // 新建会话页没有 conversation.session 宿主，改由滚动容器反查会话根
