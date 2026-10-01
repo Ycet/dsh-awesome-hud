@@ -166,11 +166,12 @@ test("面板固定贴视口右侧、顶部跟随真实标题栏", () => {
   assert.doesNotMatch(source, /floatingOffsets/);
   assert.doesNotMatch(source, /floatButtonStyle/);
   assert.match(source, /className: "hud-panel",\s*\n\s*style: \{ top, maxHeight: limitH === null \? undefined : `\$\{limitH\}px` \},/);
-  // 顶部：有标题栏 → header 底部 + 8；无标题栏（新建会话页）→ 与标题栏下沿同高的常量
+  // 有会话页眉时跟随下沿；新建页的最低位置额外避开 Windows 原生标题栏。
   assert.match(source, /document\.querySelector\("\[data-conversation-header-corner\]"\)\?\.closest\("header"\)/);
-  assert.match(source, /: Math\.max\(HUD_NEW_SESSION_TOP, Math\.round\(headRect\.bottom \+ 8\)\);/);
+  assert.match(source, /const minimumTop = HUD_NEW_SESSION_TOP \+ hudChromeTop\(\);/);
+  assert.match(source, /: Math\.max\(minimumTop, Math\.round\(headRect\.bottom \+ 8\)\);/);
   // 按钮固定贴视口右上角（标题栏按钮的视觉位置）
-  assert.match(source, /\.hud-btn-float\{position:fixed;top:\$\{HUD_FLOAT_INSET\}px;z-index:2147482000\}/);
+  assert.match(source, /\.hud-btn-float\{position:fixed;top:\$\{HUD_FLOAT_INSET\}px;z-index:2147482000;-webkit-app-region:no-drag\}/);
   assert.match(source, /const HUD_FLOAT_INSET = 12;/);
   assert.match(source, /const HUD_FLOAT_RIGHT = 72;/);
   // 让位逻辑保留（新建会话页同样收窄正文并左移内容）

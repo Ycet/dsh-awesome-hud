@@ -74,7 +74,9 @@ test("failed polling retains modules; responses after session cleanup are ignore
     setMcp: value => { values.mcp = value; },
     setPlans: value => { values.plans = value; },
   });
-  const start = source.indexOf('react.useEffect(() => {', source.indexOf('// git / 子代理 / MCP / 计划'));
+  const marker = source.indexOf('// git / 子代理 / 计划');
+  assert.ok(marker > 0, '会话级轮询位置应存在');
+  const start = source.indexOf('react.useEffect(() => {', marker);
   const endMarker = '}, [sessionId, gitKey, moduleSessionId, newSessionPage]);';
   const end = source.indexOf(endMarker, start) + endMarker.length;
   assert.ok(start > 0 && end > start, "polling effect slice must be located");

@@ -28,7 +28,7 @@ HUD in DSH (dark theme)
 - [🖼️ Screenshots](#️-screenshots)
 - [⚙️ Compatibility](#️-compatibility)
 - [🔧 Tech Stack](#-tech-stack)
-- [⬆️ Upgrade Notes (v0.11.x → v0.14.9)](#️-upgrade-notes-v011x--v0149)
+- [⬆️ Upgrade Notes (v0.11.x → v0.14.10)](#️-upgrade-notes-v011x--v01410)
 - [📄 License](#-license)
 
 ---
@@ -78,7 +78,7 @@ After installation, a "HUD panel" button appears at the top-right of the chat pa
 
 ### Desktop installation (macOS)
 
-Current version: **0.14.9**. Fully quit DeepSeek Harness, then install with the CLI bundled with the desktop app. Use that CLI when managing the `desktop` profile.
+Current version: **0.14.10**. Fully quit DeepSeek Harness, then install with the CLI bundled with the desktop app. Use that CLI when managing the `desktop` profile.
 
 ```bash
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -124,7 +124,7 @@ Reopen the app and click the HUD button in the conversation header. Codex quotas
 - **Notes module**: a **workspace-shared** notepad — keyed by the session's workspace directory, so every session under that directory shares one note (including the input height), persisted locally; deleting or archiving any/all sessions never affects the note, and a new session created later in the same workspace still finds it; the drag handle at the bottom of the input adjusts height (persisted in real time), with a 5000-char limit and a live counter; a side dot indicates the note has content; one-click adds the full note text to the conversation composer (on a blank session page it targets the workspace's most recent session); the Clear button is disabled when empty, and the first click with content enters a red confirmation state; a second click clears the note, while clicking elsewhere, pressing Escape or waiting 2 seconds cancels; the module is collapsible/expandable (state persisted). Sessions with no workspace (`cwd`) fall back to session-local isolation instead of sharing.
 - **Todo module**: a **workspace-shared** to-do list — keyed by the session's workspace directory, so every session under it shares one list and its order (persisted locally); check/uncheck complete, add/delete items, drag-to-reorder whole rows (drag handle at the far left before the checkbox), one-click clear completed (confirmation dialog, button disabled when no completed items); the bottom shows a completion count; the module is collapsible/expandable (state persisted). Concurrent edits from several sessions/tabs in the same workspace are merged by item id instead of overwriting each other.
 - **Fold state**: each module's collapsed/expanded state survives page refreshes (localStorage); the Session module uses the DSH favicon.
-- **Blank session page**: a floating "HUD panel" button appears in the **top-right of the viewport** (that page has no title bar, so this button is the entry point; it sits where the header button would be in a real session); the page always starts collapsed — click the button to expand it, and the panel keeps the **exact same position as in a real session** (fixed to the right edge, 300px wide) while the composer and page content shift left by ~300px to make room; **the button itself shifts left to sit beside the panel** (never overlapping) and returns to the top-right corner when collapsed; only modules with a data source on that page render (Session / Usage / Notes / Todo / MCP, plus git when the target workspace really is a git repository). Entering a real session loads that session's own open/closed memory, and the header button takes over.
+- **Blank session page**: its own floating "HUD panel" button appears in the top-right (the page has no conversation header; on Windows it sits below the native caption, with that offset removed in fullscreen). Each entry starts collapsed. Opening the panel reserves 300px on the right for the fixed panel and shifts the body and composer left; the button stays in place, moving left only when the official right sidebar is expanded. Git, notes, todos and the note-send target use the same recent workspace. Global MCP data loads and polls independently and can be viewed or toggled even without any session or workspace. Only modules with a data source render (Session / Usage / Notes / Todo / MCP, plus Git for a target Git repository); rename is disabled until a session record exists. Entering a real session restores its own open/closed memory, and the header button takes over.
 
 ## 🖼️ Screenshots
 
@@ -213,7 +213,9 @@ See the [v0.14.7 desktop verification record (Chinese)](docs/desktop-compatibili
 | Data sources | Client-side session projection (`ctx.sessions.list` / `workspaces` / `modelDirectories`) + own host APIs (git / MCP / subagents / plan list / compaction) + reused dsh-account-usage balance/usage routes |
 | Tests        | `node --test` (git parsing, MCP parsing, status derivation, plan-list derivation, settings normalization, trust fence; in `test/`)                                                                          |
 
-## ⬆️ Upgrade Notes (v0.11.x → v0.14.9)
+## ⬆️ Upgrade Notes (v0.11.x → v0.14.10)
+
+**v0.14.10: fixed the Windows blank-session HUD entry overlapping the native caption, including fullscreen layout. An explicitly empty main-view binding no longer falls back to the list’s previous session; sidebar restoration uses the same page check. Git, notes, todos and the note-send target share one workspace while preserving existing Windows storage keys. MCP loads and polls independently, including pages with no session or workspace, and can be toggled there. Fixed Windows directory labels and the no-workspace label; rename is disabled until a session record exists. Added client data-flow, request-failure and browser-layout regressions. Native Windows desktop verification is still required.**
 
 **v0.14.9: fixed pairing and error detection for modern plan-review result messages, preventing approved plans from being discarded on plan-mode exit and rejected plans from staying pending. Legacy result formats remain supported; mode exits also work when event sequence numbers are absent. Subagent tasks now open as official `subagentchat` resources in the right sidebar, preserving their direct parent and session mode while keeping the main conversation. Added status/navigation regressions and an integration test through the official desktop plan-review workflow.**
 
