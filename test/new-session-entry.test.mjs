@@ -327,7 +327,7 @@ test("悬浮按钮仅在新建会话页渲染，且与面板共用同一开合�
   assert.match(source, /function HudFloatingButton\(\) \{[\s\S]{0,2500}onClick: \(\) => toggleHud\(ctx\)/);
   // 每次会话/页面切换都在 effect 中重新激活作用域（渲染期只 peek，不跨根广播）
   assert.match(source, /react\.useEffect\(\(\) => \{\s*\n\s*activateHudScope\(scopeSessionId\);\s*\n\s*\}, \[scopeSessionId\]\);/);
-  assert.match(source, /const \[open, setOpen\] = react\.useState\(\(\) => peekHudOpen\(scopeSessionId\)\);/);
+  assert.match(source, /const open = peekHudOpen\(scopeSessionId\);/);
 });
 
 test("入口位于右侧工具区，面板与存储键保持兼容", () => {

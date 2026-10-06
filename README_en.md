@@ -28,7 +28,7 @@ HUD in DSH (dark theme)
 - [🖼️ Screenshots](#️-screenshots)
 - [⚙️ Compatibility](#️-compatibility)
 - [🔧 Tech Stack](#-tech-stack)
-- [⬆️ Upgrade Notes (v0.11.x → v0.14.10)](#️-upgrade-notes-v011x--v01410)
+- [⬆️ Upgrade Notes (v0.11.x → v0.14.11)](#️-upgrade-notes-v011x--v01411)
 - [📄 License](#-license)
 
 ---
@@ -78,7 +78,7 @@ After installation, a "HUD panel" button appears at the top-right of the chat pa
 
 ### Desktop installation (macOS)
 
-Current version: **0.14.10**. Fully quit DeepSeek Harness, then install with the CLI bundled with the desktop app. Use that CLI when managing the `desktop` profile.
+Current version: **0.14.11**. Fully quit DeepSeek Harness, then install with the CLI bundled with the desktop app. Use that CLI when managing the `desktop` profile.
 
 ```bash
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -124,6 +124,7 @@ Reopen the app and click the HUD button in the conversation header. Codex quotas
 - **Notes module**: a **workspace-shared** notepad — keyed by the session's workspace directory, so every session under that directory shares one note (including the input height), persisted locally; deleting or archiving any/all sessions never affects the note, and a new session created later in the same workspace still finds it; the drag handle at the bottom of the input adjusts height (persisted in real time), with a 5000-char limit and a live counter; a side dot indicates the note has content; one-click adds the full note text to the conversation composer (on a blank session page it targets the workspace's most recent session); the Clear button is disabled when empty, and the first click with content enters a red confirmation state; a second click clears the note, while clicking elsewhere, pressing Escape or waiting 2 seconds cancels; the module is collapsible/expandable (state persisted). Sessions with no workspace (`cwd`) fall back to session-local isolation instead of sharing.
 - **Todo module**: a **workspace-shared** to-do list — keyed by the session's workspace directory, so every session under it shares one list and its order (persisted locally); check/uncheck complete, add/delete items, drag-to-reorder whole rows (drag handle at the far left before the checkbox), one-click clear completed (confirmation dialog, button disabled when no completed items); the bottom shows a completion count; the module is collapsible/expandable (state persisted). Concurrent edits from several sessions/tabs in the same workspace are merged by item id instead of overwriting each other.
 - **Fold state**: each module's collapsed/expanded state survives page refreshes (localStorage); the Session module uses the DSH favicon.
+- **Session switching**: the first render reads the target session's panel visibility, module preferences, and last successful data. Git is shared per workspace; account usage and MCP are global; plans and subagents stay isolated per session. Refresh starts immediately, and requests completed after leaving a session still populate their own cache. A first visit with no data yet shows “Loading…” without invented counts; confirmed empty or unavailable modules disappear, while an empty MCP module remains usable. A session whose summary has not arrived cannot borrow Git, notes, or todos from another workspace.
 - **Blank session page**: its own floating "HUD panel" button appears in the top-right (the page has no conversation header; on Windows it sits below the native caption, with that offset removed in fullscreen). Each entry starts collapsed. Opening the panel reserves 300px on the right for the fixed panel and shifts the body and composer left; the button stays in place, moving left only when the official right sidebar is expanded. Git, notes, todos and the note-send target use the same recent workspace. Global MCP data loads and polls independently and can be viewed or toggled even without any session or workspace. Only modules with a data source render (Session / Usage / Notes / Todo / MCP, plus Git for a target Git repository); rename is disabled until a session record exists. Entering a real session restores its own open/closed memory, and the header button takes over.
 
 ## 🖼️ Screenshots
@@ -192,6 +193,8 @@ Reopen the app and click the HUD button in the conversation header. Codex quotas
 
 See the [v0.14.7 desktop verification record (Chinese)](docs/desktop-compatibility-0.14.7.md) for the tested environment, coverage, and reproduction steps.
 
+Session-switch regressions execute the full HUD bundle with React from the official desktop frontend and intercept every network request. Set `HUD_TEST_RUNTIME` (the extracted official DSH runtime directory), `HUD_TEST_PLAYWRIGHT` (the Playwright module path), and optionally `HUD_TEST_BROWSER` (the browser executable), then run `node --test test/session-switch-runtime.test.mjs`. These tests explicitly skip when the environment is not configured. Real Git and plan-review integration tests additionally need `DSH_TEST_INSTALL_ROOT` pointing to the official runtime; all operations are confined to temporary fixtures.
+
 | Item               | Version / Notes                                                                                                                                                                                                           |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | DeepSeek Harness | macOS desktop `0.2.0-rc.2`; legacy Web API fallbacks remain available; other versions require verification |
@@ -213,7 +216,9 @@ See the [v0.14.7 desktop verification record (Chinese)](docs/desktop-compatibili
 | Data sources | Client-side session projection (`ctx.sessions.list` / `workspaces` / `modelDirectories`) + own host APIs (git / MCP / subagents / plan list / compaction) + reused dsh-account-usage balance/usage routes |
 | Tests        | `node --test` (git parsing, MCP parsing, status derivation, plan-list derivation, settings normalization, trust fence; in `test/`)                                                                          |
 
-## ⬆️ Upgrade Notes (v0.11.x → v0.14.10)
+## ⬆️ Upgrade Notes (v0.11.x → v0.14.11)
+
+**v0.14.11: fixed Git and other HUD modules appearing late after session switches. Shared snapshot subscriptions read target data on the first render, deduplicate pending requests by scope, and retain results completed after leaving a session. Slow reads cannot overwrite snapshots returned by Git writes. Module preferences and the save queue survive panel remounts; model directories and panel visibility switch synchronously. First loads show a loading state, and incomplete session summaries cannot borrow another workspace's data. Independent Git reads run in parallel, with at most four processes counting untracked files. Added real React regressions for first renders, rapid switching, offline and empty results, and request races.**
 
 **v0.14.10: fixed the Windows blank-session HUD entry overlapping the native caption, including fullscreen layout. An explicitly empty main-view binding no longer falls back to the list’s previous session; sidebar restoration uses the same page check. Git, notes, todos and the note-send target share one workspace while preserving existing Windows storage keys. MCP loads and polls independently, including pages with no session or workspace, and can be toggled there. Fixed Windows directory labels and the no-workspace label; rename is disabled until a session record exists. Added client data-flow, request-failure and browser-layout regressions. Native Windows desktop verification is still required.**
 
