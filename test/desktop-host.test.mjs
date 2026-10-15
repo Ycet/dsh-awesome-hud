@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, rm, mkdir } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, mkdir, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -20,6 +20,8 @@ test('桌面真实 subprocess：Git 全部操作与 host 路由、设置、MCP�
   await fiber;
   const subprocess = runtime.get('subprocess');
   const root = await mkdtemp(join(tmpdir(), 'hud-desktop-test-'));
+  // 非仓库工作区：用于验证「初始化仓库」（git/init）
+  const freshRoot = await mkdtemp(join(tmpdir(), 'hud-desktop-init-'));
   const git = async (...args) => {
     const handle = subprocess.spawn({ argv: ['git', ...args], cwd: root,
       stdio: { stdin: 'null', stdout: { maxBytes: 1048576 }, stderr: { maxBytes: 65536 } }, graceMs: 2000 });
@@ -52,7 +54,7 @@ test('桌面真实 subprocess：Git 全部操作与 host 路由、设置、MCP�
     const events = [{ type: 'tool/call', seq: 1, time: 1, data: { name: 'exit_plan_mode', callId: 'plan1', arguments: JSON.stringify({ plan: '# 兼容性验证\n- 验证接口' }) } }];
     const services = {
       subprocess,
-      sessions: { get: id => id === 'fixture' ? { header: { cwd: root }, snapshotEvents: () => events } : undefined },
+      sessions: { get: id => id === 'fixture' ? { header: { cwd: root }, snapshotEvents: () => events } : id === 'fresh' ? { header: { cwd: freshRoot } } : undefined },
       loader: { resolve: () => ({ options: { config: { path: pathToFileURL(join(profile, 'cordis.yml')).href } } }), entries: () => entries },
       subagents: { listDescendants: async () => [{ kind: 'child', id: 'child', parentId: 'fixture', mode: 'continuable', depth: 1, activity: 'idle' }, { kind: 'other' }] },
       settings: { writable: true, describe: () => [{ ns: 'awesome-hud', revision }], update: async (ns, patch, expected) => {
@@ -135,5 +137,19 @@ test('桌面真实 subprocess：Git 全部操作与 host 路由、设置、MCP�
     assert.equal((await call('settings', null, 'GET')).modules.git, false);
     assert.equal((await call('settings', null, 'GET')).usage.codex, false);
     assert.equal((await call('git', { sessionId: 'fixture' }, 'POST', { origin: 'https://external.invalid' })).status, 403);
-  } finally { await fiber.dispose(); await rm(root, { recursive: true, force: true }); }
+    // 非仓库工作区：Git 模块的「初始化仓库」——真实执行 git init 并回传仓库快照
+    assert.equal((await call('git', { sessionId: 'fresh' })).isRepo, false);
+    const initialized = await call('git/init', { sessionId: 'fresh' });
+    assert.equal(initialized.status, 200, JSON.stringify(initialized));
+    assert.equal(initialized.isRepo, true);
+    assert.equal(typeof initialized.branch, 'string');
+    assert.notEqual(initialized.branch, '');
+    assert.equal(initialized.changedCount, 0);
+    assert.ok((await stat(join(freshRoot, '.git'))).isDirectory());
+    // 已是仓库：幂等，不报错且仍返回同一快照形状
+    const again = await call('git/init', { sessionId: 'fresh' });
+    assert.equal(again.status, 200);
+    assert.equal(again.isRepo, true);
+    assert.equal(again.branch, initialized.branch);
+  } finally { await fiber.dispose(); await rm(root, { recursive: true, force: true }); await rm(freshRoot, { recursive: true, force: true }); }
 });

@@ -287,12 +287,12 @@ test("panelVisibleModules 在新建会话页只放行有数据源的模块", () 
   const moduleContext = vm.createContext({ Set, Number, Array, Object, isNaN });
   vm.runInContext(scopeHelpers + moduleConstants, moduleContext);
 
-  const all = moduleContext.panelVisibleModules(null, false, false);
+  const all = moduleContext.panelVisibleModules(null, false);
   assert.deepEqual(Array.from(Object.keys(all)).sort(), ["balance", "context", "git", "mcp", "note", "plans", "subagents", "tasks", "todo"]);
   assert.equal(Array.from(Object.values(all)).every(Boolean), true);
 
   // 新建会话页：上下文/子代理/任务/计划清单无数据源，恒不展示
-  const hero = moduleContext.panelVisibleModules(null, false, true);
+  const hero = moduleContext.panelVisibleModules(null, true);
   assert.equal(hero.context, false);
   assert.equal(hero.subagents, false);
   assert.equal(hero.tasks, false);
@@ -301,16 +301,14 @@ test("panelVisibleModules 在新建会话页只放行有数据源的模块", () 
   assert.equal(hero.todo, true);
   assert.equal(hero.mcp, true);
   assert.equal(hero.balance, true);
-  assert.equal(hero.git, false);
-
-  // 工作区是 git 仓库时放行 git
-  assert.equal(moduleContext.panelVisibleModules(null, true, true).git, true);
+  // git 常驻：工作区不是仓库时模块内提供「初始化仓库」，不再按仓库状态隐藏
+  assert.equal(hero.git, true);
 
   // 用户设置仍然生效（显式 false 优先）
-  const disabled = moduleContext.panelVisibleModules({ note: false, mcp: false }, true, true);
+  const disabled = moduleContext.panelVisibleModules({ note: false, mcp: false, git: false }, true);
   assert.equal(disabled.note, false);
   assert.equal(disabled.mcp, false);
-  assert.equal(disabled.git, true);
+  assert.equal(disabled.git, false);
   // 真实会话页维持原语义：未显式关闭即展示
-  assert.equal(moduleContext.panelVisibleModules({ note: false }, false, false).context, true);
+  assert.equal(moduleContext.panelVisibleModules({ note: false }, false).context, true);
 });

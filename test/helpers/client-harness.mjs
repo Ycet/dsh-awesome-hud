@@ -75,3 +75,40 @@ export function nodes(node) {
 }
 export function moduleOf(panel, name) { return nodes(panel).find(node => node.type?.name === name); }
 export const settled = () => new Promise(resolve => setImmediate(resolve));
+
+/** 按「函数声明 + 平衡大括号」从客户端 bundle 抽取一个函数/箭头函数体。 */
+export function extractFunction(name) {
+  const start = source.indexOf(`function ${name}(`);
+  if (start < 0) throw new Error(`function ${name} must exist in lib/client.js`);
+  let index = source.indexOf('(', start);
+  let parens = 0;
+  for (; index < source.length; index += 1) {
+    if (source[index] === '(') parens += 1;
+    else if (source[index] === ')') { parens -= 1; if (parens === 0) break; }
+  }
+  index = source.indexOf('{', index);
+  let depth = 0;
+  for (; index < source.length; index += 1) {
+    const ch = source[index];
+    if (ch === '{') depth += 1;
+    else if (ch === '}') { depth -= 1; if (depth === 0) return source.slice(start, index + 1); }
+  }
+  throw new Error(`unbalanced braces for ${name}`);
+}
+
+/** 抽取 `const <name> = async (...) => { ... };` 形式的处理器（按平衡大括号扫描）。 */
+export function extractArrowHandler(name) {
+  const start = source.indexOf(`const ${name} = `);
+  if (start < 0) throw new Error(`handler ${name} must exist in lib/client.js`);
+  const braceStart = source.indexOf('=> {', start);
+  if (braceStart < 0) throw new Error(`handler ${name} is not a block arrow function`);
+  let depth = 0;
+  for (let index = braceStart + 3; index < source.length; index += 1) {
+    const ch = source[index];
+    if (ch === '{') depth += 1;
+    else if (ch === '}') { depth -= 1; if (depth === 0) return source.slice(start, index + 1); }
+  }
+  throw new Error(`unbalanced braces for ${name}`);
+}
+
+export { source as clientSource };

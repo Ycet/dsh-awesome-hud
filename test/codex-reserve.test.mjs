@@ -56,7 +56,7 @@ test("存在 gpt-reserve 额度时解析出主窗口剩余百分比", () => {
   assert.equal(limits[0].name, "Reserve");
   assert.equal(limits[0].remainingPercent, 42.6);
   // 5h / 周额度解析不受影响
-  assert.deepEqual({ ...context.selectCodexQuotaWindows(usage) }, { fiveHour: 100, weekly: 80 });
+  assert.deepEqual({ ...context.selectCodexQuotaWindows(usage) }, { fiveHour: 100, weekly: 80, free: null, mode: "subscription" });
 });
 
 test("没有 gpt-reserve 额度时不产生任何行（不展示）", () => {
@@ -84,7 +84,7 @@ test("真实形状：id 为 base_model_inference、name 为 gpt-reserve 时被�
   // name 与默认文案同义 → 不重复展示为「（gpt-reserve）」
   assert.equal(limits[0].name, null);
   // 周额度仍只取 codex 那条 7 天窗口，不会误取 gpt-reserve 的 7 天窗口
-  assert.deepEqual({ ...context.selectCodexQuotaWindows(usage) }, { fiveHour: 100, weekly: 80 });
+  assert.deepEqual({ ...context.selectCodexQuotaWindows(usage) }, { fiveHour: 100, weekly: 80, free: null, mode: "subscription" });
 });
 
 test("id 或 name 命中 gpt-reserve 都识别，且拒绝子串误判", () => {

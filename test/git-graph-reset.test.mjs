@@ -15,7 +15,9 @@ test("git graph reset is gated by current-branch ancestry and Git operation stat
 	assert.match(host, /async "git\/reset-status"\(payload\)/);
 	assert.match(host, /async "git\/reset"\(payload\)/);
 	assert.match(host, /\["reset", `--\$\{mode\}`, commit\]/);
-	assert.match(host, /currentBranch: normalizeBranch\(branchRaw\.stdout\) \?\? null/);
+	assert.match(host, /const currentBranch = normalizeBranch\(branchRaw\.stdout\) \?\? null/);
+	// 仓库尚无提交（unborn HEAD）时按空历史返回，不把 git log 的报错当成加载失败
+	assert.match(host, /if \(headRaw\.exitCode !== 0\) return \{ currentBranch, commits: \[\], hasMore: false \};/);
 });
 
 test("git graph keeps only the current local branch blue and renders compact inline confirmations", async () => {
