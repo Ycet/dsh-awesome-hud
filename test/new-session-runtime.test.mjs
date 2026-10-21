@@ -82,7 +82,7 @@ test('新建页全局 MCP 初次加载、轮询和启停不依赖代理会话', 
   assert.equal(client.intervals.size, 0);
 });
 
-test('MCP 离线保留全局快照，面板卸载后晚到响应不得更新缓存', async () => {
+test('MCP 离线保留全局快照，面板卸载后完成的查询供重新打开时使用', async () => {
   let fail = false, release;
   const client = hudClient({ respond: async () => {
     if (fail) throw new Error('offline');
@@ -99,10 +99,11 @@ test('MCP 离线保留全局快照，面板卸载后晚到响应不得更新缓�
   const late = hudClient({ respond: () => new Promise(resolve => { release = resolve; }) });
   late.button().props.onClick(); late.panel();
   const stops = late.runPolls();
+  await settled();
   for (const stop of stops) stop?.();
   release({ ok: true, servers: [], total: 99 });
   await settled();
-  assert.equal(moduleOf(late.panel(), 'McpModule'), undefined);
+  assert.equal(moduleOf(late.panel(), 'McpModule').props.total, 99);
 });
 
 test('绑定的空白会话仍提供新建页入口与工作区数据', () => {

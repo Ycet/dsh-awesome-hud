@@ -173,13 +173,18 @@ test("免费额度行与 5h / 周额度行互斥渲染，且行结构与既有�
 
 /** 挂载 HUD 的 codex 轮询 effect（与 test/codex-transport.test.mjs 同一抽取方式）。 */
 function mountCodexPolling(call) {
-  const box = { state: undefined };
+  // 合并 main 的共享快照架构后：effect 通过 refreshModuleSnapshot 写入 moduleSnapshots，
+  // 降级时从 moduleSnapshots 读取上一次快照以保留展示模式。
+  const moduleSnapshots = new Map();
   const context = vm.createContext({
     ctx: { get: () => ({ rpc: { call } }) },
     react: { useEffect: fn => fn() },
     window: { setInterval() {}, clearInterval() {} },
-    singleFlight: fn => fn,
-    setCodex: value => { box.state = typeof value === "function" ? value(box.state) : value; },
+    moduleSnapshots,
+    refreshModuleSnapshot: (key, read) => Promise.resolve().then(read).then((value) => {
+      moduleSnapshots.set(key, value);
+      return value;
+    }),
   });
   const helperStart = source.indexOf("const CODEX_FIVE_HOUR_SECONDS");
   const helperEnd = source.indexOf("function fmtCodexPercent", helperStart);
@@ -189,7 +194,7 @@ function mountCodexPolling(call) {
   const snippet = source.slice(start, end);
   return {
     poll: () => vm.runInContext(snippet, context),
-    get state() { return box.state; },
+    get state() { return moduleSnapshots.get("codex"); },
   };
 }
 

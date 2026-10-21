@@ -7,10 +7,6 @@ import { normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, modulesOf,
 const source = readFileSync(new URL("../lib/client.js", import.meta.url), "utf8");
 
 function loadUseHudModules(options = {}) {
-  const states = [];
-  const refs = [];
-  let stateCursor = 0;
-  let refCursor = 0;
   const calls = [];
   const initial = options.initial ?? {
     modules: { context: true, git: true },
@@ -21,18 +17,10 @@ function loadUseHudModules(options = {}) {
     ? new Promise(resolve => { resolveInitial = resolve; })
     : Promise.resolve(initial);
   const react = {
-    useState(value) {
-      const index = stateCursor++;
-      if (!(index in states)) states[index] = typeof value === "function" ? value() : value;
-      return [states[index], next => { states[index] = typeof next === "function" ? next(states[index]) : next; }];
-    },
-    useRef(value) {
-      const index = refCursor++;
-      if (!(index in refs)) refs[index] = { current: value };
-      return refs[index];
-    },
     useEffect(effect) { effect(); },
     useCallback(fn) { return fn; },
+    useMemo(fn) { return fn(); },
+    useSyncExternalStore(_subscribe, getSnapshot) { return getSnapshot(); },
   };
   const context = vm.createContext({
     react,
@@ -44,9 +32,11 @@ function loadUseHudModules(options = {}) {
   });
   const start = source.indexOf("function useHudModules()");
   const end = source.indexOf("// —— 会话模块", start);
+  vm.runInContext(source.slice(source.indexOf('function useSnapshot'), source.indexOf('/** 镜像 lib/graph.js')), context);
+  vm.runInContext(source.slice(source.indexOf('const moduleSnapshots ='), source.indexOf('// —— 面板主体 ——')), context);
   vm.runInContext(`${source.slice(start, end)}; this.hook = useHudModules;`, context);
   const result = context.hook();
-  return { result, states, calls, resolveInitial };
+  return { result, calls, resolveInitial, settings: () => vm.runInContext('moduleSnapshots.get("settings")', context) };
 }
 
 test("一次确认只发送一个同时包含模块与用量的设置请求", async () => {
@@ -100,8 +90,8 @@ test("较晚返回的初始化读取不会覆盖用户刚确认的设置", async
     usage: { deepseek: true, opencode: true, codex: true },
   });
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(harness.states[0].git, false);
-  assert.equal(harness.states[1].codex, false);
+  assert.equal(harness.settings().modules.git, false);
+  assert.equal(harness.settings().usage.codex, false);
 });
 
 test("普通会话与新建会话页共用同一个原子设置确认入口", () => {

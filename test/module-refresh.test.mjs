@@ -31,8 +31,11 @@ test("cached modules survive remounts and isolate session data", () => {
   const react = {
     useState(init) { state ??= init(); return [state, value => { state = value; }]; },
     useCallback(fn) { return fn; },
+    useMemo(fn) { return fn(); },
+    useSyncExternalStore(_subscribe, getSnapshot) { return getSnapshot(); },
   };
   const context = vm.createContext({ react });
+  vm.runInContext(source.slice(source.indexOf('function useSnapshot'), source.indexOf('/** 镜像 lib/graph.js')), context);
   vm.runInContext(helpers, context);
   context.useModuleSnapshot("plans:A", [])[1](["A plan"]);
   assert.deepEqual(Array.from(context.useModuleSnapshot("plans:B", [])[0]), []);
@@ -43,54 +46,55 @@ test("cached modules survive remounts and isolate session data", () => {
   assert.equal(context.useModuleSnapshot("git:/workspace", null)[0].isRepo, true);
 });
 
-test("single-flight polling skips overlap and recovers after failure", async () => {
+test("scope-keyed requests share slow reads and recover after failure", async () => {
   const context = vm.createContext({});
   vm.runInContext(helpers, context);
   let release, count = 0;
-  const poll = context.singleFlight(() => { count++; return new Promise((resolve, reject) => { release = reject; }); });
-  const first = poll();
-  await poll();
+  const read = () => { count++; return new Promise((resolve, reject) => { release = reject; }); };
+  const first = context.refreshModuleSnapshot('git:/a', read);
+  assert.equal(context.refreshModuleSnapshot('git:/a', read), first);
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(count, 1);
   release(new Error("offline"));
   await assert.rejects(first, /offline/);
-  const next = poll();
+  const next = context.refreshModuleSnapshot('git:/a', read);
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(count, 2);
   release(new Error("offline"));
   await assert.rejects(next);
 });
 
-test("failed polling retains modules; responses after session cleanup are ignored", async () => {
+test("failed polling retains modules; cleanup stops timers but does not discard scoped results", async () => {
   let refresh, cleanup, fail = true;
   const values = { git: { isRepo: true }, subagents: ["child"], mcp: { total: 1 }, plans: ["plan"] };
   const context = vm.createContext({
-    sessionId: "A", gitKey: "git:A", gitRevision: { current: 0 },
+    sessionId: "A", gitKey: "git:A", subagentsKey: "subagents:A", plansKey: "plans:A",
     moduleSessionId: "A", newSessionPage: false,
-    singleFlight: fn => fn,
     react: { useEffect(fn) { cleanup = fn(); } },
     window: { setInterval(fn) { refresh = fn; }, clearInterval() {} },
     call: async method => { if (fail) throw new Error("offline"); return method === "git" ? { isRepo: false } : {}; },
-    setGit: value => { values.git = value; },
-    setSubagents: value => { values.subagents = value; },
-    setMcp: value => { values.mcp = value; },
-    setPlans: value => { values.plans = value; },
   });
+  vm.runInContext(helpers, context);
+  context.cacheModuleSnapshot('git:A', values.git);
+  context.cacheModuleSnapshot('subagents:A', values.subagents);
+  context.cacheModuleSnapshot('plans:A', values.plans);
   const marker = source.indexOf('// git / 子代理 / 计划');
   assert.ok(marker > 0, '会话级轮询位置应存在');
   const start = source.indexOf('react.useEffect(() => {', marker);
-  const endMarker = '}, [sessionId, gitKey, moduleSessionId, newSessionPage]);';
+  const endMarker = '}, [sessionId, gitKey, moduleSessionId, newSessionPage, subagentsKey, plansKey]);';
   const end = source.indexOf(endMarker, start) + endMarker.length;
   assert.ok(start > 0 && end > start, "polling effect slice must be located");
   vm.runInContext(source.slice(start, end), context);
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(values.git.isRepo, true);
-  assert.deepEqual(values.plans, ["plan"]);
-  assert.deepEqual(values.subagents, ["child"]);
+  assert.equal(vm.runInContext('moduleSnapshots.get("git:A").isRepo', context), true);
+  assert.deepEqual(Array.from(vm.runInContext('moduleSnapshots.get("plans:A")', context)), ["plan"]);
+  assert.deepEqual(Array.from(vm.runInContext('moduleSnapshots.get("subagents:A")', context)), ["child"]);
   assert.equal(values.mcp.total, 1);
   fail = false;
   refresh();
   cleanup();
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(values.git.isRepo, true);
+  assert.equal(vm.runInContext('moduleSnapshots.get("git:A").isRepo', context), false);
 });
 
 test("Git transient failure is not reported as a non-repository", async () => {

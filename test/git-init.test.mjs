@@ -186,9 +186,10 @@ test("Git 模块：非仓库正文只展示提示，仓库正文保留动作与�
   assert.match(source, /const gitFiles = Array\.isArray\(props\.git\?\.files\) \? props\.git\.files : \[\];/);
   assert.match(source, /: react\.createElement\("div", \{ className: "hud-git-summary" \}, t\("gitNoRepo"\)\),/);
   assert.match(source, /isRepo \? react\.createElement\("div", \{ className: "hud-git-summary" \}, summaryText\) : null\)\)/);
-  // 非仓库不再被渲染条件挡掉：只要求拿到快照（isRepo 由模块内部处理）
-  assert.match(source, /activeModules\.git === false \|\| git === null \|\| git === undefined \? null : react\.createElement\(GitModule, \{/);
-  assert.doesNotMatch(source, /activeModules\.git === false \|\| git === null \|\| git === undefined \|\| git\.isRepo !== true/);
+  // 非仓库不再被渲染条件挡掉：只要求拿到快照（isRepo 由模块内部处理）。
+  // 合并 main 的「首帧加载态」后：拿到快照即渲染 GitModule，未就绪时显示加载占位。
+  assert.match(source, /activeModules\.git === false \|\| moduleSessionId === "" \? null : git === null \? react\.createElement\(ModulePlaceholder, \{ module: "git" \}\) : react\.createElement\(GitModule, \{/);
+  assert.doesNotMatch(source, /git\.isRepo !== true \? null : react\.createElement\(GitModule/);
   // 变更计数与分组读取安全（非仓库快照没有 files）
   assert.match(source, /for \(const file of gitFiles\) \{/);
   assert.match(source, /const stagedFiles = gitFiles\.filter\(\(file\) => file\.staged === true\);/);

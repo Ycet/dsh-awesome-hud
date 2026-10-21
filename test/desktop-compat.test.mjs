@@ -113,18 +113,19 @@ test('桌面 composer 服务追加草稿且保留原文，缺少绑定时不伪�
 });
 
 test('切换 SnapshotStore 时同步新快照，并退订旧会话', () => {
-  let value, cleanup;
-  const react = { useState: fn => [value ??= fn(), next => { value = next; }], useEffect: fn => { cleanup?.(); cleanup = fn(); } };
+  let revision = 0, cleanup;
+  const react = { useCallback: fn => fn,
+    useState: () => [revision, next => { revision = next(revision); }],
+    useEffect: fn => { cleanup?.(); cleanup = fn(); } };
   const context = vm.createContext({ react });
   vm.runInContext(clip('function useSnapshot', '/** 镜像 lib/graph.js'), context);
   const listeners = new Set();
   const first = { getSnapshot: () => 'old', subscribe: fn => { listeners.add(fn); return () => listeners.delete(fn); } };
-  context.useSnapshot(first, x => x, null);
-  assert.equal(value, 'old');
+  assert.equal(context.useSnapshot(first, x => x, null), 'old');
   const second = { getSnapshot: () => 'new', subscribe: () => () => {} };
-  context.useSnapshot(second, x => x, null);
-  assert.equal(value, 'new');
+  assert.equal(context.useSnapshot(second, x => x, null), 'new');
   assert.equal(listeners.size, 0);
+  assert.equal(context.useSnapshot(undefined, x => x, null), null);
 });
 
 test('新建页便笺先打开未绑定的目标会话，提交中的草稿不覆盖', async () => {

@@ -6,14 +6,12 @@ import vm from "node:vm";
 const source = readFileSync(new URL("../lib/client.js", import.meta.url), "utf8");
 
 async function refreshQuota(call) {
-  let state;
   const context = vm.createContext({
     ctx: { get: () => ({ rpc: { call } }) },
     react: { useEffect: fn => fn() },
     window: { setInterval() {}, clearInterval() {} },
-    singleFlight: fn => fn,
-    setCodex: value => { state = typeof value === "function" ? value(state) : value; },
   });
+  vm.runInContext(source.slice(source.indexOf('const moduleSnapshots ='), source.indexOf('// —— 面板主体 ——')), context);
   const helperStart = source.indexOf("const CODEX_FIVE_HOUR_SECONDS");
   const helperEnd = source.indexOf("function fmtCodexPercent", helperStart);
   vm.runInContext(source.slice(helperStart, helperEnd), context);
@@ -21,7 +19,7 @@ async function refreshQuota(call) {
   const end = source.indexOf("}, []);", start) + "}, []);".length;
   vm.runInContext(source.slice(start, end), context);
   await new Promise(resolve => setImmediate(resolve));
-  return state;
+  return vm.runInContext('moduleSnapshots.get("codex")', context);
 }
 
 function reply(endpoint) {

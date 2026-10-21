@@ -178,6 +178,13 @@ test("面板固定贴视口右侧、顶部跟随真实标题栏", () => {
   assert.match(source, /conversationBody\.style\.setProperty\("margin-right", `\$\{PANEL_WIDTH\}px`\);/);
 });
 
+test("主 HUD 面板使用主题描边并移除外投影", () => {
+  const panelRule = source.match(/\.hud-panel\{[^}]*\}/)?.[0];
+  assert.ok(panelRule, "the .hud-panel CSS rule must exist");
+  assert.match(panelRule, /border:0\.5px solid var\(--dsw-alias-border-l2\)/);
+  assert.doesNotMatch(panelRule, /box-shadow:/);
+});
+
 test("新建页按钮保持在页眉原位，官方边栏展开时移到可见面板左侧", () => {
   // HUD 开合不再影响按钮横坐标；只有官方边栏占用右侧时才需要避让。
   assert.match(source, /style: \{ right: `\$\{sidebarInset\}px` \},/);
@@ -327,7 +334,7 @@ test("悬浮按钮仅在新建会话页渲染，且与面板共用同一开合�
   assert.match(source, /function HudFloatingButton\(\) \{[\s\S]{0,2500}onClick: \(\) => toggleHud\(ctx\)/);
   // 每次会话/页面切换都在 effect 中重新激活作用域（渲染期只 peek，不跨根广播）
   assert.match(source, /react\.useEffect\(\(\) => \{\s*\n\s*activateHudScope\(scopeSessionId\);\s*\n\s*\}, \[scopeSessionId\]\);/);
-  assert.match(source, /const \[open, setOpen\] = react\.useState\(\(\) => peekHudOpen\(scopeSessionId\)\);/);
+  assert.match(source, /const open = peekHudOpen\(scopeSessionId\);/);
 });
 
 test("入口位于右侧工具区，面板与存储键保持兼容", () => {
