@@ -114,17 +114,52 @@ test('绑定的空白会话仍提供新建页入口与工作区数据', () => {
   assert.equal(moduleOf(client.panel(), 'NoteModule').props.workspaceKey, recent);
 });
 
-test('新建页与右侧栏互斥：收起右侧栏不会绕过该页默认收起的守卫', () => {
+test('新建页与右侧栏互斥：展开即隐藏，关闭后恢复该页手动展开的状态', () => {
   const client = hudClient(fixture);
   let expanded = false;
   client.services.sidebarRight = { isExpanded: () => expanded };
   const dispose = client.startSidebarWatcher();
   client.button().props.onClick();
   assert.ok(moduleOf(client.root(), 'HudPanel'));
+  assert.equal(client.button().props['data-open'], true);
   expanded = true; client.notifyDOM();
   assert.equal(moduleOf(client.root(), 'HudPanel'), undefined);
+  // 入口按钮跟随派生可见性置灰，避免「显示已展开但面板不可见」的错位
+  assert.equal(client.button().props['data-open'], false);
   expanded = false; client.notifyDOM();
+  assert.ok(moduleOf(client.root(), 'HudPanel'), '关闭侧栏后应恢复该页的展开记忆');
+  assert.equal(client.button().props['data-open'], true);
+  dispose();
+});
+
+test('新建页发送首条消息且右侧栏仍展开：HUD 派生隐藏且不推挤正文，关闭侧栏后恢复', () => {
+  const state = { byId: { sess: { cwd: recent, updatedAt: 2 } } }; // 新建页：无 current
+  const client = hudClient({ state, workspaces: fixture.workspaces, windows: true });
+  let expanded = false;
+  client.services.sidebarRight = { isExpanded: () => expanded };
+  const dispose = client.startSidebarWatcher();
+  client.button().props.onClick();               // 新建页手动展开 HUD（仅内存态）
+  assert.ok(moduleOf(client.root(), 'HudPanel'));
+  expanded = true; client.notifyDOM();            // 打开右侧栏 → HUD 派生隐藏
   assert.equal(moduleOf(client.root(), 'HudPanel'), undefined);
+  client.setSession('sess');                      // 发送首条消息 → 进入真实会话
+  assert.equal(moduleOf(client.root(), 'HudPanel'), undefined, '侧栏仍展开时不得露出 HUD');
+  assert.equal(client.effects.some(effect => String(effect).includes('margin-right')), false,
+    'HUD 不可见时不得给正文写 margin-right 推挤');
+  expanded = false; client.notifyDOM();           // 关闭右侧栏 → 按会话展开记忆恢复
+  assert.ok(moduleOf(client.root(), 'HudPanel'));
+  dispose();
+});
+
+test('真实会话右侧栏展开：首帧不渲染 HUD，关闭侧栏后恢复', () => {
+  const client = hudClient({ state: { current: 'sess', byId: { sess: { cwd: recent, updatedAt: 2 } } }, current: 'sess', workspaces: fixture.workspaces });
+  let expanded = true;
+  client.services.sidebarRight = { isExpanded: () => expanded };
+  const dispose = client.startSidebarWatcher();
+  assert.equal(moduleOf(client.root(), 'HudPanel'), undefined);
+  assert.equal(client.effects.some(effect => String(effect).includes('margin-right')), false);
+  expanded = false; client.notifyDOM();
+  assert.ok(moduleOf(client.root(), 'HudPanel'));
   dispose();
 });
 

@@ -48,7 +48,7 @@ function extractFunction(name) {
 
 const SCOPE_FUNCTIONS = ["loadHudStorage", "saveHudStorage", "activateHudScope", "getHudOpen", "subscribeHud", "publishHud", "setHudOpen", "setHudOpenTransient"];
 // 开合状态 store：常量 + HUD_OPEN_KEY + 全部作用域函数
-const scopeStore = clip('const HUD_OPEN_KEY = "dsh-awesome-hud:open";', "// —— 官方 sidebarRight")
+const scopeStore = clip('const HUD_OPEN_KEY = "dsh-awesome-hud:open";', "// —— 右侧栏可见性与 HUD 互斥")
   + SCOPE_FUNCTIONS.map(extractFunction).join("\n");
 
 /** 内存版 localStorage（记录写入次数，便于断言「不持久化」）。 */
@@ -176,6 +176,9 @@ test("面板固定贴视口右侧、顶部跟随真实标题栏", () => {
   assert.match(source, /const HUD_FLOAT_RIGHT = 72;/);
   // 让位逻辑保留（新建会话页同样收窄正文并左移内容）
   assert.match(source, /conversationBody\.style\.setProperty\("margin-right", `\$\{PANEL_WIDTH\}px`\);/);
+  // 推挤/留白必须在同一提交内应用与清理（侧栏展开→面板卸载→同步移除空白）
+  assert.match(source, /const useLayoutEffect = typeof react\.useLayoutEffect === "function" \? react\.useLayoutEffect : react\.useEffect;/);
+  assert.match(source, /useLayoutEffect\(\(\) => \{\s*\n\s*const headerEl = document\.querySelector/);
 });
 
 test("主 HUD 面板使用主题描边并移除外投影", () => {
@@ -324,17 +327,21 @@ test("插件管理等非会话主页面不渲染 HUD", () => {
   assert.match(source, /if \(!conversationActive\) return null;/);
 });
 
-test("悬浮按钮仅在新建会话页渲染，且与面板共用同一开合状态", () => {
+test("悬浮按钮仅在新建会话页渲染，且与面板共用同一派生可见性", () => {
   assert.match(source, /function HudFloatingButton\(\) \{/);
   assert.match(source, /className: "hud-btn hud-btn-float"/);
   assert.match(source, /"data-hud-float": ""/);
   assert.match(source, /newSession \? react\.createElement\(HudFloatingButton, null\) : null/);
-  // 与标题栏按钮同一 store：订阅 + toggle
-  assert.match(source, /function HudFloatingButton\(\) \{[\s\S]{0,500}subscribeHud\(\(\) => setOpen\(getHudOpen\(\)\)\)/);
+  // 与面板同一派生可见性：展开记忆 ∩ 右侧栏未展开
+  assert.match(source, /function HudFloatingButton\(\) \{[\s\S]{0,600}subscribeHud\(\(\) => setVisible\(isHudVisible\(\)\)\)/);
+  assert.match(source, /function HudFloatingButton\(\) \{[\s\S]{0,900}subscribeSidebar\(\(\) => setVisible\(isHudVisible\(\)\)\)/);
   assert.match(source, /function HudFloatingButton\(\) \{[\s\S]{0,2500}onClick: \(\) => toggleHud\(ctx\)/);
   // 每次会话/页面切换都在 effect 中重新激活作用域（渲染期只 peek，不跨根广播）
   assert.match(source, /react\.useEffect\(\(\) => \{\s*\n\s*activateHudScope\(scopeSessionId\);\s*\n\s*\}, \[scopeSessionId\]\);/);
-  assert.match(source, /const open = peekHudOpen\(scopeSessionId\);/);
+  // 渲染期用 peek 得到目标会话记忆，并叠加右侧栏互斥派生可见性；
+  // 订阅仅用于触发重渲染（不跨根广播、不等作用域 effect 后再挂载面板）。
+  assert.match(source, /const visible = peekHudOpen\(scopeSessionId\) && !getSidebarExpanded\(\);/);
+  assert.match(source, /subscribeSidebar\(\(\) => refreshVisible\(\(value\) => value \+ 1\)\)/);
 });
 
 test("入口位于右侧工具区，面板与存储键保持兼容", () => {

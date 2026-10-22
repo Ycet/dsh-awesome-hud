@@ -156,9 +156,12 @@ test("按 hooks 顺序真实渲染：预览开关切换组件返回 null / 按�
   };
   const context = vm.createContext({
     react,
+    // 悬浮入口使用派生可见性（展开记忆 ∩ 右侧栏未展开）
     peekHudOpen: () => false,
+    getSidebarExpanded: () => false,
+    isHudVisible: () => false,
     subscribeHud: () => () => {},
-    getHudOpen: () => false,
+    subscribeSidebar: () => () => {},
     watchFloatingHudPosition: () => () => {},
     // 记录组件注册的回调，用它模拟浮层开合真正驱动 state 更新
     watchFullscreenPreview: onChange => { notifyPreview = onChange; return () => {}; },

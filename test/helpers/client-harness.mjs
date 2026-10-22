@@ -11,8 +11,10 @@ export function hudClient({ state = { byId: {} }, workspaces = [], current, wind
   let sidebarEffect;
   const persisted = new Map(Object.entries(storage));
   const store = value => ({ getSnapshot: () => value, subscribe: () => () => {} });
+  // 主视图绑定与列表快照分开持有：测试可用 setSession 模拟「新建页 → 真实会话」切换。
+  const binding = { key: current };
   const services = { sessions: { list: store(state) }, workspaces: { list: store({ items: workspaces }) },
-    uiSession: { adapter: { current: store({ key: current }) } } };
+    uiSession: { adapter: { current: store(binding) } } };
   const react = {
     Component: class {}, Fragment: 'fragment',
     createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }),
@@ -64,6 +66,8 @@ export function hudClient({ state = { byId: {} }, workspaces = [], current, wind
     return element.type(element.props);
   };
   return { styles, calls, effects, intervals, services, persisted, root, button, panel,
+    // 模拟「发送首条消息后进入真实会话」：同时更新列表 current 与主视图绑定。
+    setSession: (id) => { state.current = id; binding.key = id; },
     runPolls: () => effects.filter(fn => /call\("(?:git|mcp)"/.test(String(fn))).map(fn => fn()),
     startSidebarWatcher: () => sidebarEffect(), notifyDOM: () => { for (const listener of domListeners) listener(); },
   };
