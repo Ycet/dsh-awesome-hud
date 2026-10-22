@@ -5,6 +5,10 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
+<p align="center">
+  <img src="icon.png" width="96" height="96" alt="dsh-awesome-hud icon">
+</p>
+
 A floating HUD for DeepSeek Harness Web and desktop: session state, context, git, subagents, tasks, and MCP controls.
 
 HUD in DSH (light theme)
@@ -28,7 +32,7 @@ HUD in DSH (dark theme)
 - [🖼️ Screenshots](#️-screenshots)
 - [⚙️ Compatibility](#️-compatibility)
 - [🔧 Tech Stack](#-tech-stack)
-- [⬆️ Upgrade Notes (v0.11.x → v0.15.3)](#️-upgrade-notes-v011x--v0153)
+- [⬆️ Upgrade Notes (v0.11.x → v0.15.4)](#️-upgrade-notes-v011x--v0154)
 - [📄 License](#-license)
 
 ---
@@ -78,7 +82,7 @@ After installation, a "HUD panel" button appears at the top-right of the chat pa
 
 ### Desktop installation (macOS)
 
-Current version: **0.15.3**. Fully quit DeepSeek Harness, then install with the CLI bundled with the desktop app. Use that CLI when managing the `desktop` profile.
+Current version: **0.15.4**. Fully quit DeepSeek Harness, then install with the CLI bundled with the desktop app. Use that CLI when managing the `desktop` profile.
 
 ```bash
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -204,6 +208,7 @@ Session-switch regressions execute the full HUD bundle with React from the offic
 | Platform           | macOS verified; Windows/Linux theoretically compatible (identical git command behavior)                                                                                                                                   |
 | Theme              | Follows light/dark themes (uses`--dsw-alias-*` theme tokens)                                                                                                                                                            |
 | Language           | Simplified Chinese / English, follows the DSH locale                                                                                                                                                                      |
+| Icon               | Top-level `icon` in `package.json` (in-package relative path `icon.png`, 448×448 PNG, raw bytes ≤256 KiB); requires DSH support for manifest icons, older versions fall back to the default artwork                          |
 | Data scope         | Notes and Todo are shared per workspace directory (`localStorage`); sessions without a `cwd` fall back to session-local isolation                                                                                        |
 | Panel open state   | Persisted per session id in `dsh-awesome-hud:open` (a `{ "session id": "1"|"0" }` map); the blank session page never persists it; visibility = open memory ∩ both official and better-sidebar right sidebars collapsed |
 
@@ -216,7 +221,9 @@ Session-switch regressions execute the full HUD bundle with React from the offic
 | Data sources | Client-side session projection (`ctx.sessions.list` / `workspaces` / `modelDirectories`) + own host APIs (git / MCP / subagents / plan list / compaction) + reused dsh-account-usage balance/usage routes |
 | Tests        | `node --test` (git parsing, MCP parsing, status derivation, plan-list derivation, settings normalization, trust fence; in `test/`)                                                                          |
 
-## ⬆️ Upgrade Notes (v0.11.x → v0.15.3)
+## ⬆️ Upgrade Notes (v0.11.x → v0.15.4)
+
+**v0.15.4: replaced the plugin manager icon.** The card icon and the "included components" row icon for this plugin in the DSH plugin manager (previously the default artwork) now use the whale HUD artwork from `00_assets/plugin-icons/dsh-awesome-hud/whale-hud-icon-mcp-1k.png`, losslessly scaled to a 448×448 PNG (~210 KB, under the 256 KiB limit, white rounded tile with transparent corners) and declared through the top-level `icon` field in `package.json`. The README now shows a 96px icon under the title, and both READMEs plus the package version are updated to 0.15.4. HUD panel icons, host code, and data behavior are unchanged.
 
 **v0.15.3: fixed the right sidebar overlapping the HUD panel and the blank body placeholder.** On the blank session page, expanding the HUD first, then opening the right sidebar, then sending the first message used to produce both "HUD floating above the right sidebar" and "~300px of blank space right of the body". The cause: the panel's open memory is per session and defaults to open, so the scope switch from the blank page to a real session pulled the panel up without reconciling against the already-expanded official right sidebar; the panel's layout also wrote a `margin-right` push on the body. HUD visibility is now **derived**: `visible = session open memory && right sidebar collapsed`. Expanding a sidebar only temporarily hides the panel and **never rewrites** the open memory, so closing the sidebar restores it naturally; the push styles are applied only while the panel is visible and are now applied/cleaned inside a layout effect in the same commit, so no blank frame is left behind when a sidebar opens. Blank page, session switches and the refresh first frame all share the same rule; a HUD the user explicitly collapsed is never reopened by sidebar toggles; the "HUD panel" button still collapses the right sidebar first, then shows the panel. Sidebar mutual-exclusion and blank-page/new-session regression tests were rewritten accordingly.
 

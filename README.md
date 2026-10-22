@@ -5,6 +5,10 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
+<p align="center">
+  <img src="icon.png" width="96" height="96" alt="dsh-awesome-hud 图标">
+</p>
+
 为 DeepSeek Harness Web / 桌面端聊天页打造的悬浮 HUD 面板：会话状态、上下文占用与一键压缩、git 变更、子代理、任务与 MCP 启停，一目了然。
 
 HUD在dsh中的效果（浅色主题）
@@ -28,7 +32,7 @@ HUD在dsh中的效果（深色主题）
 - [🖼️ 界面截图](#️-界面截图)
 - [⚙️ 兼容性](#️-兼容性)
 - [🔧 技术栈](#-技术栈)
-- [⬆️ 升级说明（v0.11.x → v0.15.3）](#️-升级说明v011x--v0153)
+- [⬆️ 升级说明（v0.11.x → v0.15.4）](#️-升级说明v011x--v0154)
 - [📄 许可证](#-许可证)
 
 ---
@@ -77,7 +81,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 
 ### 桌面端安装（macOS）
 
-当前版本：**0.15.3**。先完全退出 DeepSeek Harness，再使用桌面应用自带的 CLI 安装；不要用旧 Web CLI 管理 `desktop` profile。
+当前版本：**0.15.4**。先完全退出 DeepSeek Harness，再使用桌面应用自带的 CLI 安装；不要用旧 Web CLI 管理 `desktop` profile。
 
 ```bash
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -203,6 +207,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 | 平台               | macOS 已验证；Windows/Linux 仅理论兼容（git 命令行为一致）                                                                                    |
 | 主题               | 跟随深浅主题（使用`--dsw-alias-*` 主题 token）                                                                                              |
 | 语言               | 简体中文 / English，跟随 DSH locale                                                                                                           |
+| 图标               | `package.json` 顶层 `icon`（包内相对路径 `icon.png`，448×448 PNG，原始字节 ≤256 KiB）；需 DSH 支持 manifest 图标，更旧版本回落默认图标       |
 | 数据作用域         | 「便笺」「待办」按工作区目录共享（`localStorage`）；无 `cwd` 的会话降级为会话级隔离                                                          |
 | 面板开合状态       | 按会话 id 独立持久化（`dsh-awesome-hud:open`，值为 `{ "会话 id": "1"|"0" }`）；新建会话页不持久化；可见性 = 展开记忆 ∩ 官方/better-sidebar 右侧栏均收起 |
 
@@ -215,7 +220,9 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 | 数据来源  | 客户端会话投影（`ctx.sessions.list` / `workspaces` / `modelDirectories`）+ 自有 host API（git / MCP / 子代理 / 计划清单 / 压缩）+ dsh-account-usage 余额/用量路由（复用） |
 | 测试      | `node --test`（git 解析、MCP 解析、状态推导、计划清单推导、设置收敛、信任围栏；位于 `test/`）                                                                               |
 
-## ⬆️ 升级说明（v0.11.x → v0.15.3）
+## ⬆️ 升级说明（v0.11.x → v0.15.4）
+
+**v0.15.4：更换插件管理页图标**：DSH 插件管理页中本插件的卡片图标与「包含的组件」行图标（此前为默认图标）替换为鲸鱼 HUD 图标，来源为 `00_assets/plugin-icons/dsh-awesome-hud/whale-hud-icon-mcp-1k.png`，按 DSH 图标规范无损缩放为 448×448 PNG（约 210 KB，≤256 KiB 上限，白色圆角底 + 透明外角），并在 `package.json` 中以顶层 `icon` 声明；README 顶部同步展示 96px 图标，中英文文档与版本号更新为 0.15.4。HUD 面板内部图标、host 代码与数据行为均未改动。
 
 **v0.15.3：修复右侧栏与 HUD 面板重叠及正文空白占位**：新建会话页先展开 HUD、再打开右侧栏、然后发送首条消息时，此前会同时出现「HUD 浮在右侧栏之上」与「正文右侧约 300px 空白」两个问题。根因是面板开合记忆按会话独立、无记录默认展开——作用域从新建页切到真实会话时直接拉起面板，没有与已展开的官方右侧栏对账；而面板布局又会给正文写 `margin-right` 推挤。现在 HUD 可见性改为**派生**：`可见 = 会话展开记忆 && 右侧栏未展开`，侧栏展开只临时隐藏面板、**不改写**展开记忆，关闭侧栏后自然恢复；推挤样式只在面板可见时应用，并经 layout effect 在同一提交内同步清理，侧栏展开瞬间也不会残留空白帧。新建会话页、切换会话与刷新首帧走同一套判定；手动收起过的 HUD 不会被侧栏开关重新拉起；点击「HUD面板」按钮仍优先收起右侧栏再展示面板。同步改写侧栏互斥、新建页切换会话与真实会话首帧的回归测试。
 
