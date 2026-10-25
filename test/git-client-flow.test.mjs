@@ -36,6 +36,7 @@ function createStub(extra = {}) {
       gitBranchSwitched: '已切换到分支「{branch}」',
       gitBranchFailed: '切换分支失败：{detail}',
       gitBranchAlreadyOn: '当前已在分支「{branch}」',
+      ...(extra.i18n ?? {}),
     }[key] ?? key),
     __failure: null,
     __response: extra.response ?? {},
@@ -190,4 +191,62 @@ test('分支菜单：当前分支勾选，点击行调用切换；空列表给�
   // 标题栏按钮渲染当前分支名，非仓库时换成「初始化仓库」
   assert.match(clientSource, /className: "hud-btn-small hud-git-btn hud-branch-switch",/);
   assert.match(clientSource, /react\.createElement\(Icon, \{ name: "git-branch", size: 13 \}\),\s*\n\s*react\.createElement\("span", null, props\.git\.branch\)\)\)/);
+});
+
+test('revert 全部确认：记录暂存区数量，并在提示里区分「已暂存不受影响」与「跳过条目」', async () => {
+  const i18n = {
+    gitRevertAllDone: 'done {count}',
+    gitRevertAllDoneWithStaged: 'done {count} staged-left {staged}',
+    gitRevertSkipped: 'skipped {count}: {paths}',
+  };
+  const { context, calls } = createStub({ i18n, globals: { stagedFiles: [{ path: 's1' }, { path: 's2' }], setConfirm: (value) => calls.push({ method: '__confirm', payload: value }) } });
+  context.props.git = {
+    branch: 'main',
+    counts: { staged: 2, unstaged: 2 },
+    files: [
+      { status: '?', path: 'new.txt', unstaged: true },
+      { status: 'A', path: 'staged.txt', staged: true, unstaged: true },
+      { status: 'A', path: 'done.txt', staged: true, unstaged: false },
+    ],
+  };
+
+  const openRevertAllConfirm = loadHandler(context, 'openRevertAllConfirm');
+  openRevertAllConfirm();
+  const opened = plain(calls.find((call) => call.method === '__confirm').payload);
+  assert.equal(opened.kind, 'revert-all');
+  assert.equal(opened.files.length, 2, '只收集未暂存条目');
+  assert.equal(opened.stagedCount, 2, '暂存区数量必须记录，供确认框说明「不会被撤销」');
+
+  // 成功且存在暂存区文件：结果提示同时给出「已撤销」与「暂存保留」信息；host 透传 skippedRevert 时追加警告
+  const runWriteStub = 'const runWrite = (method, extra, onOk) => { __run.push({ method, extra }); if (onOk !== undefined) onOk(__body); };';
+  const runContext = createStub({ i18n, globals: { __run: [], __body: { skippedRevert: ['nested/', 'sub/', 'x/'] }, setConfirm: () => {} } });
+  vm.runInContext(runWriteStub, runContext.context);
+  const confirmRevert = loadHandler(runContext.context, 'confirmRevert', 'let confirm = null;');
+  vm.runInContext(`confirm = ${JSON.stringify(opened)};`, runContext.context);
+  confirmRevert();
+  const runEntries = vm.runInContext('__run.map((entry) => [entry.method, entry.extra])', runContext.context);
+  assert.deepEqual(plain(runEntries), [['git/revert-all', {}]]);
+  const texts = runContext.toasts.map((toast) => toast.text);
+  assert.deepEqual(texts, ['done 2 staged-left 2', 'skipped 3: nested/、sub/、x/'], '暂存数量与跳过清单都要回显');
+  assert.deepEqual(runContext.toasts.map((toast) => toast.kind), ['success', 'warn']);
+});
+
+test('revert 文案与提示：中英词条齐全，确认框渲染预登记/暂存说明，staged 组展示不受撤销影响', () => {
+  const keys = [
+    'gitRevertAllStagedNote',
+    'gitRevertFileIntentToAdd',
+    'gitRevertFileStagedPartial',
+    'gitRevertAllDoneWithStaged',
+    'gitRevertSkipped',
+    'gitStagedHint',
+  ];
+  for (const key of keys) {
+    const matches = clientSource.match(new RegExp(`\\b${key}:`, 'g')) ?? [];
+    assert.equal(matches.length, 2, `${key} 必须同时存在于中文与英文词典`);
+  }
+  // 确认框：预登记按「删除」语义渲染，并追加暂存区说明
+  assert.match(clientSource, /confirm\.file\.intentToAdd === true\s*\n\s*\? interpolate\(t\("gitRevertFileIntentToAdd"\)/);
+  assert.match(clientSource, /extraNotes\.map\(\(text\) => react\.createElement\("div", \{ className: "hud-confirm-note", key: text \}, text\)\)/);
+  // staged 组常驻说明：暂存区文件不会被 revert 撤销
+  assert.match(clientSource, /className: "hud-git-summary" \}, t\("gitStagedHint"\)\)/);
 });

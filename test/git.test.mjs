@@ -16,6 +16,8 @@ import {
 	parseMergeLocalChanges,
 	parseMergeConflictFiles,
 	anyChange,
+	isIntentToAdd,
+	isDirectoryEntry,
 } from "../lib/git.js";
 
 test("statusLetter 映射", () => {
@@ -80,6 +82,21 @@ test("parsePorcelainZ 空输入与多余分隔", () => {
 test("anyChange", () => {
 	assert.equal(anyChange([]), false);
 	assert.equal(anyChange([{ status: "?", path: "x" }]), true);
+});
+
+test("isIntentToAdd：只认 ` A`（预登记），不认 `A `（已暂存）与 `??`", () => {
+	assert.equal(isIntentToAdd({ status: "A", path: "x.txt", staged: false, unstaged: true }), true);
+	assert.equal(isIntentToAdd({ status: "A", path: "x.txt", staged: true, unstaged: false }), false);
+	assert.equal(isIntentToAdd({ status: "A", path: "x.txt", staged: true, unstaged: true }), false);
+	assert.equal(isIntentToAdd({ status: "?", path: "x.txt", staged: false, unstaged: true }), false);
+	assert.equal(isIntentToAdd(null), false);
+});
+
+test("isDirectoryEntry：只认未跟踪且带尾斜杠的目录条目", () => {
+	assert.equal(isDirectoryEntry({ status: "?", path: "nested/", staged: false, unstaged: true }), true);
+	assert.equal(isDirectoryEntry({ status: "?", path: "docs/new.md", staged: false, unstaged: true }), false);
+	assert.equal(isDirectoryEntry({ status: "D", path: "old/", staged: false, unstaged: true }), false);
+	assert.equal(isDirectoryEntry(undefined), false);
 });
 
 test("parseNumstat 常规", () => {
