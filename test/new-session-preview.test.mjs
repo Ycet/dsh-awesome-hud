@@ -152,6 +152,8 @@ test("按 hooks 顺序真实渲染：预览开关切换组件返回 null / 按�
       return [cell.value, next => { cell.value = typeof next === "function" ? next(cell.value) : next; }];
     },
     useEffect: fn => { effects[cursor++] = fn; },
+    // 位置测量改用 layout 阶段（绘制前校正，避免首帧与右侧按钮重叠）
+    useLayoutEffect: fn => { effects[cursor++] = fn; },
     createElement: (type, props, ...children) => ({ type, props, children }),
   };
   const context = vm.createContext({
@@ -163,6 +165,8 @@ test("按 hooks 顺序真实渲染：预览开关切换组件返回 null / 按�
     subscribeHud: () => () => {},
     subscribeSidebar: () => () => {},
     watchFloatingHudPosition: () => () => {},
+    // 模块级 layout effect 别名（位置测量在绘制前完成）
+    useLayoutEffect: fn => { effects[cursor++] = fn; },
     // 记录组件注册的回调，用它模拟浮层开合真正驱动 state 更新
     watchFullscreenPreview: onChange => { notifyPreview = onChange; return () => {}; },
     fullscreenPreviewOpen: () => false,

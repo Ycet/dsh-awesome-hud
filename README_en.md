@@ -32,7 +32,7 @@ HUD in DSH (dark theme)
 - [🖼️ Screenshots](#️-screenshots)
 - [⚙️ Compatibility](#️-compatibility)
 - [🔧 Tech Stack](#-tech-stack)
-- [⬆️ Upgrade Notes (v0.11.x → v0.15.5)](#️-upgrade-notes-v011x--v0155)
+- [⬆️ Upgrade Notes (v0.11.x → v0.15.6)](#️-upgrade-notes-v011x--v0156)
 - [📄 License](#-license)
 
 ---
@@ -78,11 +78,11 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 After installation, a "HUD panel" button appears at the top-right of the chat page (left of the "Open workspace" button); click it to toggle the panel.
 
 > [!NOTE]
-> The HUD panel is expanded by default, and **each session remembers its own open/closed state** (stored per session id in localStorage): collapsing it in session A never affects session B. **The blank/new-session page is the exception**: it always starts collapsed (in-memory only — nothing is written to localStorage, so no session's memory is touched) and offers its own floating "HUD panel" button in the top-right for opening it on that page (that button is hidden while an image is opened in the **full-screen preview**, so it never floats above the image or the preview's close button). Module visibility is stored in the DSH profile settings and syncs across browsers/devices with the profile.
+> The HUD panel is expanded by default, and **each session remembers its own open/closed state** (stored per session id in localStorage): collapsing it in session A never affects session B. **The blank/new-session page is the exception**: it always starts collapsed (in-memory only — nothing is written to localStorage, so no session's memory is touched) and offers its own floating "HUD panel" button in the top-right for opening it on that page (that button is hidden while an image is opened in the **full-screen preview**, so it never floats above the image or the preview's close button; it also keeps the chat page's order and spacing — always to the left of the top-right utility cluster, so with better-sidebar installed its bottom-panel toggle follows the HUD entry). Module visibility is stored in the DSH profile settings and syncs across browsers/devices with the profile.
 
 ### Desktop installation (macOS)
 
-Current version: **0.15.5**. Fully quit DeepSeek Harness, then install with the CLI bundled with the desktop app. Use that CLI when managing the `desktop` profile.
+Current version: **0.15.6**. Fully quit DeepSeek Harness, then install with the CLI bundled with the desktop app. Use that CLI when managing the `desktop` profile.
 
 ```bash
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -221,7 +221,9 @@ Session-switch regressions execute the full HUD bundle with React from the offic
 | Data sources | Client-side session projection (`ctx.sessions.list` / `workspaces` / `modelDirectories`) + own host APIs (git / MCP / subagents / plan list / compaction) + reused dsh-account-usage balance/usage routes |
 | Tests        | `node --test` (git parsing, MCP parsing, status derivation, plan-list derivation, settings normalization, trust fence; in `test/`)                                                                          |
 
-## ⬆️ Upgrade Notes (v0.11.x → v0.15.5)
+## ⬆️ Upgrade Notes (v0.11.x → v0.15.6)
+
+**v0.15.6: the new-session page's HUD entry now matches the chat page position.** The blank-page floating entry used to sit exactly 8px left of the right-sidebar expand button. With better-sidebar installed, that plugin portals its bottom-panel toggle into the same slot on the blank page; once the HUD took the slot, the toggle retreated to its left, producing the order "bottom-panel toggle → HUD → right-sidebar button" instead of the chat page's "HUD → bottom-panel toggle → right-sidebar button". The floating entry now detects that fallback toggle (`[data-dsh-dock-fallback]`) in the same row and reserves its width plus the standard gap, so it always sits at the left end of the top-right control cluster and both pages share the same order and spacing. Two overlap cases are fixed as well: positioning now runs in a layout effect (corrected before the first paint), and while the fallback toggle is not mounted yet the entry reserves the same-width slot as soon as better-sidebar is active, correcting with the real width once the toggle renders — so the two buttons no longer overlap briefly when the new-session page is first shown or after opening and closing the right sidebar. Nothing changes when better-sidebar is absent or the page renders the session header. Added position-reservation regression tests in `test/new-session-entry.test.mjs`.
 
 **v0.15.5: two silent revert problems fixed, with clearer prompts.** ① Files registered through `git add -N` (intent-to-add, porcelain ` A`) were treated as tracked and went through `git restore`, which emptied the working-tree file while keeping it — they are now removed from the index with `git reset` first, then deleted like untracked files, and the result is verified. ② Untracked directory entries (nested repositories/submodules, porcelain `?? dir/`) were reported as successfully reverted even though `git clean -f` cannot delete them — they are now handled with `git clean -fd` and verified; an all-skipped operation returns an explicit error, while a partially successful one returns the skipped list so the UI can warn. ③ Prompts are clearer: the revert-all confirmation states "N staged file(s) will NOT be discarded", the staged group carries a persistent note, the result toast separates "reverted" from "staged kept", and per-file confirmations explain intent-to-add and staged content. The existing boundary that staged files are out of revert scope is unchanged, and the host snapshot now exposes an `intentToAdd` flag. Added `test/git-revert-safety.test.mjs` (real git) and client confirmation/toast path tests.
 

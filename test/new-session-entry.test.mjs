@@ -194,8 +194,14 @@ test("新建页按钮保持在页眉原位，官方边栏展开时移到可见�
   assert.doesNotMatch(source, /HUD_FLOAT_PANEL_GAP/);
   assert.match(source, /window\.innerWidth - panel\.getBoundingClientRect\(\)\.left \+ 12/);
   assert.match(source, /sidebarBridge\(ctx\)\.subscribeState\(scheduleSync\)/);
-  assert.match(source, /const \{ element, inset \} = floatingHudTarget\(\);/);
+  assert.match(source, /const \{ element, inset \} = floatingHudTarget\(ctx\);/);
   assert.match(source, /attributeFilter: \["data-sidebar-right-open", "hidden"\]/);
+  // 新建页入口与聊天页同序：预留 better-sidebar 兜底切换按钮的宽度与间距
+  assert.match(source, /const HUD_FLOAT_GAP = 8;/);
+  assert.match(source, /floatingHudReserve\(rect, ctx\)/);
+  // 首帧定位在 layout 阶段完成，避免绘制出错误位置后再跳回
+  assert.match(source, /useLayoutEffect\(\(\) => watchFloatingHudPosition\(ctx, setSidebarInset\), \[\]\);/);
+  assert.match(source, /document\.querySelector\("\[data-dsh-dock-fallback\]"\)/);
 });
 
 test("边栏定位只选当前可见且已展开的面板", () => {
@@ -229,12 +235,60 @@ test("新建页优先紧贴可见的官方边栏按钮，展开边栏后才退�
     },
     window: { innerWidth: 1200 },
   });
-  vm.runInContext(`const HUD_FLOAT_RIGHT = 72;\n${extractFunction("visibleOfficialSidebarPanel")}\n${extractFunction("visibleOfficialSidebarExpandButton")}\n${extractFunction("floatingHudTarget")}`, context);
+  vm.runInContext(`const HUD_FLOAT_RIGHT = 72;\nconst HUD_FLOAT_GAP = 8;\nconst HUD_FLOAT_SLOT_SIZE = 28;\n${extractFunction("visibleOfficialSidebarPanel")}\n${extractFunction("visibleOfficialSidebarExpandButton")}\n${extractFunction("floatingHudReserve")}\n${extractFunction("floatingHudTarget")}`, context);
   assert.equal(context.floatingHudTarget().inset, 64, "收起状态应距官方按钮 8px，即使保留了已展开的边栏节点");
   expandVisible = false;
   assert.equal(context.floatingHudTarget().inset, 512, "展开边栏后应移到面板左侧");
   panelVisible = false;
   assert.equal(context.floatingHudTarget().inset, 72, "没有锚点时使用原兜底位置");
+});
+
+test("新建页入口预留 better-sidebar 兜底按钮的位置，与聊天页顺序一致", () => {
+  const anchor = {
+    closest: () => null,
+    getBoundingClientRect: () => ({ left: 1144, right: 1172, width: 28, top: 6, bottom: 34, height: 28 }),
+  };
+  let fallbackRect = { left: 1108, right: 1136, width: 28, top: 6, bottom: 34, height: 28 };
+  const context = vm.createContext({
+    document: {
+      querySelectorAll: selector => (selector === "[data-sidebar-right-expand]" ? [anchor] : []),
+      querySelector: selector => (selector === "[data-dsh-dock-fallback]" && fallbackRect !== null
+        ? { getBoundingClientRect: () => fallbackRect }
+        : null),
+    },
+    window: { innerWidth: 1200 },
+  });
+  vm.runInContext(`const HUD_FLOAT_RIGHT = 72;\nconst HUD_FLOAT_GAP = 8;\nconst HUD_FLOAT_SLOT_SIZE = 28;\n${extractFunction("visibleOfficialSidebarPanel")}\n${extractFunction("visibleOfficialSidebarExpandButton")}\n${extractFunction("floatingHudReserve")}\n${extractFunction("floatingHudTarget")}`, context);
+  // 兜底切换按钮 28px + 间距 8px：入口右缘排在它左侧，间距与聊天页 utilities 一致
+  assert.equal(context.floatingHudTarget().inset, 100);
+  // 同一行之外的节点不参与预留
+  fallbackRect = { left: 1108, right: 1136, width: 28, top: 300, bottom: 328, height: 28 };
+  assert.equal(context.floatingHudTarget().inset, 64);
+  // 尚未渲染出宽高的节点不预留
+  fallbackRect = { left: 1108, right: 1108, width: 0, top: 6, bottom: 34, height: 28 };
+  assert.equal(context.floatingHudTarget().inset, 64);
+});
+
+test("兜底按钮尚未挂载时按 better-sidebar 服务预留槽位，首帧不与其重叠", () => {
+  const anchor = {
+    closest: () => null,
+    getBoundingClientRect: () => ({ left: 1144, right: 1172, width: 28, top: 6, bottom: 34, height: 28 }),
+  };
+  const context = vm.createContext({
+    document: {
+      querySelectorAll: selector => (selector === "[data-sidebar-right-expand]" ? [anchor] : []),
+      // 首帧兜底按钮还没 portal 进 DOM
+      querySelector: () => null,
+    },
+    window: { innerWidth: 1200 },
+  });
+  vm.runInContext(`const HUD_FLOAT_RIGHT = 72;\nconst HUD_FLOAT_GAP = 8;\nconst HUD_FLOAT_SLOT_SIZE = 28;\n${extractFunction("visibleOfficialSidebarPanel")}\n${extractFunction("visibleOfficialSidebarExpandButton")}\n${extractFunction("floatingHudReserve")}\n${extractFunction("floatingHudTarget")}`, context);
+  // better-sidebar 已激活：按 28px 按钮 + 8px 间距提前预留，入口右缘排在兜底按钮左侧
+  assert.equal(context.floatingHudTarget({ get: () => ({}) }).inset, 100);
+  // 未安装 / 未激活时不预留，仍紧贴右侧栏按钮
+  assert.equal(context.floatingHudTarget({ get: () => undefined }).inset, 64);
+  // 服务读取抛错时按未安装处理，不影响定位
+  assert.equal(context.floatingHudTarget({ get: () => { throw new Error("not ready"); } }).inset, 64);
 });
 
 test("快速开合官方边栏后，即使首轮测量早于按钮复位，也会在下一帧校准", () => {
@@ -282,7 +336,7 @@ test("快速开合官方边栏后，即使首轮测量早于按钮复位，也�
       disconnect() {}
     },
   });
-  vm.runInContext(`const HUD_FLOAT_RIGHT = 72;\n${extractFunction("visibleOfficialSidebarPanel")}\n${extractFunction("visibleOfficialSidebarExpandButton")}\n${extractFunction("floatingHudTarget")}\n${extractFunction("sidebarBridge")}\n${extractFunction("watchFloatingHudPosition")}`, context);
+  vm.runInContext(`const HUD_FLOAT_RIGHT = 72;\nconst HUD_FLOAT_GAP = 8;\nconst HUD_FLOAT_SLOT_SIZE = 28;\n${extractFunction("visibleOfficialSidebarPanel")}\n${extractFunction("visibleOfficialSidebarExpandButton")}\n${extractFunction("floatingHudReserve")}\n${extractFunction("floatingHudTarget")}\n${extractFunction("sidebarBridge")}\n${extractFunction("watchFloatingHudPosition")}`, context);
   const stop = context.watchFloatingHudPosition({ get: () => undefined }, inset => insets.push(inset));
   assert.equal(insets.at(-1), 64);
 
