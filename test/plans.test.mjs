@@ -56,9 +56,70 @@ function desktopResult(callId, { error = false, sourceOnly = false } = {}) {
 	};
 }
 
+/**
+ * rc.5 起计划审查卡片的「要求修改」只是关闭评审、回到输入框：
+ * exit_plan_mode 不再抛错，而是以成功结果返回 { approved: false }，计划模式仍然生效。
+ */
+function desktopDismissedResult(callId, { text = "The user dismissed the plan review to reply in their own words; plan mode remains active." } = {}) {
+	return {
+		type: "tool/result", seq: 2, time: 2000,
+		data: { turn: 1, step: 1, message: {
+			role: "tool", source: { kind: "tool", callId }, toolCallId: callId,
+			isError: false,
+			content: [{ type: "text", text }],
+		} },
+	};
+}
+
+/** 成功结果但文案与当前 DSH 版本不同（模拟后续版本改词，需要靠 plan/mode 信号兜底）。 */
+function desktopNoticeResult(callId) {
+	return desktopDismissedResult(callId, { text: "Plan review outcome delivered." });
+}
+
 test("桌面审批成功后退出计划模式，仍为已执行而非已废弃", () => {
 	assert.equal(scanPlanEvents([
 		toolCall(1, 1000, "c1", PLAN_A), desktopResult("c1"), planMode(3, 3000, false),
+	])[0].status, PLAN_STATUS.APPROVED);
+});
+
+test("桌面「要求修改/关闭审查」返回成功结果时应为已废弃而非已执行", () => {
+	assert.equal(scanPlanEvents([
+		toolCall(1, 1000, "c1", PLAN_A), desktopDismissedResult("c1"),
+	])[0].status, PLAN_STATUS.DISCARDED);
+});
+
+test("旧版关闭审查文案（speak instead）同样判为已废弃", () => {
+	assert.equal(scanPlanEvents([
+		toolCall(1, 1000, "c1", PLAN_A),
+		desktopDismissedResult("c1", { text: "The user dismissed the plan review to speak instead; stay in plan mode, stop here, and wait for their message." }),
+	])[0].status, PLAN_STATUS.DISCARDED);
+});
+
+test("关闭审查后 plan 模式仍在生效，后续模式退出不会把该计划反转为已执行", () => {
+	assert.equal(scanPlanEvents([
+		toolCall(1, 1000, "c1", PLAN_A), desktopDismissedResult("c1"), planMode(3, 3000, false),
+	])[0].status, PLAN_STATUS.DISCARDED);
+});
+
+test("关闭审查后修改重提：旧计划已废弃、新计划已执行", () => {
+	assert.deepEqual(scanPlanEvents([
+		toolCall(1, 1000, "c1", PLAN_A), desktopDismissedResult("c1"),
+		toolCall(3, 3000, "c2", PLAN_B), desktopResult("c2"), planMode(5, 5000, false),
+	]).map(plan => plan.status), [PLAN_STATUS.DISCARDED, PLAN_STATUS.APPROVED]);
+});
+
+test("成功结果文案无法识别时，按结果后的模式退出信号判定", () => {
+	// 有 plan/mode 事件且审批后立即退出 → 已执行
+	assert.equal(scanPlanEvents([
+		toolCall(1, 1000, "c1", PLAN_A), desktopNoticeResult("c1"), planMode(3, 3000, false),
+	])[0].status, PLAN_STATUS.APPROVED);
+	// 有 plan/mode 事件但下一次审查前未退出（模式仍生效）→ 已废弃
+	assert.equal(scanPlanEvents([
+		planMode(1, 1000, true), toolCall(2, 2000, "c1", PLAN_A), desktopNoticeResult("c1"),
+	])[0].status, PLAN_STATUS.DISCARDED);
+	// 旧日志没有 plan/mode 事件 → 保持「成功即已执行」的兼容口径
+	assert.equal(scanPlanEvents([
+		toolCall(1, 1000, "c1", PLAN_A), desktopNoticeResult("c1"),
 	])[0].status, PLAN_STATUS.APPROVED);
 });
 

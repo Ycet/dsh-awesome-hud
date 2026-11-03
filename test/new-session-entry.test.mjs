@@ -392,10 +392,7 @@ test("悬浮按钮仅在新建会话页渲染，且与面板共用同一派生�
   assert.match(source, /function HudFloatingButton\(\) \{[\s\S]{0,2500}onClick: \(\) => toggleHud\(ctx\)/);
   // 每次会话/页面切换都在 effect 中重新激活作用域（渲染期只 peek，不跨根广播）
   assert.match(source, /react\.useEffect\(\(\) => \{\s*\n\s*activateHudScope\(scopeSessionId\);\s*\n\s*\}, \[scopeSessionId\]\);/);
-  // 渲染期用 peek 得到目标会话记忆，并叠加右侧栏互斥派生可见性；
-  // 订阅仅用于触发重渲染（不跨根广播、不等作用域 effect 后再挂载面板）。
-  assert.match(source, /const visible = peekHudOpen\(scopeSessionId\) && !getSidebarExpanded\(\);/);
-  assert.match(source, /subscribeSidebar\(\(\) => refreshVisible\(\(value\) => value \+ 1\)\)/);
+  assert.match(source, /const \[visible, setVisible\] = react\.useState\(\(\) => peekHudOpen\(scopeSessionId\) && !getSidebarExpanded\(\)\);/);
 });
 
 test("入口位于右侧工具区，面板与存储键保持兼容", () => {

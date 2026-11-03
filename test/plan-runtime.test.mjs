@@ -8,7 +8,7 @@ import { apply } from '../lib/index.js';
 const runtime = process.env.DSH_TEST_INSTALL_ROOT;
 
 // 使用官方工具执行、消息构造与会话日志，通过 HUD host 路由验证完整状态链；无需调用模型。
-test('官方桌面计划审批流程：待审批、通过后退出、拒审、关闭审查', { skip: !runtime }, async t => {
+test('官方桌面计划审批流程：待审批、通过后退出、拒审、要求修改', { skip: !runtime }, async t => {
   const load = name => import(pathToFileURL(join(runtime, 'node_modules', '@deepseek-ai', name, 'lib/index.js')));
   const { Context } = await load('cordis');
   const { SessionStore } = await load('dsh-session');
@@ -46,24 +46,36 @@ test('官方桌面计划审批流程：待审批、通过后退出、拒审、�
     const args = { plan: '# 官方审批流程验证\n- 步骤一' };
     session.append('plan/mode', { active: true });
     const call = session.append('tool/call', { turn: 1, step: 1, name: 'exit_plan_mode', callId, arguments: JSON.stringify(args) });
+    let concluded = false;
     answer = async request => {
       assert.equal((await plans(session.id))[0].status, 'pending');
       const review = request.questions[0];
       assert.equal(review.intent.kind, 'plan-review');
       assert.equal(review.intent.callId, callId);
+      // rc.5：「要求修改」只是关闭审查、回到输入框，ask() 以 ASK_CANCELLED 结束，
+      // 计划工具不再抛错，而是返回成功的 { approved: false }（计划模式仍生效）。
       if (outcome === 'dismiss') throw new UserQuestionError('dismissed', 'ASK_CANCELLED');
       return { answers: [{ id: review.id, selected: [outcome === 'approve' ? review.intent.approve : review.options[1].label] }] };
     };
-    let content, isError = false;
+    let content, isError = false, output;
+    const exec = { agent, callId, signal: new AbortController().signal, concludeTurn: () => { concluded = true; } };
     try {
-      const output = await planTool.execute(args, { agent, callId, signal: new AbortController().signal });
-      assert.deepEqual(output, { approved: true });
-      content = planTool.output.render(output);
+      output = await planTool.execute(args, exec);
+      content = planTool.output.render(args, output);
     } catch (error) {
-      if (outcome === 'approve') throw error;
-      assert.match(error.message, outcome === 'revise' ? /The user chose to keep planning/ : /dismissed the plan review/);
+      assert.equal(outcome, 'revise');
+      assert.match(error.message, /The user chose to keep planning/);
       isError = true;
       content = [{ type: 'text', text: error.message }];
+    }
+    if (outcome === 'approve') {
+      assert.deepEqual(output, { approved: true });
+      assert.equal(concluded, false);
+    }
+    if (outcome === 'dismiss') {
+      // 关闭审查的成功结果不是审批通过，HUD 必须按「已废弃」处理
+      assert.deepEqual(output, { approved: false });
+      assert.equal(concluded, true);
     }
     session.append('tool/result', { turn: 1, step: 1, message: createToolResultMessage({ callId, content, isError }) }, {
       surfaceOp: 'append', sourceEventSeqs: [call.seq],
