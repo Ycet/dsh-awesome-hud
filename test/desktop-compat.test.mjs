@@ -45,7 +45,7 @@ test('子代理保留各模式和直接父会话，缺失侧栏及打开失败�
 });
 
 // 模拟桌面真实的菜单、nav 和延迟挂载，验证按钮选择而非只匹配源码字符串。
-function navigationFixture({ existing = false, legacy = false, target = 'opencode', accountLabel = '账号与余额', customFallback = false } = {}) {
+function navigationFixture({ existing = false, legacy = false, target = 'opencode', accountLabel = '账号与余额', customFallback = false, withTab = true } = {}) {
   let menuOpen = false, dialogOpen = existing, ticks = 0, selected = false;
   const clicks = [], errors = [];
   const button = (text, action) => ({ textContent: text, getAttribute: () => 'Account menu', click: () => { clicks.push(text); action?.(); } });
@@ -57,7 +57,7 @@ function navigationFixture({ existing = false, legacy = false, target = 'opencod
   if (customFallback) navButtons.push(custom);
   const nav = { querySelectorAll: () => navButtons };
   const tab = button(target === 'deepseek' ? 'deepseek' : 'opencode go');
-  const dialog = { querySelector: () => nav, querySelectorAll: () => selected && ticks >= 8 ? [tab] : [] };
+  const dialog = { querySelector: () => nav, querySelectorAll: () => withTab && selected && ticks >= 8 ? [tab] : [] };
   const menuItem = button('设置⌘,', () => { dialogOpen = true; });
   menuItem.cloneNode = () => ({ textContent: '设置⌘,', querySelectorAll: function () { return [{ remove: () => { this.textContent = '设置'; } }]; } });
   const menu = { querySelectorAll: () => ticks >= 4 ? [menuItem] : [] };
@@ -105,6 +105,14 @@ test('英文 Account 分区与旧版回退「账户」分区都能命中，且�
   const both = navigationFixture({ target: 'opencode', accountLabel: '账号与余额', customFallback: true });
   await both.context.openSettingsAccount('opencode');
   assert.deepEqual(both.clicks, ['账号菜单', '设置⌘,', '账号与余额', 'opencode go']);
+});
+
+test('未安装 dsh-account-usage（无页签）时点 DeepSeek 余额仍打开「账号与余额」且不报错', async () => {
+  // 页签由 dsh-account-usage 注入；缺失时应停留在官方账户页，而不是等超时后 toast。
+  const f = navigationFixture({ target: 'deepseek', withTab: false });
+  await f.context.openSettingsAccount('deepseek');
+  assert.deepEqual(f.clicks, ['账号菜单', '设置⌘,', '账号与余额']);
+  assert.deepEqual(f.errors, []);
 });
 
 test('已打开设置时不关闭，Codex 选择自身分区；旧 Web 入口仍能跳转', async () => {
