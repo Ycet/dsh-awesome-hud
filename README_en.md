@@ -60,8 +60,8 @@ HUD in DSH (dark theme)
 **Option 1: install from GitHub remotely (recommended)**
 
 ```bash
-# 1. Install (requires git access to GitHub on this machine)
-dsh plugin --profile web add github:Ycet/dsh-awesome-hud
+# 1. Install (pinned to a release tag; requires git access to GitHub)
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.15.14"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -71,6 +71,15 @@ dsh plugin --profile web add github:Ycet/dsh-awesome-hud
 ```bash
 # 1. Install (replace <absolute-path-to-plugin> with your local source directory)
 dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
+
+# 2. Restart the DSH Web service and refresh the page
+```
+
+**Option 3: install from a Release asset (tarball; no git, no npm account)**
+
+```bash
+# 1. Install (use the Release asset URL directly, or pass a downloaded .tgz path)
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.15.14/dsh-awesome-hud-0.15.14.tgz"
 
 # 2. Restart the DSH Web service and refresh the page
 ```

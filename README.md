@@ -59,8 +59,8 @@ HUD在dsh中的效果（深色主题）
 **方式一：从 GitHub 远程安装（推荐）**
 
 ```bash
-# 1. 安装（要求本机 git 可访问 GitHub）
-dsh plugin --profile web add github:Ycet/dsh-awesome-hud
+# 1. 安装（锁定版本 tag，要求本机 git 可访问 GitHub）
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.15.14"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -70,6 +70,15 @@ dsh plugin --profile web add github:Ycet/dsh-awesome-hud
 ```bash
 # 1. 安装（将 <absolute-path-to-plugin> 替换为本地源码目录绝对路径）
 dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
+
+# 2. 重启 DSH Web 服务并刷新页面
+```
+
+**方式三：从 Release 资产安装（tarball，无需 git、无需 npm 账号）**
+
+```bash
+# 1. 安装（可直接用 Release 资产 URL，也可先下载 .tgz 再传本地路径）
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.15.14/dsh-awesome-hud-0.15.14.tgz"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
