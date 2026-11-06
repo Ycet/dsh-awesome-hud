@@ -194,7 +194,7 @@ test("新建页按钮保持在页眉原位，官方边栏展开时移到可见�
   assert.doesNotMatch(source, /HUD_FLOAT_PANEL_GAP/);
   assert.match(source, /window\.innerWidth - panel\.getBoundingClientRect\(\)\.left \+ 12/);
   assert.match(source, /sidebarBridge\(ctx\)\.subscribeState\(scheduleSync\)/);
-  assert.match(source, /const \{ element, inset \} = floatingHudTarget\(ctx\);/);
+  assert.match(source, /const \{ element, inset, kind \} = floatingHudTarget\(ctx\);/);
   assert.match(source, /attributeFilter: \["data-sidebar-right-open", "hidden"\]/);
   // 新建页入口与聊天页同序：预留 better-sidebar 兜底切换按钮的宽度与间距
   assert.match(source, /const HUD_FLOAT_GAP = 8;/);
@@ -291,9 +291,10 @@ test("兜底按钮尚未挂载时按 better-sidebar 服务预留槽位，首帧�
   assert.equal(context.floatingHudTarget({ get: () => { throw new Error("not ready"); } }).inset, 64);
 });
 
-test("快速开合官方边栏后，即使首轮测量早于按钮复位，也会在下一帧校准", () => {
+test("侧栏展开与收起过渡期间保持打开前的位置，关闭瞬间不再闪到侧栏左缘", () => {
   let buttonVisible = true;
   let panelVisible = false;
+  let sidebarExpanded = false;
   let mutationListener;
   let nextFrameId = 0;
   let nextTimerId = 0;
@@ -308,6 +309,8 @@ test("快速开合官方边栏后，即使首轮测量早于按钮复位，也�
     closest: () => null,
     getBoundingClientRect: () => ({ left: 700, right: 1200, width: 500 }),
   };
+  const runFrames = () => { for (const [id, callback] of [...frames]) { frames.delete(id); callback(); } };
+  const runTimers = () => { for (const [id, callback] of [...timers]) { timers.delete(id); callback(); } };
   const context = vm.createContext({
     document: {
       body: {},
@@ -324,6 +327,8 @@ test("快速开合官方边栏后，即使首轮测量早于按钮复位，也�
       setTimeout: fn => { const id = ++nextTimerId; timers.set(id, fn); return id; },
       clearTimeout: id => timers.delete(id),
     },
+    // 侧栏开合状态（与官方 DOM 标记同步更新，模拟 bridge 的派生结果）
+    getSidebarExpanded: () => sidebarExpanded,
     subscribeHud: () => () => {},
     MutationObserver: class {
       constructor(fn) { mutationListener = fn; }
@@ -338,30 +343,40 @@ test("快速开合官方边栏后，即使首轮测量早于按钮复位，也�
   });
   vm.runInContext(`const HUD_FLOAT_RIGHT = 72;\nconst HUD_FLOAT_GAP = 8;\nconst HUD_FLOAT_SLOT_SIZE = 28;\n${extractFunction("visibleOfficialSidebarPanel")}\n${extractFunction("visibleOfficialSidebarExpandButton")}\n${extractFunction("floatingHudReserve")}\n${extractFunction("floatingHudTarget")}\n${extractFunction("sidebarBridge")}\n${extractFunction("watchFloatingHudPosition")}`, context);
   const stop = context.watchFloatingHudPosition({ get: () => undefined }, inset => insets.push(inset));
-  assert.equal(insets.at(-1), 64);
+  assert.equal(insets.at(-1), 64, "收起态：入口位于官方展开按钮左侧");
 
+  // 展开右侧栏：入口本身隐藏（v0.15.10），此时测到的面板位置属于展开态布局，不得写入。
   buttonVisible = false;
   panelVisible = true;
+  sidebarExpanded = true;
   mutationListener();
-  assert.equal(insets.at(-1), 512);
+  assert.equal(insets.at(-1), 64, "展开期间保留打开前的位置，不得改写成面板位置");
+  runFrames(); runTimers();
+  assert.equal(insets.at(-1), 64);
 
-  // 关闭通知先到，官方展开按钮在稍后的布局阶段才重新出现。
+  // 关闭右侧栏：关闭通知先到、官方面板节点稍后才卸完——此时更不能把入口拉到旧面板左缘。
+  sidebarExpanded = false;
   mutationListener();
+  assert.equal(insets.at(-1), 64, "关闭通知当下不得闪到旧面板位置");
+  assert.ok(!insets.includes(512), "整个开合过程都不得把入口放到展开态的面板左缘");
+
+  // 官方展开按钮在新的布局阶段重新出现：同步校正回收起态锚点。
   buttonVisible = true;
   panelVisible = false;
-  assert.equal(insets.at(-1), 512, "关闭通知当下读到的仍是旧面板");
-  for (const [id, callback] of [...frames]) { frames.delete(id); callback(); }
+  runFrames();
   assert.equal(insets.at(-1), 64, "下一帧应回到官方按钮左侧");
 
   // 若官方按钮在动画结束时才恢复，延时复查仍要把入口带回原位。
   buttonVisible = false;
   panelVisible = true;
+  sidebarExpanded = true;
   mutationListener();
-  for (const [id, callback] of [...frames]) { frames.delete(id); callback(); }
-  assert.equal(insets.at(-1), 512);
+  runFrames();
+  assert.equal(insets.at(-1), 64);
+  sidebarExpanded = false;
   buttonVisible = true;
   panelVisible = false;
-  for (const [id, callback] of [...timers]) { timers.delete(id); callback(); }
+  runTimers();
   assert.equal(insets.at(-1), 64, "动画后的复查应消除旧边栏位置");
   stop();
   assert.equal(frames.size, 0);
@@ -386,9 +401,11 @@ test("悬浮按钮仅在新建会话页渲染，且与面板共用同一派生�
   assert.match(source, /className: "hud-btn hud-btn-float"/);
   assert.match(source, /"data-hud-float": ""/);
   assert.match(source, /newSession \? react\.createElement\(HudFloatingButton, null\) : null/);
-  // 与面板同一派生可见性：展开记忆 ∩ 右侧栏未展开
-  assert.match(source, /function HudFloatingButton\(\) \{[\s\S]{0,600}subscribeHud\(\(\) => setVisible\(isHudVisible\(\)\)\)/);
-  assert.match(source, /function HudFloatingButton\(\) \{[\s\S]{0,900}subscribeSidebar\(\(\) => setVisible\(isHudVisible\(\)\)\)/);
+  // 与面板同一派生可见性：展开记忆 ∩ 右侧栏未展开；侧栏展开期间入口整体不渲染
+  assert.match(source, /const \[sidebarOpen, setSidebarOpen\] = react\.useState\(\(\) => getSidebarExpanded\(\)\);/);
+  assert.match(source, /function HudFloatingButton\(\) \{[\s\S]{0,900}subscribeHud\(sync\)/);
+  assert.match(source, /function HudFloatingButton\(\) \{[\s\S]{0,1200}subscribeSidebar\(sync\)/);
+  assert.match(source, /if \(sidebarOpen\) return null;/);
   assert.match(source, /function HudFloatingButton\(\) \{[\s\S]{0,2500}onClick: \(\) => toggleHud\(ctx\)/);
   // 每次会话/页面切换都在 effect 中重新激活作用域（渲染期只 peek，不跨根广播）
   assert.match(source, /react\.useEffect\(\(\) => \{\s*\n\s*activateHudScope\(scopeSessionId\);\s*\n\s*\}, \[scopeSessionId\]\);/);

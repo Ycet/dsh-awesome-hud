@@ -5,9 +5,9 @@ import {
 	serverNameOf,
 	collectServers,
 	isMcpTool,
+	isMcpClientEntry,
 	collectMcpServers,
-	readMcpStates,
-	writeMcpStates,
+	stripManagedBlockMarkers,
 	MCP_PATCH_BEGIN,
 	MCP_PATCH_END,
 	sanitizeSessionId,
@@ -59,30 +59,52 @@ test("collectMcpServers：仅 mcp-client 条目，enabled 取全局 disabled 取
 	assert.deepEqual(collectMcpServers(undefined), []);
 });
 
-test("readMcpStates / writeMcpStates：块内读写与原文保留", () => {
+test("isMcpClientEntry：官方全名与简写都算 mcp-client，其它模块不算", () => {
+	assert.equal(isMcpClientEntry({ options: { name: "@deepseek-ai/dsh-mcp-client" } }), true);
+	assert.equal(isMcpClientEntry({ options: { name: "mcp-client" } }), true);
+	assert.equal(isMcpClientEntry({ options: { name: "@deepseek-ai/dsh-other" } }), false);
+	assert.equal(isMcpClientEntry({ options: {} }), false);
+	assert.equal(isMcpClientEntry(null), false);
+});
+
+test("stripManagedBlockMarkers：只删旧托管块的两行注释，块内每一行原样保留", () => {
 	const text = [
 		"# my patch",
-		"- insert:",
-		"    - id: mcp-gpt-image",
-		"      name: '@deepseek-ai/dsh-mcp-client'",
+		"- id: ui-chat",
+		"  config:",
+		"    transcriptView: standard",
+		"",
+		MCP_PATCH_BEGIN,
+		"- id: mcp-exa",
+		"  disabled: true",
+		"- id: dsh-connect-workbuddy",
+		"  name: dsh-connect-workbuddy",
+		"  config:",
+		"    regions: {}",
+		MCP_PATCH_END,
 		"",
 	].join("\n");
-	const states = readMcpStates(text);
-	assert.equal(states.size, 0);
-	const written = writeMcpStates(text, new Map([["mcp-gpt-image", true]]));
-	assert.ok(written.includes(MCP_PATCH_BEGIN));
-	assert.ok(written.includes(MCP_PATCH_END));
-	assert.ok(written.includes("- id: mcp-gpt-image"));
-	assert.ok(written.includes("disabled: true"));
-	assert.ok(written.includes("# my patch"));
-	assert.ok(written.includes("name: '@deepseek-ai/dsh-mcp-client'"));
-	// 再读回
-	const back = readMcpStates(written);
-	assert.equal(back.get("mcp-gpt-image"), true);
-	// 清空 → 块整体移除
-	const cleared = writeMcpStates(written, new Map());
-	assert.ok(!cleared.includes(MCP_PATCH_BEGIN));
-	assert.ok(!cleared.includes(MCP_PATCH_END));
+	const cleaned = stripManagedBlockMarkers(text);
+	assert.equal(cleaned.changed, true);
+	assert.ok(!cleaned.text.includes(MCP_PATCH_BEGIN));
+	assert.ok(!cleaned.text.includes(MCP_PATCH_END));
+	// 关键回归：被 DSH 设置持久化夹进托管块内部的其它插件条目不得丢失。
+	assert.ok(cleaned.text.includes("- id: mcp-exa\n  disabled: true"));
+	assert.ok(cleaned.text.includes("- id: dsh-connect-workbuddy\n  name: dsh-connect-workbuddy"));
+	assert.ok(cleaned.text.includes("    regions: {}"));
+	assert.ok(cleaned.text.includes("# my patch"));
+	// 除两行注释外逐字一致。
+	assert.equal(cleaned.text, text.split("\n").filter(line => line !== MCP_PATCH_BEGIN && line !== MCP_PATCH_END).join("\n"));
+});
+
+test("stripManagedBlockMarkers：无标记原样返回，CRLF 也能识别标记", () => {
+	const plain = "# my patch\n- id: ui-chat\n";
+	assert.deepEqual(stripManagedBlockMarkers(plain), { text: plain, changed: false });
+	const crlf = `a\r\n${MCP_PATCH_BEGIN}\r\n- id: mcp-exa\r\n  disabled: false\r\n${MCP_PATCH_END}\r\n`;
+	const cleaned = stripManagedBlockMarkers(crlf);
+	assert.equal(cleaned.changed, true);
+	assert.ok(!cleaned.text.includes(MCP_PATCH_BEGIN));
+	assert.ok(cleaned.text.includes("- id: mcp-exa\r\n  disabled: false"));
 });
 
 test("sanitize 输入卫生", () => {

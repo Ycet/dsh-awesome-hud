@@ -113,7 +113,7 @@ test('绑定的空白会话仍提供新建页入口与工作区数据', () => {
   assert.equal(moduleOf(client.panel(), 'NoteModule').props.workspaceKey, recent);
 });
 
-test('新建页与右侧栏互斥：展开即隐藏，关闭后恢复该页手动展开的状态', () => {
+test('新建页与右侧栏互斥：展开即隐藏悬浮入口与面板，关闭后恢复该页手动展开的状态', () => {
   const client = hudClient(fixture);
   let expanded = false;
   client.services.sidebarRight = { isExpanded: () => expanded };
@@ -123,11 +123,11 @@ test('新建页与右侧栏互斥：展开即隐藏，关闭后恢复该页手�
   assert.equal(client.button().props['data-open'], true);
   expanded = true; client.notifyDOM();
   assert.equal(moduleOf(client.root(), 'HudPanel'), undefined);
-  // 入口按钮跟随派生可见性置灰，避免「显示已展开但面板不可见」的错位
-  assert.equal(client.button().props['data-open'], false);
+  // 右侧栏展开期间该页不展示悬浮入口（不再移到侧栏左侧），避免按钮悬在侧栏边缘。
+  assert.equal(client.button(), null, '侧栏展开期间不得渲染「HUD面板」悬浮入口');
   expanded = false; client.notifyDOM();
   assert.ok(moduleOf(client.root(), 'HudPanel'), '关闭侧栏后应恢复该页的展开记忆');
-  assert.equal(client.button().props['data-open'], true);
+  assert.equal(client.button().props['data-open'], true, '关闭侧栏后悬浮入口恢复并与展开状态一致');
   dispose();
 });
 
@@ -175,4 +175,40 @@ test('Windows 未登记工作区的会话标题仅显示目录名，保留原路
   const panel = client.panel();
   assert.equal(moduleOf(panel, 'SessionModule').props.workspaceTitle, '项目目录');
   assert.equal(moduleOf(panel, 'NoteModule').props.workspaceKey, 'C:\\work\\项目目录\\');
+});
+
+test('MCP 启停后，早于点击发出的旧轮询响应不得把开关回滚', async () => {
+  let polls = 0, releaseOld;
+  const oldPoll = new Promise(resolve => { releaseOld = resolve; });
+  const client = hudClient({ windows: true, respond: call => {
+    if (call.url.endsWith('/mcp/toggle')) {
+      // 启停完成即返回权威快照（host 已等待 profile 热重载）。
+      return { ok: true, servers: [{ name: 'server', enabled: false }], total: 1, enabled: 0, message: '已全局禁用' };
+    }
+    if (call.url.endsWith('/mcp')) {
+      polls += 1;
+      // 第一次：初始状态；第二次：切换前发出的旧轮询，故意晚于启停响应返回。
+      return polls === 1 ? { ok: true, servers: [{ name: 'server', enabled: true }], total: 1, enabled: 1 } : oldPoll;
+    }
+    return { ok: true, isRepo: true };
+  } });
+  client.button().props.onClick();
+  client.panel(); client.runPolls(); await settled(); // 初始快照：启用
+  assert.equal(moduleOf(client.panel(), 'McpModule').props.enabled, 1);
+
+  // 同一次渲染内先启动旧轮询，再点击开关：两者共享同一个启停序号。
+  const rendered = client.panel();
+  const module = moduleOf(rendered, 'McpModule');
+  const toggle = nodes(module.type(module.props)).find(node => node.props.className === 'hud-switch');
+  client.runPolls(); // 旧轮询进入在途（响应被挂起）
+  await toggle.props.onClick();
+  await settled();
+  assert.equal(moduleOf(client.panel(), 'McpModule').props.enabled, 0);
+
+  // 旧轮询此时才返回「启用」旧状态：序号已变化，必须丢弃，不能回滚开关。
+  releaseOld({ ok: true, servers: [{ name: 'server', enabled: true }], total: 1, enabled: 1 });
+  await settled();
+  const after = moduleOf(client.panel(), 'McpModule');
+  assert.equal(after.props.enabled, 0);
+  assert.equal(after.props.servers[0].enabled, false);
 });

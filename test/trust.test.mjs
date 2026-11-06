@@ -34,3 +34,33 @@ test("信任围栏：受信主机列表放行", () => {
 	const ctx2 = { get: () => ({ trustedHosts: ["dsh.example.com:3080"] }) };
 	assert.ok(isTrustedRequest(req, ctx2));
 });
+
+// DSH 0.2.1+ 提供 Host `connection` 服务：requestRejection 一次判完 Host/Origin/凭据。
+test("信任围栏：有 connection 服务时交给官方 requestRejection 判定", () => {
+	const req = (headers) => ({ headers });
+	const calls = [];
+	const ctx = {
+		get: (name) => (name === "connection" ? {
+			requestRejection: (request) => {
+				calls.push(request.headers.host);
+				return request.headers.host === "dsh.example.com:3080" ? undefined : 403;
+			}
+		} : undefined)
+	};
+	// 官方放行 → 放行，即便该主机不是回环地址（旧实现读不到 webRuntime 会拒绝）
+	assert.ok(isTrustedRequest(req({ host: "dsh.example.com:3080" }), ctx));
+	// 官方拒绝 → 拒绝
+	assert.ok(!isTrustedRequest(req({ host: "evil.example:3080" }), ctx));
+	assert.deepEqual(calls, ["dsh.example.com:3080", "evil.example:3080"]);
+});
+
+test("信任围栏：没有 connection 判定能力时退回本地判定并读官方受信来源", () => {
+	const req = (headers) => ({ headers });
+	// 只有 webStartup 暴露 trustedHosts 的旧进程
+	const oldCtx = { get: (name) => (name === "webStartup" ? { trustedHosts: ["dsh.example.com"] } : undefined) };
+	assert.ok(isTrustedRequest(req({ host: "dsh.example.com:3080", origin: "http://dsh.example.com:3080" }), oldCtx));
+	assert.ok(!isTrustedRequest(req({ host: "other.example.com:3080" }), oldCtx));
+	// connection 存在但没有 requestRejection 时，读它自己的 trustedHosts
+	const legacy = { get: (name) => (name === "connection" ? { trustedHosts: ["dsh.example.com:3080"] } : undefined) };
+	assert.ok(isTrustedRequest(req({ host: "dsh.example.com:3080" }), legacy));
+});

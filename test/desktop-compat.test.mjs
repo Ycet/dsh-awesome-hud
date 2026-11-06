@@ -45,14 +45,17 @@ test('子代理保留各模式和直接父会话，缺失侧栏及打开失败�
 });
 
 // 模拟桌面真实的菜单、nav 和延迟挂载，验证按钮选择而非只匹配源码字符串。
-function navigationFixture({ existing = false, legacy = false, target = 'opencode' } = {}) {
+function navigationFixture({ existing = false, legacy = false, target = 'opencode', accountLabel = '账号与余额', customFallback = false } = {}) {
   let menuOpen = false, dialogOpen = existing, ticks = 0, selected = false;
   const clicks = [], errors = [];
   const button = (text, action) => ({ textContent: text, getAttribute: () => 'Account menu', click: () => { clicks.push(text); action?.(); } });
-  const official = button('账号与余额');
+  // 官方「账号与余额」分区（dsh-account-usage 把 deepseek / opencode go 页签嵌在其内容底部）。
+  const official = button(accountLabel, () => { selected = true; });
   const custom = button('账户', () => { selected = true; });
   const codex = button('Codex 订阅', () => { selected = true; });
-  const nav = { querySelectorAll: () => [official, button('通用设置'), custom, codex] };
+  const navButtons = [button('通用设置'), official, codex];
+  if (customFallback) navButtons.push(custom);
+  const nav = { querySelectorAll: () => navButtons };
   const tab = button(target === 'deepseek' ? 'deepseek' : 'opencode go');
   const dialog = { querySelector: () => nav, querySelectorAll: () => selected && ticks >= 8 ? [tab] : [] };
   const menuItem = button('设置⌘,', () => { dialogOpen = true; });
@@ -71,14 +74,37 @@ function navigationFixture({ existing = false, legacy = false, target = 'opencod
   return { context, clicks, errors };
 }
 
-test('桌面账户菜单 → 精确账户分区 → 延迟出现的 OpenCode 页签；重复点击不重复开关', async () => {
+test('桌面账户菜单 → 官方「账号与余额」分区 → 延迟出现的 OpenCode 页签；重复点击不重复开关', async () => {
   const f = navigationFixture();
   const one = f.context.openSettingsAccount('opencode');
   const two = f.context.openSettingsAccount('opencode');
   assert.equal(one, two);
   await one;
-  assert.deepEqual(f.clicks, ['账号菜单', '设置⌘,', '账户', 'opencode go']);
+  assert.deepEqual(f.clicks, ['账号菜单', '设置⌘,', '账号与余额', 'opencode go']);
   assert.deepEqual(f.errors, []);
+});
+
+test('DeepSeek 余额数字进入「账号与余额」并切到 deepseek 页签', async () => {
+  const f = navigationFixture({ target: 'deepseek' });
+  await f.context.openSettingsAccount('deepseek');
+  assert.deepEqual(f.clicks, ['账号菜单', '设置⌘,', '账号与余额', 'deepseek']);
+  assert.deepEqual(f.errors, []);
+});
+
+test('英文 Account 分区与旧版回退「账户」分区都能命中，且官方分区优先', async () => {
+  const english = navigationFixture({ target: 'deepseek', accountLabel: 'Account' });
+  await english.context.openSettingsAccount('deepseek');
+  assert.deepEqual(english.clicks, ['账号菜单', '设置⌘,', 'Account', 'deepseek']);
+
+  // 未登录/旧版 DSH 时官方账户页不存在，dsh-account-usage 注册兜底「账户」分区。
+  const fallback = navigationFixture({ target: 'opencode', accountLabel: '账户' });
+  await fallback.context.openSettingsAccount('opencode');
+  assert.deepEqual(fallback.clicks, ['账号菜单', '设置⌘,', '账户', 'opencode go']);
+
+  // 两种分区同时存在时优先官方「账号与余额」，页面顺序靠前即可命中。
+  const both = navigationFixture({ target: 'opencode', accountLabel: '账号与余额', customFallback: true });
+  await both.context.openSettingsAccount('opencode');
+  assert.deepEqual(both.clicks, ['账号菜单', '设置⌘,', '账号与余额', 'opencode go']);
 });
 
 test('已打开设置时不关闭，Codex 选择自身分区；旧 Web 入口仍能跳转', async () => {
@@ -87,7 +113,7 @@ test('已打开设置时不关闭，Codex 选择自身分区；旧 Web 入口仍
   assert.deepEqual(existing.clicks, ['Codex 订阅']);
   const legacy = navigationFixture({ legacy: true, target: 'deepseek' });
   await legacy.context.openSettingsAccount('deepseek');
-  assert.deepEqual(legacy.clicks, ['旧设置入口', '账户', 'deepseek']);
+  assert.deepEqual(legacy.clicks, ['旧设置入口', '账号与余额', 'deepseek']);
   assert.deepEqual(legacy.errors, []);
 });
 

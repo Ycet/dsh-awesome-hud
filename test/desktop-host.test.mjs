@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Readable } from 'node:stream';
 import { apply, formatStyledDate } from '../lib/index.js';
-import { readMcpStates } from '../lib/mcp.js';
 
 // 仅运行在临时 Git 仓库和临时 profile；真实桌面 subprocess provider 验证参数和输出协议。
 test('桌面真实 subprocess：Git 全部操作与 host 路由、设置、MCP、计划、子代理、压缩', {
@@ -48,7 +47,7 @@ test('桌面真实 subprocess：Git 全部操作与 host 路由、设置、MCP�
     await mkdir(profile);
     const originalPatch = '[]\n# 用户原有配置\n';
     await writeFile(join(profile, 'cordis.patch.yml'), originalPatch);
-    const entries = [{ options: { id: 'test-mcp', name: '@deepseek-ai/dsh-mcp-client', config: { serverName: 'fixture' } }, disabled: false }];
+    const entries = [{ id: 'include:test-mcp', options: { id: 'test-mcp', name: '@deepseek-ai/dsh-mcp-client', config: { serverName: 'fixture' } }, disabled: false }];
     let settingsValue = { modules: {}, usage: {} }, revision = 1, compactCall, aiCall;
     const agent = {};
     const events = [{ type: 'tool/call', seq: 1, time: 1, data: { name: 'exit_plan_mode', callId: 'plan1', arguments: JSON.stringify({ plan: '# 兼容性验证\n- 验证接口' }) } }];
@@ -56,6 +55,11 @@ test('桌面真实 subprocess：Git 全部操作与 host 路由、设置、MCP�
       subprocess,
       sessions: { get: id => id === 'fixture' ? { header: { cwd: root }, snapshotEvents: () => events } : id === 'fresh' ? { header: { cwd: freshRoot } } : undefined },
       loader: { resolve: () => ({ options: { config: { path: pathToFileURL(join(profile, 'cordis.yml')).href } } }), entries: () => entries },
+      // 官方插件管理器镜像：写入 enablement 行并热重载；这里只翻转条目状态并记录调用参数。
+      pluginManager: {
+        listPlugins: async () => [{ entryId: 'include:test-mcp', patchId: 'test-mcp', moduleName: '@deepseek-ai/dsh-mcp-client', enabled: !entries[0].disabled }],
+        setPluginEnabled: async (entryId, enabled) => { entries[0].disabled = !enabled; return { application: 'applied', changed: true, entryId, enabled }; },
+      },
       subagents: { listDescendants: async () => [{ kind: 'child', id: 'child', parentId: 'fixture', mode: 'continuable', depth: 1, activity: 'idle' }, { kind: 'other' }] },
       settings: { writable: true, describe: () => [{ ns: 'awesome-hud', revision }], update: async (ns, patch, expected) => {
         assert.equal(ns, 'awesome-hud'); assert.equal(expected, revision); settingsValue = patch; revision++;
@@ -127,12 +131,16 @@ test('桌面真实 subprocess：Git 全部操作与 host 路由、设置、MCP�
     assert.equal((await ok('compact')).ok, true);
     assert.equal(compactCall[0], agent); assert.equal(compactCall[1], '/compact');
     assert.equal((await ok('mcp')).enabled, 1);
-    await ok('mcp/toggle', { server: 'fixture', enabled: false });
+    // MCP 启停：委托插件管理器写入并热重载，返回权威快照；不再生成托管块，也不得改动用户其余配置。
+    const toggledOff = await ok('mcp/toggle', { server: 'fixture', enabled: false });
+    assert.equal(toggledOff.servers[0].enabled, false);
+    assert.equal(toggledOff.enabled, 0);
+    assert.equal(entries[0].disabled, true);
     const disabled = await readFile(join(profile, 'cordis.patch.yml'), 'utf8');
-    assert.ok(disabled.includes('# 用户原有配置')); assert.equal(readMcpStates(disabled).get('test-mcp'), true);
-    entries[0].disabled = true;
-    await ok('mcp/toggle', { server: 'fixture', enabled: true });
-    assert.equal(readMcpStates(await readFile(join(profile, 'cordis.patch.yml'), 'utf8')).get('test-mcp'), false);
+    assert.ok(disabled.includes('# 用户原有配置'));
+    const toggledOn = await ok('mcp/toggle', { server: 'fixture', enabled: true });
+    assert.equal(toggledOn.servers[0].enabled, true);
+    assert.equal(entries[0].disabled, false);
     assert.equal((await ok('settings', { modules: { git: false }, usage: { codex: false } })).persistent, true);
     assert.equal((await call('settings', null, 'GET')).modules.git, false);
     assert.equal((await call('settings', null, 'GET')).usage.codex, false);
