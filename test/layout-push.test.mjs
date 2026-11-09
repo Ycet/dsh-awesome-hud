@@ -51,7 +51,8 @@ test("正文让位：宿主重建正文节点与侧栏开合后都会重新对�
   assert.match(source, /if \(targets\.scroll !== null\) applyScrollPushTo\(targets\.scroll\);/);
 
   // 侧栏开合（属性变化）与 DOM 重建都会排一次对账（debounce 到一帧）。
-  assert.match(source, /attributeFilter: \["data-sidebar-right-open", "data-sidebar-right-panel", "hidden"\]/);
+  // v0.15.16 起同时观察 data-conversation-composer-overlay（轨迹/统计页签切换）。
+  assert.match(source, /attributeFilter: \["data-sidebar-right-open", "data-sidebar-right-panel", "hidden", "data-conversation-composer-overlay"\]/);
   assert.match(source, /reconcileFrame = window\.requestAnimationFrame\(\(\) => \{/);
 
   // 面板是在右侧栏收起动画进行中重新挂载的：补两次复查，避免把偏窄的测量值当最终值。
@@ -127,4 +128,83 @@ test("滚动容器让位写入与还原：原值只记录一次、当前值被�
   context.restoreInlinePush(changed, changedWrites);
   assert.equal(changed.style.peek("margin-right"), "2px", "未被动过的属性照常还原");
   assert.equal(changed.style.peek("padding-right"), "0px", "已被他人改过的属性保持他人值");
+});
+
+test("输入框浮层视图（轨迹/统计）：座位单独收窄右缘，常规对话视图不动（v0.15.16）", async () => {
+  const source = await clientSource();
+
+  // 宿主的绝对定位规则只作用于带该属性的视图，因此修复也按同一选择器判定。
+  assert.match(source, /const COMPOSER_OVERLAY_SELECTOR = "\[data-conversation-composer-overlay\]";/);
+  assert.match(source, /const COMPOSER_SEAT_SELECTOR = "\[data-composer-seat\]";/);
+  assert.match(source, /const COMPOSER_SEAT_PUSH_PROPS = \["margin-right"\];/);
+  assert.match(source, /function pushComposerSeat\(scrollEl\) \{/);
+  // 关键约束：只写 margin-right，不覆写宿主自己的 right（保留其滚动条补偿）。
+  assert.match(source, /if \(seat\.style\.getPropertyValue\("margin-right"\) !== margin\) seat\.style\.setProperty\("margin-right", margin\);/);
+  assert.doesNotMatch(source, /seat\.style\.setProperty\("right"/);
+
+  // 切页签（属性增删）必须触发对账，否则会残留 / 漏写。
+  assert.match(source, /attributeFilter: \["data-sidebar-right-open", "data-sidebar-right-panel", "hidden", "data-conversation-composer-overlay"\]/);
+});
+
+test("输入框浮层视图：座位收窄的写入、幂等与切回常规视图的撤销", () => {
+  const context = vm.createContext({
+    WeakMap, Map,
+    PANEL_WIDTH: 300,
+    INLINE_PUSH_PROPS: ["margin-right", "--dsh-awesome-hud-column-width", "--dsh-chat-content-width", "--dsh-composer-card-max-width"],
+    SCROLL_PUSH_PROPS: ["margin-right", "padding-right"],
+    COMPOSER_OVERLAY_SELECTOR: "[data-conversation-composer-overlay]",
+    COMPOSER_SEAT_SELECTOR: "[data-composer-seat]",
+    COMPOSER_SEAT_PUSH_PROPS: ["margin-right"],
+  });
+  vm.runInContext(`const inlinePushOriginals = new WeakMap();\n${extractFunction("rememberInlineOriginal")}\n${extractFunction("restoreInlinePush")}\n${extractFunction("pushComposerSeat")}`, context);
+
+  const createStyle = (initial = {}) => {
+    const values = new Map(Object.entries(initial));
+    return {
+      getPropertyValue: (property) => values.get(property) ?? "",
+      getPropertyPriority: () => "",
+      setProperty: (property, value) => { values.set(property, String(value)); },
+      removeProperty: (property) => { values.delete(property); },
+      peek: (property) => values.get(property) ?? "",
+    };
+  };
+  // 宿主座位保留自己的 right（滚动条补偿），修复不得覆写它。
+  const makeScroll = ({ overlay, seatMargin }) => {
+    const seat = { style: createStyle(seatMargin === undefined ? { right: "6px" } : { right: "6px", "margin-right": seatMargin }) };
+    return {
+      seat,
+      overlay,
+      querySelector: (selector) => {
+        if (selector === "[data-conversation-composer-overlay]") return overlay === true ? {} : null;
+        if (selector === "[data-composer-seat]") return seat;
+        return null;
+      },
+    };
+  };
+
+  // ① 轨迹 / 统计视图（有浮层）：座位收窄 300px，宿主 right 原样保留。
+  const overlayScroll = makeScroll({ overlay: true });
+  const writes = context.pushComposerSeat(overlayScroll);
+  assert.deepEqual([...writes.entries()], [["margin-right", "300px"]]);
+  assert.equal(overlayScroll.seat.style.peek("margin-right"), "300px", "绝对定位座位减掉面板宽度，输入框不再压到面板下");
+  assert.equal(overlayScroll.seat.style.peek("right"), "6px", "不覆写宿主的 right，保留其滚动条补偿");
+
+  // ② 常规对话视图（无浮层）：一律不写，避免与 sticky 布局叠加造成双重收窄。
+  const stickyScroll = makeScroll({ overlay: false });
+  const stickyWrites = context.pushComposerSeat(stickyScroll);
+  assert.equal(stickyWrites.size, 0, "常规对话视图不写座位 margin");
+  assert.equal(stickyScroll.seat.style.peek("margin-right"), "", "常规对话视图座位保持原样");
+
+  // ③ 重复写入幂等，且原值仍是我们改写前的空值。
+  context.pushComposerSeat(overlayScroll);
+  context.restoreInlinePush(overlayScroll.seat, writes);
+  assert.equal(overlayScroll.seat.style.peek("margin-right"), "", "撤销后座位恢复为未设置 margin");
+  assert.equal(overlayScroll.seat.style.peek("right"), "6px", "宿主 right 始终不动");
+
+  // ④ 宿主座位原本就有 margin-right 时，撤销回到宿主原值而不是空。
+  const hostMarginScroll = makeScroll({ overlay: true, seatMargin: "4px" });
+  const hostWrites = context.pushComposerSeat(hostMarginScroll);
+  assert.equal(hostMarginScroll.seat.style.peek("margin-right"), "300px");
+  context.restoreInlinePush(hostMarginScroll.seat, hostWrites);
+  assert.equal(hostMarginScroll.seat.style.peek("margin-right"), "4px", "还原成宿主自己的 4px");
 });

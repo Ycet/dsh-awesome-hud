@@ -32,7 +32,7 @@ HUD in DSH (dark theme)
 - [🖼️ Screenshots](#️-screenshots)
 - [⚙️ Compatibility](#️-compatibility)
 - [🔧 Tech Stack](#-tech-stack)
-- [⬆️ Upgrade Notes (v0.11.x → v0.15.15)](#️-upgrade-notes-v011x--v01515)
+- [⬆️ Upgrade Notes (v0.11.x → v0.16.0)](#️-upgrade-notes-v011x--v0160)
 - [📄 License](#-license)
 
 ---
@@ -61,7 +61,7 @@ HUD in DSH (dark theme)
 
 ```bash
 # 1. Install (pinned to a release tag; requires git access to GitHub)
-dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.15.15"
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.16.0"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -79,7 +79,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 
 ```bash
 # 1. Install (use the Release asset URL directly, or pass a downloaded .tgz path)
-dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.15.15/dsh-awesome-hud-0.15.15.tgz"
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.16.0/dsh-awesome-hud-0.16.0.tgz"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -91,7 +91,7 @@ After installation, a "HUD panel" button appears at the top-right of the chat pa
 
 ### Desktop installation (macOS)
 
-Current version: **0.15.15**. Fully quit DeepSeek Harness, then install with the CLI bundled with the desktop app. Use that CLI when managing the `desktop` profile.
+Current version: **0.16.0**. Fully quit DeepSeek Harness, then install with the CLI bundled with the desktop app. Use that CLI when managing the `desktop` profile.
 
 ```bash
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -105,7 +105,7 @@ Reopen the app and click the HUD button in the conversation header. Codex quotas
 ## 🧭 Usage
 
 - **HUD panel**: floats at the top-right of the chat page, 300px wide; its height is capped at the composer's bottom edge (with an 8px bottom margin) and scrolls internally when content overflows (the scrollbar appears only while scrolling and fades out 2s after scrolling stops); while the panel is visible the chat content and the composer automatically shift left so nothing overlaps; the page scrollbar stays at the window's right edge (it is no longer dragged to the panel's left edge by the body shift), and the turn-navigation indicator on the session page stays at the body's right edge; while a right sidebar is expanded the panel is hidden and the body is not padded, and it returns once the sidebar closes.
-- **Settings menu**: the gear at the top-right of the Session module opens a menu to toggle "Context window / Usage / git / Subagents / Tasks / Plan list / MCP" modules ("Usage" is always listed and can be toggled as a whole), with "Cancel / Confirm" buttons at the bottom; the Session module is always shown. When any data source is available, the menu also shows a "Usage module content" group to independently show/hide the DeepSeek balance, OpenCode Go usage, and Codex quota row groups.
+- **Settings menu**: the gear at the top-right of the Session module opens a menu to toggle "Context window / Usage / git / Subagents / Tasks / Plan list / MCP" modules ("Usage" is always listed and can be toggled as a whole), with "Cancel / Confirm" buttons at the bottom; the Session module is always shown. When any data source is available, the menu also shows a "Usage module content" group to independently show/hide the DeepSeek balance, OpenCode Go usage, and Codex quota row groups. Every module row starts with a **drag handle**: press and drag it up or down to reorder how that module is displayed in the HUD panel (applies globally, same interaction as the To-do module). A **"Reset to defaults"** button at the bottom left becomes enabled when the current settings differ from the defaults and restores the checkboxes, usage rows and order together (still requires Confirm to save). Besides Cancel and Confirm, **clicking anywhere outside the menu also closes it** (equivalent to Cancel — changes are discarded).
 - **Session module**: a pencil button to the right of the session name allows renaming — click to enter edit mode (input + cancel/confirm icon buttons), Enter to submit, Esc to cancel, confirm is disabled while the input is empty; on confirm the new name is saved and the session list title auto-updates.
 - **Context window**: the bar color switches automatically with occupancy; its footer reads “n used · n limit · n% cache hit”, with the cache-hit rate fixed to one decimal place (`—` when no statistic is available); "Compact" is available while the session is idle and disabled with a reason while it runs.
 - **Usage module**: sits below the Context window module and is **always rendered** (it can still be hidden in the HUD settings). The DeepSeek balance prefers the dsh-account-usage routes and falls back to the DSH official account service when that plugin is missing or disabled; Codex uses the dsh-codex-subscription browser RPC; loads immediately when the panel opens and polls every 60 seconds; rows are indented and led by their matching icons; the module is collapsible and expanded by default (fold state persists in localStorage).
@@ -227,7 +227,17 @@ See the [v0.14.7 desktop verification record (Chinese)](docs/desktop-compatibili
 | Data sources | Client-side session projection (`ctx.sessions.list` / `workspaces` / `modelDirectories`) + own host APIs (git / MCP / subagents / plan list / compaction) + reused dsh-account-usage balance/usage routes (falls back to the official `deepseekAccount` service when missing) |
 | Tests        | `node --test` (git parsing, MCP parsing, status derivation, plan-list derivation, settings normalization, trust fence; in `test/`)                                                                          |
 
-## ⬆️ Upgrade Notes (v0.11.x → v0.15.15)
+## ⬆️ Upgrade Notes (v0.11.x → v0.16.0)
+
+**v0.16.0: the HUD settings menu now supports drag-to-reorder, plus "Reset to defaults" and click-outside-to-close.** ① Every row in the "Modules" group starts with a **drag handle** (reusing the To-do module's dot-grid handle graphic and the same `draggable` + `dragover` / `drop` interaction); press and drag it up or down to change the order in which modules appear in the HUD panel. The order is a **global setting** (stored in the host settings `order` field, shared across sessions and synced with the profile through the browser) and affects ordering only, never visibility. Panel rendering changed from a hard-coded JSX order to an `order`-driven mapping (`MODULE_RENDERERS` table plus `normalizeModuleOrder`); the read side always tightens the order into a complete permutation, so truncated data, unknown keys or duplicates can never make a module disappear. Settings written by older versions lack the field and fall back to the default order.
+
+② A **"Reset to defaults"** button at the bottom left becomes enabled when the checkboxes, usage rows or order differ from the defaults and restores all three together (Confirm is still required to save).
+
+③ Besides Cancel and Confirm, **clicking outside the menu also closes it** (capture-phase `pointerdown` plus hit testing, without swallowing clicks inside the menu; the gear button still toggles normally; drag-to-reorder uses HTML5 drag events and emits no pointerdown, so it never closes the menu).
+
+The change touches `lib/settings.js` (`DEFAULT_MODULE_ORDER` / `normalizeModuleOrder` / `sanitizeOrderPatch` / `isDefaultSettings`) and `lib/index.js` (the settings schema `order` field, the GET/POST responses and the in-process fallback). Added ten regressions in `test/module-order.test.mjs`, including host/client normalization agreement, render-table coverage of every module key, and the panel body no longer hard-coding the order.
+
+**v0.15.16: fixed the composer overlapping the HUD panel on the Trajectory and Stats pages.** The official `conversation` component lays out the composer differently for the regular chat view and for "composer overlay" views. In the chat view the composer seat (`[data-composer-seat]`) is a `position: sticky` element in normal flow, so the HUD's reservation — implemented by giving the scroll container a `padding-right` — constrains it as expected. Trajectory and Stats, however, render a root node carrying `data-conversation-composer-overlay`, and the host rule switches that seat to `position: absolute; left: 0; right: var(--dsh-scrollbar-width); bottom: 0`. Absolutely positioned boxes resolve against the **padding box**, so the scroll container's `padding-right` has no effect on it: the seat stayed as wide as "window minus scrollbar", while the HUD had also pulled the scroll container's right edge back out to the window edge — so the composer spanned underneath the panel and its right half was covered. The seat now gets `margin-right: 300px` only while that overlay view is detected (for an absolutely positioned box with both left and right set, margins take part in the width calculation); the host's own `right` is **not** overwritten, preserving its scrollbar compensation, and the regular chat view (no such attribute) is never touched, so the sticky layout is not narrowed twice. Switching between the Chat / Trajectory / Stats tabs adds or removes the attribute and triggers a re-check, which drops the reservation when returning to the regular view; the existing "original value before the first write, restored by ownership" mechanism restores the host value when the panel is closed. Added `test/layout-push.test.mjs` regressions for both views, write idempotency, reverting on tab switch, and restoring the host's own value.
 
 **v0.15.15: the Usage module no longer requires dsh-account-usage to appear.** Previously the module's visibility depended on "DeepSeek / OpenCode / Codex at least one available", so disabling or uninstalling dsh-account-usage removed the whole module and its settings row. The module is now always rendered (it can still be hidden in the HUD settings), and the DeepSeek balance row is always present: it prefers the dsh-account-usage balance route and falls back to the official DSH account service (a new host route `usage/account`, cached for 30s; requires a signed-in DeepSeek account) when that plugin is missing or disabled (404 / no token), reading `—` when no data is available. **Clicking the balance figure always opens Settings → Account & balance**; without dsh-account-usage the injected tabs are absent, so the jump silently stays on the official account page instead of failing. The three OpenCode Go window rows render only while dsh-account-usage data is available (hidden and non-clickable otherwise); Codex quota rows are unchanged. Added host balance normalization/cache tests plus client rendering, fallback polling and missing-tab navigation regressions.
 

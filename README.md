@@ -32,7 +32,7 @@ HUD在dsh中的效果（深色主题）
 - [🖼️ 界面截图](#️-界面截图)
 - [⚙️ 兼容性](#️-兼容性)
 - [🔧 技术栈](#-技术栈)
-- [⬆️ 升级说明（v0.11.x → v0.15.15）](#️-升级说明v011x--v01515)
+- [⬆️ 升级说明（v0.11.x → v0.16.0）](#️-升级说明v011x--v0160)
 - [📄 许可证](#-许可证)
 
 ---
@@ -60,7 +60,7 @@ HUD在dsh中的效果（深色主题）
 
 ```bash
 # 1. 安装（锁定版本 tag，要求本机 git 可访问 GitHub）
-dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.15.15"
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.16.0"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -78,7 +78,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 
 ```bash
 # 1. 安装（可直接用 Release 资产 URL，也可先下载 .tgz 再传本地路径）
-dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.15.15/dsh-awesome-hud-0.15.15.tgz"
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.16.0/dsh-awesome-hud-0.16.0.tgz"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -90,7 +90,7 @@ dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/d
 
 ### 桌面端安装（macOS）
 
-当前版本：**0.15.15**。先完全退出 DeepSeek Harness，再使用桌面应用自带的 CLI 安装；不要用旧 Web CLI 管理 `desktop` profile。
+当前版本：**0.16.0**。先完全退出 DeepSeek Harness，再使用桌面应用自带的 CLI 安装；不要用旧 Web CLI 管理 `desktop` profile。
 
 ```bash
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -104,7 +104,7 @@ dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/d
 ## 🧭 使用说明
 
 - **HUD 面板**：悬浮于聊天页右上角，宽度 300px，高度上限为输入框底部（留 8px 底距），内容超出时面板内部滚动（滚动条仅在滚动时显示，停止 2s 后渐隐）；面板可见时聊天内容与输入框自动向左让位，不会重叠；页面滚动条保持在窗口最右缘（不随正文让位移到面板左缘），会话页右缘的「轮次导航」指示条仍停在正文右缘；右侧栏展开期间面板隐藏且不推挤正文，关闭后恢复。
-- **设置菜单**：「会话」模块右上角齿轮打开菜单，可勾选展示「上下文窗口 / 用量 / git / 子代理任务 / 任务 / 计划清单 / MCP」模块（「用量」模块恒列出，可整体开关），底部「取消 / 确认」按钮丢弃或保存勾选；「会话」模块恒展示。存在可用数据源时，菜单内额外提供「用量模块内容」分组，可分别开关 DeepSeek 余额、OpenCode Go 用量和 Codex 额度。
+- **设置菜单**：「会话」模块右上角齿轮打开菜单，可勾选展示「上下文窗口 / 用量 / git / 子代理任务 / 任务 / 计划清单 / MCP」模块（「用量」模块恒列出，可整体开关），底部「取消 / 确认」按钮丢弃或保存勾选；「会话」模块恒展示。存在可用数据源时，菜单内额外提供「用量模块内容」分组，可分别开关 DeepSeek 余额、OpenCode Go 用量和 Codex 额度。菜单内每个模块最左侧有**拖动排序手柄**（按住后上下拖动可调整该模块在 HUD 面板中的展示顺序，全局生效，交互与「待办」模块一致）；底部左侧的**「恢复默认」**按钮在当前设置与默认不同时激活，点击可把勾选、用量行与排序一并恢复默认（仍需点「确认」落盘）；除「取消」「确认」外，**点击菜单以外的任意区域也会关闭菜单**（关闭等同取消，不保存改动）。
 - **会话模块**：会话名称右侧铅笔按钮可重命名会话——点击进入编辑态（输入框 + 取消/确认图标按钮），Enter 提交、Esc 取消，输入为空时确认按钮置灰；确认后保存新名称，会话列表标题自动更新。
 - **上下文窗口**：进度条颜色随占用率自动切换；底部按「已用 n · 上限 n · 缓存命中 n%」展示，缓存命中率固定保留一位小数（无可用统计时显示 `—`）；「压缩」在会话空闲时可用，运行中按钮禁用并提示原因。
 - **用量模块**：位于「上下文窗口」模块下方，**恒定展示**（仍可在 HUD 设置中关闭）。DeepSeek 余额优先复用 dsh-account-usage 插件路由、未安装/未启用时回退 DSH 官方账户服务；Codex 复用 dsh-codex-subscription 的浏览器 RPC；面板打开时立即加载、之后每 60 秒轮询；数据均缩进展示并带对应图标；模块支持折叠，默认展开（折叠状态经 localStorage 持久化）。
@@ -226,7 +226,11 @@ dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/d
 | 数据来源  | 客户端会话投影（`ctx.sessions.list` / `workspaces` / `modelDirectories`）+ 自有 host API（git / MCP / 子代理 / 计划清单 / 压缩）+ dsh-account-usage 余额/用量路由（复用，缺失时回退官方 `deepseekAccount`） |
 | 测试      | `node --test`（git 解析、MCP 解析、状态推导、计划清单推导、设置收敛、信任围栏；位于 `test/`）                                                                               |
 
-## ⬆️ 升级说明（v0.11.x → v0.15.15）
+## ⬆️ 升级说明（v0.11.x → v0.16.0）
+
+**v0.16.0：HUD 设置菜单支持模块拖动排序，并新增「恢复默认」与点击外部关闭**：① 设置菜单「展示模块」区域每项最左侧新增**拖动排序手柄**（复用「待办」模块的点阵拖动手柄图形与同一套 `draggable` + `dragover` / `drop` 交互），按住手柄上下拖动即可调整模块在 HUD 面板中的展示顺序；顺序是**全局设置**（写入 host settings 的 `order` 字段，跨会话、跨浏览器随 profile 同步），只影响先后、不影响可见性。面板渲染由原先写死的 JSX 顺序改为按 `order` 映射渲染（`MODULE_RENDERERS` 渲染表 + `normalizeModuleOrder`），读侧一律把顺序收敛成「完整排列」，因此残缺、含未知键或重复键的坏数据都不会让某个模块漏渲染；老版本设置没有该字段时自动回落为默认顺序。② 菜单底部左侧新增**「恢复默认」**按钮，当勾选、用量行或排序与默认不同时激活，点击把三者一并恢复默认（仍需点「确认」写入）。③ 除「取消」「确认」外，**点击菜单以外区域也会关闭菜单**（捕获阶段 `pointerdown` + 命中测试，不吞掉菜单内部点击；点齿轮按钮仍正常开合；拖动排序走 HTML5 drag 事件、不产生 pointerdown，不会误关闭）。改动涉及 host 侧 `lib/settings.js`（`DEFAULT_MODULE_ORDER` / `normalizeModuleOrder` / `sanitizeOrderPatch` / `isDefaultSettings`）与 `lib/index.js`（settings schema 的 `order` 字段、GET/POST 响应与进程内降级）。新增 `test/module-order.test.mjs` 十项回归（含 host 与客户端收敛规则一致性、渲染表覆盖全部模块键、面板 body 不再写死顺序）。
+
+**v0.15.16：修复「轨迹」「统计」页面输入框与 HUD 面板重叠**：官方 `conversation` 组件对常规对话视图与「输入框浮层」视图采用了不同的排布——常规视图的输入框座位（`[data-composer-seat]`）是文档流内的 `position: sticky` 元素，宽度受滚动容器的 `padding-right` 约束，HUD 的让位天然生效；而「轨迹」「统计」等视图的根节点带 `data-conversation-composer-overlay`，宿主的规则把座位改成 `position: absolute; left: 0; right: var(--dsh-scrollbar-width); bottom: 0`。绝对定位元素按 **padding box** 解析，滚动容器的 `padding-right` 对它完全无效，于是座位宽度仍是「窗口宽 − 滚动条」，而 HUD 又把滚动容器的右缘补回窗口最右缘——输入框横跨到面板下方，右半截被面板压住。现在只在检测到该浮层视图时，给输入框座位补写 `margin-right: 300px`（绝对定位同时指定 left/right 时 margin 参与宽度计算）；**不覆写宿主自己的 `right`**，保留其滚动条补偿；常规对话视图（无该属性）一律不动，避免与 sticky 布局叠加造成双重收窄。切换「对话 / 轨迹 / 统计」页签时属性增删会触发重新对账，切回常规视图即撤销该收窄；沿用既有的「首次改写前原值 + 按归属还原」机制，收起面板后座位恢复宿主原值。新增 `test/layout-push.test.mjs` 的浮层/常规两种视图、写入幂等、切回撤销与宿主原值还原回归。
 
 **v0.15.15：「用量」模块不再依赖 dsh-account-usage 才显示**：此前模块可见性由「DeepSeek / OpenCode / Codex 任一可用」决定，关闭或卸载 dsh-account-usage 后整块模块与设置项一起消失。现在模块恒定展示（仍可在 HUD 设置中关闭）；DeepSeek 余额行始终渲染——优先使用 dsh-account-usage 的余额路由，未安装/未启用（路由 404 或未配置 token）时回退到 DSH 官方账户服务（新增 host 路由 `usage/account`，30 秒缓存；需要已登录 DeepSeek 账号），无数据时显示 `—`；**点击余额数值始终打开「设置 → 账号与余额」**，未安装 dsh-account-usage 时页面没有注入的页签，跳转会静默停留在官方账户页而不再报错。OpenCode Go 三个窗口行只在 dsh-account-usage 数据可用时渲染（无数据时不显示、不可点击）；Codex 额度行行为不变。新增 host 余额归一/缓存测试，以及客户端渲染、兜底轮询、缺页签跳转回归。
 

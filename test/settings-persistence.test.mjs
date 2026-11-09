@@ -2,7 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
-import { normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, modulesOf, usageDisplayOf } from "../lib/settings.js";
+import {
+  normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, sanitizeOrderPatch,
+  modulesOf, usageDisplayOf, moduleOrderOf, normalizeModuleOrder, defaultModuleOrder,
+  isDefaultSettings, DEFAULT_MODULE_ORDER,
+} from "../lib/settings.js";
 
 const source = readFileSync(new URL("../lib/client.js", import.meta.url), "utf8");
 
@@ -40,6 +44,9 @@ function loadUseHudModules(options = {}) {
     call: async (method, payload) => { calls.push({ method, payload }); return { ok: true, ...payload }; },
     defaultModules: () => ({ context: true, git: true }),
     defaultUsageDisplay: () => ({ deepseek: true, opencode: true, codex: true }),
+    defaultModuleOrder,
+    normalizeModuleOrder,
+    MODULE_KEYS: ["context", "git", "subagents", "tasks", "mcp", "balance", "plans", "note", "todo"],
     toast() {}, interpolate: value => value, t: value => value,
   });
   const start = source.indexOf("function useHudModules()");
@@ -60,6 +67,8 @@ test("一次确认只发送一个同时包含模块与用量的设置请求", as
     payload: {
       modules: { context: true, git: false },
       usage: { deepseek: true, opencode: true, codex: false },
+      // v0.16.0：确认时同时下发模块顺序（未改动即为默认顺序）
+      order: defaultModuleOrder(),
     },
   }]);
 });
@@ -69,10 +78,11 @@ test("settings 服务缺失时，进程内降级设置可被后续读取", async
   const start = hostSource.indexOf("const settingsHandler =");
   const end = hostSource.indexOf("\n\n\tctx.effect", start);
   const context = vm.createContext({
-    normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, modulesOf, usageDisplayOf,
+    normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, sanitizeOrderPatch,
+    modulesOf, usageDisplayOf, moduleOrderOf, normalizeModuleOrder, defaultModuleOrder,
     ctx: { get: () => undefined },
   });
-  vm.runInContext(`let settingsScope = null; let memoryModules = null; let memoryUsage = null;\n${hostSource.slice(start, end)}\nthis.handler = settingsHandler;`, context);
+  vm.runInContext(`let settingsScope = null; let memoryModules = null; let memoryUsage = null; let memoryOrder = null;\n${hostSource.slice(start, end)}\nthis.handler = settingsHandler;`, context);
   await context.handler(false, { modules: { git: false }, usage: { codex: false } });
   const restored = await context.handler(true, null);
   assert.equal(restored.modules.git, false);
@@ -84,10 +94,11 @@ test("profile 运行时设置服务缺失不得伪装为保存成功", async () 
   const start = hostSource.indexOf("const settingsHandler =");
   const end = hostSource.indexOf("\n\n\tctx.effect", start);
   const context = vm.createContext({
-    normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, modulesOf, usageDisplayOf,
+    normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, sanitizeOrderPatch,
+    modulesOf, usageDisplayOf, moduleOrderOf, normalizeModuleOrder, defaultModuleOrder,
     ctx: { get: () => ({ name: "test-profile" }) },
   });
-  vm.runInContext(`let settingsScope = null; let memoryModules = null; let memoryUsage = null;\n${hostSource.slice(start, end)}\nthis.handler = settingsHandler;`, context);
+  vm.runInContext(`let settingsScope = null; let memoryModules = null; let memoryUsage = null; let memoryOrder = null;\n${hostSource.slice(start, end)}\nthis.handler = settingsHandler;`, context);
   await assert.rejects(context.handler(false, { modules: { git: false } }), /未保存偏好/);
 });
 
@@ -105,7 +116,7 @@ test("较晚返回的初始化读取不会覆盖用户刚确认的设置", async
 });
 
 test("普通会话与新建会话页共用同一个原子设置确认入口", () => {
-  assert.match(source, /props\.onSettingsChange\(draft, usageDraft\)/);
+  assert.match(source, /props\.onSettingsChange\(draft, usageDraft, orderDraft\)/);
   assert.doesNotMatch(source, /props\.onModulesChange\(draft\).*props\.onUsageChange/s);
   assert.match(source, /onSettingsChange: updateSettings/);
 });
