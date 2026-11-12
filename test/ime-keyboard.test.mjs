@@ -24,6 +24,8 @@ function fixture() {
     'cancelBranchAdd', 'cancelBranchCreate', 'closeMenu', 'closeBranchMenu', 'closeGraph',
     'cancelConfirm', 'closeCommit', 'cancelClearConfirmation', 'setClearOpen', 'setOpenId', 'openMenu'];
   const context = vm.createContext({ branchCreateOpenRef: { current: true },
+    // v0.17.0 起设置弹窗的键盘监听器通过 props.onClose 关闭；补一个等价的桩函数供通用用例调用。
+    props: { onClose: () => actions.push({ name: 'props.onClose', args: [] }) },
     ...Object.fromEntries(names.map(name => [name, (...args) => actions.push({ name, args })])) });
   const start = source.indexOf('const composingInputs = ');
   const end = source.indexOf('const zh = ', start);

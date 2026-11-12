@@ -142,33 +142,100 @@ test("客户端 normalizeModuleOrder 与 host 同规则（同一输入同一结�
   }
 });
 
+test("拖动排序预览：按原始槽位定位落点，插入顺序可上下移动", () => {
+  const context = vm.createContext({ Set });
+  vm.runInContext(
+    `${extractFunction("moduleDropIndex")}\n${extractFunction("previewModuleOrder")}\n${extractFunction("mergePreviewOrder")}\nthis.moduleDropIndex = moduleDropIndex; this.previewModuleOrder = previewModuleOrder; this.mergePreviewOrder = mergePreviewOrder;`,
+    context,
+  );
+  const { moduleDropIndex, previewModuleOrder, mergePreviewOrder } = context;
+  const tops = [0, 42, 84, 126];
+  const step = 42;
+  // 指针在槽位上半区 → 该槽；下半区 → 下一槽；越界落到最后。
+  assert.equal(moduleDropIndex(tops, step, -5), 0);
+  assert.equal(moduleDropIndex(tops, step, 10), 0);
+  assert.equal(moduleDropIndex(tops, step, 30), 1);
+  assert.equal(moduleDropIndex(tops, step, 60), 1);
+  assert.equal(moduleDropIndex(tops, step, 84), 2);
+  assert.equal(moduleDropIndex(tops, step, 110), 3);
+  assert.equal(moduleDropIndex(tops, step, 999), 3);
+  assert.equal(moduleDropIndex([], step, 0), -1);
+
+  // 预览顺序：目标下标按原始槽位计，先移除再插入。
+  assert.deepEqual(previewModuleOrder(["a", "b", "c", "d"], "a", 2), ["b", "c", "a", "d"]);
+  assert.deepEqual(previewModuleOrder(["a", "b", "c", "d"], "d", 1), ["a", "d", "b", "c"]);
+  assert.deepEqual(previewModuleOrder(["a", "b", "c", "d"], "b", 0), ["b", "a", "c", "d"]);
+  assert.deepEqual(previewModuleOrder(["a", "b", "c", "d"], "b", 99), ["a", "c", "d", "b"]);
+  assert.deepEqual(previewModuleOrder(["a", "b", "c"], "x", 1), ["a", "b", "c"]);
+  // 预览只含可见键，写回完整顺序时隐藏键保持原位置。
+  assert.deepEqual(mergePreviewOrder(["a", "balance", "b", "c"], ["a", "b", "c"], ["c", "a", "b"]), ["c", "balance", "a", "b"]);
+});
+
 // —— 客户端结构与接线 ——
 
-test("设置菜单：拖动排序手柄、点击外部关闭、恢复默认按钮均已接线（v0.16.0）", async () => {
+test("HUD 设置弹窗：模块卡片列表、拖动排序、恢复默认均已接线（v0.17.0）", async () => {
   const source = await clientSource();
 
-  // 拖动排序：复用既有 drag 图标（与「待办」模块同一套图形），仅手柄可拖。
-  assert.match(source, /className: "hud-settings-grip"/);
-  assert.match(source, /draggable: true/);
+  // 齿轮按钮改为打开弹窗（不再打开菜单）。
+  assert.match(source, /function SettingsDialog\(props\) \{/);
+  assert.match(source, /const \[settingsOpen, setSettingsOpen\] = react\.useState\(false\);/);
+  assert.match(source, /"aria-haspopup": "dialog",/);
+  assert.match(source, /"aria-expanded": settingsOpen,/);
+  assert.match(source, /onClick: \(\) => setSettingsOpen\(true\),/);
+  assert.match(source, /className: "hud-modal hud-settings-modal",/);
+  assert.match(source, /role: "dialog",/);
+  assert.match(source, /"aria-modal": "true",/);
+  assert.match(source, /"aria-labelledby": "hud-settings-dialog-title",/);
+  assert.match(source, /return react_dom\.createPortal\(dialog, document\.body\);/);
+
+  // 每个模块一张卡片：单列纵向列表 + 独立卡片类 + 关闭态标记。
+  assert.match(source, /className: "hud-settings-list",/);
+  assert.match(source, /orderedKeys\.map\(\(key, index\) => \{/);
+  assert.match(source, /className: "hud-settings-card",/);
+  assert.match(source, /"data-off": draft\[key\] === false,/);
+  assert.match(source, /"data-dragging": dragPreview !== null && dragPreview\.key === key,/);
+  assert.match(source, /\.hud-settings-list\{display:flex;flex-direction:column;gap:8px\}/);
+  assert.doesNotMatch(source, /hud-settings-order/);
+  assert.match(source, /className: "hud-settings-card-name" }, MODULE_LABELS\[key\]\(\)\)/);
+  // 「用量模块内容」仍是独立卡片。
+  assert.match(source, /className: "hud-settings-usage-card" },/);
+  assert.match(source, /className: "hud-settings-section-title" }, t\("settingsUsageTitle"\)\)/);
+
+  // 拖动排序：仅手柄可拖；列表级 dragover/drop 计算落点，其他卡片按预览顺序 transform 让位。
+  assert.match(source, /className: "hud-settings-grip",/);
+  assert.match(source, /draggable: true,/);
   assert.match(source, /react\.createElement\(Icon, \{ name: "drag", size: 14 \}\)/);
-  assert.match(source, /const dropModule = \(targetKey\) => \{/);
-  assert.match(source, /"data-dragging": dragKey === key/);
-  assert.match(source, /"data-over": overKey === key/);
+  assert.match(source, /const startDrag = \(event, key\) => \{/);
+  assert.match(source, /const dragOverList = \(event\) => \{/);
+  assert.match(source, /const dropList = \(event\) => \{/);
+  assert.match(source, /ref: listRef,/);
+  assert.match(source, /onDragOver: dragOverList,/);
+  assert.match(source, /onDrop: dropList,/);
+  assert.match(source, /event\.dataTransfer\.setDragImage\(card, event\.clientX - rect\.left, event\.clientY - rect\.top\);/);
+  // 用指针所在的原始槽位计算落点，避免卡片位移后落点抖动。
+  assert.match(source, /function moduleDropIndex\(tops, step, relY\) \{/);
+  assert.match(source, /relY < top \+ step \/ 2/);
+  assert.match(source, /const overIndex = moduleDropIndex\(state\.tops, state\.step, relY\);/);
+  // 预览位移：不重排 DOM，松手后才写入 orderDraft。
+  assert.match(source, /const next = previewModuleOrder\(state\.order, state\.key, overIndex\);/);
+  assert.match(source, /state\.order = next;/);
+  assert.match(source, /const previewIndex = dragPreview === null \? -1 : dragPreview\.order\.indexOf\(key\);/);
+  assert.match(source, /style: offset === 0 \? undefined : \{ transform: `translateY\(\$\{offset\}px\)` \},/);
+  assert.match(source, /const offset = previewIndex === -1 \|\| previewIndex === index \? 0 : \(previewIndex - index\) \* dragPreview\.step;/);
+  assert.match(source, /if \(previewOrder !== null\) \{\n\t+setDragSettling\(true\);\n\t+setOrderDraft\(mergePreviewOrder\(orderDraft, orderedKeys, previewOrder\)\);/);
+  // 落盘当帧关闭过渡，避免「新布局 + 旧位移」二次滑动。
+  assert.match(source, /"data-settling": dragSettling,/);
+  assert.match(source, /\.hud-settings-list\[data-settling=true\] \.hud-settings-card\{transition:none\}/);
+  assert.match(source, /transition:border-color \.12s var\(--ds-ease-in-out,ease\),background \.12s var\(--ds-ease-in-out,ease\),opacity \.12s var\(--ds-ease-in-out,ease\),transform \.16s var\(--ds-ease-in-out,ease\)/);
 
-  // 点击外部关闭：捕获阶段监听 + 命中测试，且不吞掉内部点击。
-  assert.match(source, /doc\?\.addEventListener\?\.\("pointerdown", onPointerDown, true\)/);
-  assert.match(source, /if \(target\.closest\("\.hud-settings-pop"\) !== null\) return;/);
-  // 齿轮按钮要被排除，否则 toggle 永远打不开菜单。
-  assert.match(source, /btnRef\.current\?\.contains\?\.\(target\) === true\) return;/);
-  // 取消/确认仍然各自关闭菜单。
-  assert.match(source, /onCancel: \(\) => setMenuOpen\(false\)/);
-  assert.match(source, /props\.onSettingsChange\(draft, usageDraft, orderDraft\); setMenuOpen\(false\); \}/);
-
-  // 恢复默认：非默认时激活，且需要点确认才落盘。
-  assert.match(source, /"data-kind": "reset"/);
-  assert.match(source, /disabled: !dirty/);
+  // 底部按钮：恢复默认仅在非默认时激活，确认才落盘。
+  assert.match(source, /className: "hud-settings-footer" },/);
+  assert.match(source, /"data-kind": "reset",/);
+  assert.match(source, /disabled: !dirty,/);
   assert.match(source, /const dirty = !isDefaultDraft\(draft, usageDraft, orderDraft, keys, usageKeys\);/);
   assert.match(source, /function isDefaultDraft\(draft, usageDraft, orderDraft, visibleModuleKeys, visibleUsageKeys\) \{/);
+  assert.match(source, /onClick: \(\) => props\.onConfirm\(draft, usageDraft, orderDraft\)/);
+  assert.match(source, /onClick: props\.onClose \}, t\("settingsCancel"\)\)/);
 });
 
 test("面板按 moduleOrder 渲染：不再写死模块顺序，且不漏渲染", async () => {
@@ -208,26 +275,28 @@ test("排序经由设置链路持久化：hook 保存与读取都带上 order", 
   assert.match(source, /order: props\.order,/);
 });
 
-test("点击外部关闭：命中判定与监听器注册方式（不吞菜单内部点击）", async () => {
+test("设置弹窗的关闭与焦点：Esc / 遮罩点击 / 取消确认，Tab 在弹窗内循环", async () => {
   const source = await clientSource();
 
-  // 监听器必须在捕获阶段注册、卸载时移除。
-  assert.match(source, /doc\?\.addEventListener\?\.\("pointerdown", onPointerDown, true\)/);
-  assert.match(source, /doc\?\.removeEventListener\?\.\("pointerdown", onPointerDown, true\)/);
+  // 旧菜单的「点击外部关闭」整套 pointerdown 命中逻辑必须移除。
+  assert.doesNotMatch(source, /hud-settings-pop/);
+  assert.doesNotMatch(source, /doc\?\.addEventListener\?\.\("pointerdown", onPointerDown, true\)/);
 
-  // 判定顺序：先放行菜单内部，再放行齿轮按钮，其余一律关闭。
-  const start = source.indexOf("const onPointerDown = (event) => {");
-  assert.ok(start > 0, "定位不到外部点击处理函数");
-  const closeIdx = source.indexOf("setMenuOpen(false);", start);
-  const popIdx = source.indexOf('target.closest(".hud-settings-pop")', start);
-  const btnIdx = source.indexOf("btnRef.current?.contains?.(target)", start);
-  assert.ok(popIdx > 0 && btnIdx > 0, "命中判定缺少菜单/按钮排除");
-  assert.ok(popIdx < closeIdx, "必须先判定菜单内部，再考虑关闭");
-  assert.ok(btnIdx < closeIdx, "必须在关闭前排除齿轮按钮（否则菜单永远打不开）");
-  // 只关闭、不阻止事件传播：取消/确认等按钮的 onClick 仍要照常执行。
-  assert.doesNotMatch(source.slice(start, closeIdx + 40), /stopPropagation|preventDefault/);
+  // 遮罩点击：只认遮罩本身，卡片内部点击不关闭。
+  assert.match(source, /onClick: \(event\) => \{ if \(event\.target === event\.currentTarget\) props\.onClose\(\); \},/);
+  assert.match(source, /onClick: \(event\) => event\.stopPropagation\(\),/);
+  // Esc 在捕获阶段关闭；Tab 在弹窗内首尾循环。
+  assert.match(source, /doc\?\.addEventListener\?\.\("keydown", onKeyDown, true\);/);
+  assert.match(source, /doc\?\.removeEventListener\?\.\("keydown", onKeyDown, true\)/);
+  assert.match(source, /if \(event\.key === "Escape"\) \{ event\.preventDefault\(\); props\.onClose\(\); return; \}/);
+  assert.match(source, /if \(event\.key !== "Tab"\) return;/);
+  assert.match(source, /event\.shiftKey && \(active === first \|\| active === cardRef\.current\)/);
+  assert.match(source, /!event\.shiftKey && active === last/);
+  // 打开时聚焦弹窗、关闭时把焦点还给触发元素。
+  assert.match(source, /cardRef\.current\?\.focus\?\.\(\);/);
+  assert.match(source, /previous\?\.focus\?\.\(\);/);
 
-  // 拖动排序走 HTML5 drag 事件，不产生 pointerdown，因此不会误关闭。
-  assert.match(source, /onDragStart: \(event\) => \{/);
-  assert.match(source, /event\.dataTransfer\?\.setData\?\.\("text\/plain", key\);/);
+  // 关闭（含确认）只需收起弹窗，草稿保存仍走 onConfirm。
+  assert.match(source, /const closeSettings = react\.useCallback\(\(\) => \{ setSettingsOpen\(false\); \}, \[\]\);/);
+  assert.match(source, /props\.onSettingsChange\(draft, usageDraft, orderDraft\);\n\t\t\t\t\t\tcloseSettings\(\);/);
 });
