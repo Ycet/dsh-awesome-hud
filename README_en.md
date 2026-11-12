@@ -32,7 +32,7 @@ HUD in DSH (dark theme)
 - [🖼️ Screenshots](#️-screenshots)
 - [⚙️ Compatibility](#️-compatibility)
 - [🔧 Tech Stack](#-tech-stack)
-- [⬆️ Upgrade Notes (v0.11.x → v0.16.0)](#️-upgrade-notes-v011x--v0160)
+- [⬆️ Upgrade Notes (v0.11.x → v0.16.1)](#️-upgrade-notes-v011x--v0161)
 - [📄 License](#-license)
 
 ---
@@ -61,7 +61,7 @@ HUD in DSH (dark theme)
 
 ```bash
 # 1. Install (pinned to a release tag; requires git access to GitHub)
-dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.16.0"
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.16.1"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -79,7 +79,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 
 ```bash
 # 1. Install (use the Release asset URL directly, or pass a downloaded .tgz path)
-dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.16.0/dsh-awesome-hud-0.16.0.tgz"
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.16.1/dsh-awesome-hud-0.16.1.tgz"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -91,7 +91,7 @@ After installation, a "HUD panel" button appears at the top-right of the chat pa
 
 ### Desktop installation (macOS)
 
-Current version: **0.16.0**. Fully quit DeepSeek Harness, then install with the CLI bundled with the desktop app. Use that CLI when managing the `desktop` profile.
+Current version: **0.16.1**. Fully quit DeepSeek Harness, then install with the CLI bundled with the desktop app. Use that CLI when managing the `desktop` profile.
 
 ```bash
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -207,7 +207,7 @@ See the [v0.14.7 desktop verification record (Chinese)](docs/desktop-compatibili
 
 | Item               | Version / Notes                                                                                                                                                                                                           |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| DeepSeek Harness | macOS desktop `0.2.0-rc.2`; legacy Web API fallbacks remain available; other versions require verification |
+| DeepSeek Harness | verified on macOS desktop `0.2.2-rc.2` (`engines.dsh: >=0.2.1-rc.2`); legacy Web API fallbacks remain available; other versions require verification |
 | dsh-client-ui-subagent | Subagent conversations open as official `subagentchat` resources in the right sidebar. Versions without this API show a failure message and keep the main conversation |
 | dsh-plan-mode      | Data source of the Plan list:`exit_plan_mode` tool calls in the session log (`tool/call` / `tool/result` / `plan/mode` events); re-check the state derivation if the upstream review semantics change             |
 | dsh-better-sidebar | `0.16.1` (listens to the panel state through the public `ctx.betterSidebar` service and participates with the official right sidebar in the HUD's derived visibility; collapsing it from the HUD button relies on its collapse button's DOM marker, and if that fails the panel stays hidden until the sidebar closes — the HUD works standalone regardless) |
@@ -227,7 +227,9 @@ See the [v0.14.7 desktop verification record (Chinese)](docs/desktop-compatibili
 | Data sources | Client-side session projection (`ctx.sessions.list` / `workspaces` / `modelDirectories`) + own host APIs (git / MCP / subagents / plan list / compaction) + reused dsh-account-usage balance/usage routes (falls back to the official `deepseekAccount` service when missing) |
 | Tests        | `node --test` (git parsing, MCP parsing, status derivation, plan-list derivation, settings normalization, trust fence; in `test/`)                                                                          |
 
-## ⬆️ Upgrade Notes (v0.11.x → v0.16.0)
+## ⬆️ Upgrade Notes (v0.11.x → v0.16.1)
+
+**v0.16.1: fixes two regressions introduced by the DSH 0.2.2-rc.2 upgrade.** ① **The body and composer no longer shift left once the panel opens, overlapping it.** DSH 0.2.2-rc.2 inserted new wrapper layers between `[data-conversation-scroll]` and the conversation body (observed as `div.QwyHXq_layer` + `div[data-slot="conversation.hero.frame"]`), while the HUD still treated `scrollEl.parentElement` as the body — so the reservation (`margin-right: 300px`) landed on a wrapper: the scroll container's right-edge compensation still applied, but the body itself was never narrowed, leaving the content and composer underneath the panel. The HUD now walks up to the nearest `[data-conversation-content]`: the new layout hits the real body (however many wrappers sit in between), the old layout behaves exactly as before, and a renamed host attribute falls back to `parentElement` instead of disabling the reservation entirely. Reconciliation after host node rebuilds uses the same resolver. ② **Clicking a usage figure no longer reports a false failure when opening Settings → Account & balance.** This release tightens the jump in three places. **(a) Prefer the official command over DOM menus** — the settings panel is owned by the official `settings.open` command; the HUD now first calls it through the `ctx.shortcuts` registry's `invoke("settings.open", …)` (capability-probed, silently falling back when a host lacks that internal entry point), so it no longer depends on the async mount timing of "account button → menu item". **(b) Otherwise use the account menu, scanning every `[role="menu"]`** — Desktop session context menus and model menus also carry that role. The old `document.querySelector('[role="menu"]')` took only the first one, hit a stale session menu, never found "Settings", and timed out with the "cannot open account settings (settings-menu)" toast from the screenshot. The HUD now searches each menu and dispatches Escape to dismiss stale menus before opening the account one. Menu and section labels are normalized (aria-hidden subtrees, zero-width characters and collapsed whitespace removed; a trailing ⌥⌘⇧⌃ shortcut stripped) so glyphs such as "设置⌥⌘," cannot break an exact match. **(c) The legacy Web fallback matches by accessible name only** — many buttons carry `aria-haspopup="dialog"` (context meter, stats pills, …), and taking the first one opened an unrelated popover; only an accessible name of "设置 / Settings" is accepted. If the target section is already active (`aria-current="true"`) the click is skipped, so the host cannot close the settings dialog that is already open; timeout errors now name the step that stalled (settings-menu / settings-dialog / account-section / settings-trigger-missing). Added two regressions in `test/desktop-compat.test.mjs` (a stale session menu still resolves to the account menu; both the `settings.open` command path and the menu fallback) and kept the two body-resolver regressions in `test/layout-push.test.mjs`.
 
 **v0.16.0: the HUD settings menu now supports drag-to-reorder, plus "Reset to defaults" and click-outside-to-close.** ① Every row in the "Modules" group starts with a **drag handle** (reusing the To-do module's dot-grid handle graphic and the same `draggable` + `dragover` / `drop` interaction); press and drag it up or down to change the order in which modules appear in the HUD panel. The order is a **global setting** (stored in the host settings `order` field, shared across sessions and synced with the profile through the browser) and affects ordering only, never visibility. Panel rendering changed from a hard-coded JSX order to an `order`-driven mapping (`MODULE_RENDERERS` table plus `normalizeModuleOrder`); the read side always tightens the order into a complete permutation, so truncated data, unknown keys or duplicates can never make a module disappear. Settings written by older versions lack the field and fall back to the default order.
 

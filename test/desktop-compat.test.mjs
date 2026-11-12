@@ -45,7 +45,7 @@ test('子代理保留各模式和直接父会话，缺失侧栏及打开失败�
 });
 
 // 模拟桌面真实的菜单、nav 和延迟挂载，验证按钮选择而非只匹配源码字符串。
-function navigationFixture({ existing = false, legacy = false, target = 'opencode', accountLabel = '账号与余额', customFallback = false, withTab = true } = {}) {
+function navigationFixture({ existing = false, legacy = false, target = 'opencode', accountLabel = '账号与余额', customFallback = false, withTab = true, shortcut = false, staleMenu = false } = {}) {
   let menuOpen = false, dialogOpen = existing, ticks = 0, selected = false;
   const clicks = [], errors = [];
   const button = (text, action) => ({ textContent: text, getAttribute: () => 'Account menu', click: () => { clicks.push(text); action?.(); } });
@@ -62,13 +62,34 @@ function navigationFixture({ existing = false, legacy = false, target = 'opencod
   menuItem.cloneNode = () => ({ textContent: '设置⌘,', querySelectorAll: function () { return [{ remove: () => { this.textContent = '设置'; } }]; } });
   const menu = { querySelectorAll: () => ticks >= 4 ? [menuItem] : [] };
   const trigger = button('账号菜单', () => { menuOpen = true; });
+  // 桌面端会话右键菜单：带 role="menu"、内含会话操作但没有「设置」。
+  // 旧实现只取第一个菜单，会一直在这个菜单里找设置直到超时（用户截图现象）。
+  const stale = { querySelectorAll: () => [button('重命名'), button('归档会话')] };
+  // 旧 Web 设置入口：可访问名就是「设置」（按钮内可能没有可见文字）。
+  const legacyButton = button('旧设置入口', () => { dialogOpen = true; });
+  legacyButton.getAttribute = name => name === 'aria-label' ? '设置' : null;
   const document = {
+    // v0.16.1：实现改为遍历全部 [role="menu"]（桌面端会话右键菜单也带该属性），
+    // 桩必须支持 querySelectorAll('[role="menu"]')，否则永远找不到菜单项。
     querySelector: selector => selector.includes('data-shortcut-modal') ? (dialogOpen ? dialog : null)
-      : selector === '[role="menu"]' ? (menuOpen ? menu : null)
-      : selector.includes('aria-haspopup="dialog"') && legacy ? button('旧设置入口', () => { dialogOpen = true; }) : null,
-    querySelectorAll: selector => selector === '[role="dialog"]' ? [] : legacy ? [] : [trigger],
+      : selector.includes('aria-modal="true"') ? null
+      : null,
+    querySelectorAll: selector => selector === '[role="dialog"]' ? []
+      : selector === '[role="menu"]' ? (menuOpen ? [...(staleMenu ? [stale] : []), menu] : [])
+      : selector.includes('aria-haspopup="dialog"') && legacy ? [legacyButton] : legacy ? [] : [trigger],
+    // Escape 清理残留菜单时会派发事件，桩需提供 no-op。
+    dispatchEvent: () => true,
   };
-  const context = vm.createContext({ document, toast: key => errors.push(key), t: key => key,
+  // v0.16.1：设置优先走官方 settings.open 命令（ctx.shortcuts.registry.invoke），
+  // 没有该服务时继续走账号菜单点击；两种入口都要覆盖。
+  const shortcuts = shortcut ? {
+    registry: { invoke: (id) => { clicks.push(`shortcut:${id}`); dialogOpen = true; } },
+    // 旧版宿主可能没有 settings.open：catalog 里查不到时不应盲调 invoke。
+    catalog: { getSnapshot: () => shortcut === 'missing' ? [] : [{ id: 'settings.open' }] },
+  } : undefined;
+  const ctx = { get: name => name === 'shortcuts' ? shortcuts : undefined };
+  const context = vm.createContext({ document, ctx, toast: key => errors.push(key), t: key => key,
+    KeyboardEvent: class { constructor(type, init) { this.type = type; Object.assign(this, init); } },
     setTimeout: fn => { ticks++; queueMicrotask(fn); } });
   vm.runInContext(clip('let settingsNavigation = null;', 'function BalanceModule'), context);
   return { context, clicks, errors };
@@ -82,6 +103,35 @@ test('桌面账户菜单 → 官方「账号与余额」分区 → 延迟出现�
   await one;
   assert.deepEqual(f.clicks, ['账号菜单', '设置⌘,', '账号与余额', 'opencode go']);
   assert.deepEqual(f.errors, []);
+});
+
+test('页面上残留会话右键菜单时，仍能找到真正的账号菜单（v0.16.1 回归）', async () => {
+  // 复现用户截图：侧边栏会话右键菜单先于账号菜单存在，且不含「设置」。
+  // 旧实现 document.querySelector('[role="menu"]') 只会拿到它，随后超时报 settings-menu。
+  const f = navigationFixture({ staleMenu: true, target: 'deepseek' });
+  await f.context.openSettingsAccount('deepseek');
+  assert.deepEqual(f.clicks, ['账号菜单', '设置⌘,', '账号与余额', 'deepseek']);
+  assert.deepEqual(f.errors, []);
+});
+
+test('官方 settings.open 命令可用时直接打开设置，不依赖账号菜单 DOM（v0.16.1 加固）', async () => {
+  // 菜单路径依赖菜单及时挂载、文案精确匹配等多个宿主细节；命令路径更稳。
+  const f = navigationFixture({ shortcut: true, target: 'opencode' });
+  await f.context.openSettingsAccount('opencode');
+  assert.deepEqual(f.clicks, ['shortcut:settings.open', '账号与余额', 'opencode go']);
+  assert.deepEqual(f.errors, []);
+  // 命令未生效（例如宿主无该服务）时必须继续走原有菜单兜底，而不是直接报错。
+  const fallback = navigationFixture({ shortcut: false });
+  await fallback.context.openSettingsAccount('opencode');
+  assert.deepEqual(fallback.clicks, ['账号菜单', '设置⌘,', '账号与余额', 'opencode go']);
+  assert.deepEqual(fallback.errors, []);
+
+  // 旧版宿主没有 settings.open 命令：catalog 查不到时必须直接走菜单兜底，
+  // 不能盲调 invoke 后干等 2s 再回退。
+  const missing = navigationFixture({ shortcut: 'missing' });
+  await missing.context.openSettingsAccount('opencode');
+  assert.deepEqual(missing.clicks, ['账号菜单', '设置⌘,', '账号与余额', 'opencode go']);
+  assert.deepEqual(missing.errors, []);
 });
 
 test('DeepSeek 余额数字进入「账号与余额」并切到 deepseek 页签', async () => {
@@ -130,7 +180,8 @@ test('无法找到设置时有明确失败反馈', async () => {
     toast: value => context.error = value, t: value => value, setTimeout: fn => queueMicrotask(fn) });
   vm.runInContext(clip('let settingsNavigation = null;', 'function BalanceModule'), context);
   await context.openSettingsAccount('deepseek');
-  assert.equal(context.error, 'settingsOpenFailed');
+  // 找不到任何设置入口时仍要报错，但错误需带出卡住的步骤，便于定位。
+  assert.match(context.error, /^settingsOpenFailed \(settings-trigger-missing\)$/);
 });
 
 test('桌面 composer 服务追加草稿且保留原文，缺少绑定时不伪报成功', async () => {

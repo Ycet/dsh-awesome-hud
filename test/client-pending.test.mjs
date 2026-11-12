@@ -31,7 +31,10 @@ test("HUD-03 reserves only the conversation body so rc.1 width handles and turn 
   // 新建会话页没有 conversation.session 宿主，改由滚动容器反查会话根
   assert.match(source, /const sessionRoot = sessionHost\?\.closest\("\[data-phase\]"\) \?\? null;/);
   assert.match(source, /const conversationRoot = sessionRoot \?\? scrollEl\?\.closest\("\[data-phase\]"\) \?\? null;/);
-  assert.match(source, /const conversationBody = scrollEl\?\.parentElement \?\? null;/);
+  // v0.16.1：正文容器改由 [data-conversation-content] 反查（DSH 0.2.2-rc.2
+  // 在滚动容器与正文容器之间插入了包装层，parentElement 会命中包装层）。
+  assert.match(source, /const conversationBody = resolveConversationBody\(scrollEl\);/);
+  assert.match(source, /function resolveConversationBody\(scrollEl\) \{/);
   assert.match(source, /conversationBody\.style\.setProperty\("margin-right", `\$\{PANEL_WIDTH\}px`\);/);
   assert.match(source, /conversationBody\.style\.setProperty\("--dsh-awesome-hud-column-width", `\$\{Math\.round\(columnWidth\)\}px`\);/);
   assert.match(source, /conversationBody\.style\.setProperty\("--dsh-chat-content-width", HUD_CONTENT_WIDTH\);/);

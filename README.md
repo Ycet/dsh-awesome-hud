@@ -32,7 +32,7 @@ HUD在dsh中的效果（深色主题）
 - [🖼️ 界面截图](#️-界面截图)
 - [⚙️ 兼容性](#️-兼容性)
 - [🔧 技术栈](#-技术栈)
-- [⬆️ 升级说明（v0.11.x → v0.16.0）](#️-升级说明v011x--v0160)
+- [⬆️ 升级说明（v0.11.x → v0.16.1）](#️-升级说明v011x--v0161)
 - [📄 许可证](#-许可证)
 
 ---
@@ -60,7 +60,7 @@ HUD在dsh中的效果（深色主题）
 
 ```bash
 # 1. 安装（锁定版本 tag，要求本机 git 可访问 GitHub）
-dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.16.0"
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.16.1"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -78,7 +78,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 
 ```bash
 # 1. 安装（可直接用 Release 资产 URL，也可先下载 .tgz 再传本地路径）
-dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.16.0/dsh-awesome-hud-0.16.0.tgz"
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.16.1/dsh-awesome-hud-0.16.1.tgz"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -90,7 +90,7 @@ dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/d
 
 ### 桌面端安装（macOS）
 
-当前版本：**0.16.0**。先完全退出 DeepSeek Harness，再使用桌面应用自带的 CLI 安装；不要用旧 Web CLI 管理 `desktop` profile。
+当前版本：**0.16.1**。先完全退出 DeepSeek Harness，再使用桌面应用自带的 CLI 安装；不要用旧 Web CLI 管理 `desktop` profile。
 
 ```bash
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -206,7 +206,7 @@ dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/d
 
 | 项目               | 版本/说明                                                                                                                                     |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| DeepSeek Harness   | macOS 桌面端 `0.2.1-rc.2` 及以上（`engines.dsh: >=0.2.1-rc.2`）；保留旧 Web 接口兜底，其他版本仍需验证                              |
+| DeepSeek Harness   | macOS 桌面端 `0.2.2-rc.2` 实测通过（`engines.dsh: >=0.2.1-rc.2`）；保留旧 Web 接口兜底，其他版本仍需验证                              |
 | dsh-client-ui-subagent | 子代理会话使用官方 `subagentchat` 资源在右侧栏打开；旧版不具备该接口时显示失败提示，不替换主会话 |
 | dsh-plan-mode      | 计划清单数据源：会话日志`exit_plan_mode` 工具调用（`tool/call`/`tool/result`/`plan/mode` 事件）；上游审批语义变更时需复查状态推导     |
 | dsh-better-sidebar | `0.16.1`（通过公开服务 `ctx.betterSidebar` 监听面板状态，与官方右侧栏共同参与 HUD 派生可见性；点击 HUD 按钮时依赖其折叠按钮 DOM 特征自动收起，失败时面板保持隐藏、待侧栏关闭后恢复，不影响 HUD 独立使用） |
@@ -226,7 +226,9 @@ dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/d
 | 数据来源  | 客户端会话投影（`ctx.sessions.list` / `workspaces` / `modelDirectories`）+ 自有 host API（git / MCP / 子代理 / 计划清单 / 压缩）+ dsh-account-usage 余额/用量路由（复用，缺失时回退官方 `deepseekAccount`） |
 | 测试      | `node --test`（git 解析、MCP 解析、状态推导、计划清单推导、设置收敛、信任围栏；位于 `test/`）                                                                               |
 
-## ⬆️ 升级说明（v0.11.x → v0.16.0）
+## ⬆️ 升级说明（v0.11.x → v0.16.1）
+
+**v0.16.1：修复 DSH 0.2.2-rc.2 升级后的两处回归**：① **面板展开后正文/输入框不再左移、与面板重叠**。DSH 0.2.2-rc.2 在 `[data-conversation-scroll]` 与正文容器之间插入了新的包装层（实测为 `div.QwyHXq_layer` + `div[data-slot="conversation.hero.frame"]`），而 HUD 旧实现用 `scrollEl.parentElement` 当正文容器，于是「加 `margin-right: 300px` 让位」写到了包装层上——滚动容器的右缘补偿照常生效，但正文容器本身没有收窄，表现为正文与输入框都不左移、压在面板下方。现在改为向上找最近的 `[data-conversation-content]`：新版命中真正的正文容器（中间隔几层都不影响），旧版结果与原来一致（向后兼容），宿主若改名则退回 `parentElement` 保持既有行为；节点重建后的重新反查走同一函数。② **点击用量数字跳转「设置 → 账号与余额」不再误报失败**。这一版从三处收紧了这条跳转：**(a) 首选官方命令，绕开 DOM 菜单**——设置面板由官方的 `settings.open` 命令拥有，HUD 现在先通过 `ctx.shortcuts` 的注册表 `invoke("settings.open", …)` 直接打开设置（能力探测，宿主没有该内部入口时静默降级），不再依赖「账号按钮 → 菜单项」的异步挂载时序。**(b) 其次才走账号菜单，且遍历全部 `[role="menu"]`**——桌面端会话右键菜单、模型选择菜单也带该属性，旧实现 `document.querySelector('[role="menu"]')` 只取第一个，命中残留的会话菜单后找不到「设置」，等到超时便弹出截图里的「无法打开账户设置 (settings-menu)」；现在逐个菜单查找，并在点开账号菜单前先派发 Escape 清掉残留菜单。菜单项与分区文字统一做归一化（移除 aria-hidden 子树、零宽字符与内部连续空白，并从尾部剥离 ⌥⌘⇧⌃ 快捷键记号），避免「设置⌥⌘,」这类快捷键字形导致精确匹配失败。**(c) 旧 Web 兜底只认可访问名**——`aria-haspopup="dialog"` 的按钮在页面上有很多（上下文用量、统计药丸等），旧实现取第一个会点开无关浮层；现在只接受可访问名为「设置 / Settings」的按钮。另外若目标分区已处于激活态（`aria-current="true"`）则跳过点击，避免宿主把已打开的设置对话框关掉；等待超时的报错会带上「卡在哪一步」（settings-menu / settings-dialog / account-section / settings-trigger-missing），便于定位。新增 `test/desktop-compat.test.mjs` 两项回归（残留会话菜单存在时仍命中账号菜单；`settings.open` 命令路径与菜单兜底），以及 `test/layout-push.test.mjs` 两项正文容器回归（新版/旧版/改名三种形态）。
 
 **v0.16.0：HUD 设置菜单支持模块拖动排序，并新增「恢复默认」与点击外部关闭**：① 设置菜单「展示模块」区域每项最左侧新增**拖动排序手柄**（复用「待办」模块的点阵拖动手柄图形与同一套 `draggable` + `dragover` / `drop` 交互），按住手柄上下拖动即可调整模块在 HUD 面板中的展示顺序；顺序是**全局设置**（写入 host settings 的 `order` 字段，跨会话、跨浏览器随 profile 同步），只影响先后、不影响可见性。面板渲染由原先写死的 JSX 顺序改为按 `order` 映射渲染（`MODULE_RENDERERS` 渲染表 + `normalizeModuleOrder`），读侧一律把顺序收敛成「完整排列」，因此残缺、含未知键或重复键的坏数据都不会让某个模块漏渲染；老版本设置没有该字段时自动回落为默认顺序。② 菜单底部左侧新增**「恢复默认」**按钮，当勾选、用量行或排序与默认不同时激活，点击把三者一并恢复默认（仍需点「确认」写入）。③ 除「取消」「确认」外，**点击菜单以外区域也会关闭菜单**（捕获阶段 `pointerdown` + 命中测试，不吞掉菜单内部点击；点齿轮按钮仍正常开合；拖动排序走 HTML5 drag 事件、不产生 pointerdown，不会误关闭）。改动涉及 host 侧 `lib/settings.js`（`DEFAULT_MODULE_ORDER` / `normalizeModuleOrder` / `sanitizeOrderPatch` / `isDefaultSettings`）与 `lib/index.js`（settings schema 的 `order` 字段、GET/POST 响应与进程内降级）。新增 `test/module-order.test.mjs` 十项回归（含 host 与客户端收敛规则一致性、渲染表覆盖全部模块键、面板 body 不再写死顺序）。
 

@@ -208,3 +208,135 @@ test("输入框浮层视图：座位收窄的写入、幂等与切回常规视�
   context.restoreInlinePush(hostMarginScroll.seat, hostWrites);
   assert.equal(hostMarginScroll.seat.style.peek("margin-right"), "4px", "还原成宿主自己的 4px");
 });
+
+test("正文容器按 [data-conversation-content] 反查，不依赖 parentElement（v0.16.1）", async () => {
+  const source = await clientSource();
+
+  // DSH 0.2.2-rc.2 在 [data-conversation-scroll] 与正文容器之间插入了包装层
+  // （div.QwyHXq_layer + div[data-slot="conversation.hero.frame"]），
+  // 用 parentElement 会让让位写到包装层上，正文与输入框都不左移、与面板重叠。
+  assert.match(source, /function resolveConversationBody\(scrollEl\) \{/);
+  assert.match(source, /const body = scrollEl\.closest\("\[data-conversation-content\]"\);/);
+  // 兜底仍保留 parentElement，保证宿主再次改结构时不至于完全不让位。
+  assert.match(source, /return scrollEl\.parentElement \?\? null;/);
+  // 两处调用点都必须走新的解析函数。
+  assert.match(source, /const conversationBody = resolveConversationBody\(scrollEl\);/);
+  assert.match(source, /activeConversationBody = resolveConversationBody\(activeScrollEl\);/);
+  assert.doesNotMatch(source, /const conversationBody = scrollEl\?\.parentElement/, "不得回退到 parentElement 解析正文容器");
+});
+
+test("resolveConversationBody：新版多一层包装时仍命中真实正文容器", () => {
+  const context = vm.createContext({});
+  vm.runInContext(extractFunction("resolveConversationBody"), context);
+
+  const bodyEl = { id: "body", parentElement: null };
+  const wrapper = { id: "slotWrapper", parentElement: bodyEl };
+  const layer = { id: "layer", parentElement: wrapper };
+  // 新版：scroll 的父节点是包装层，真正的正文容器在两层之上。
+  const scrollNew = { id: "scroll", parentElement: layer, closest: sel => (sel === "[data-conversation-content]" ? bodyEl : null) };
+  assert.equal(context.resolveConversationBody(scrollNew).id, "body", "必须向上命中最外层正文容器");
+
+  // 旧版：父节点本身就是正文容器（属性在父节点上），结果一致。
+  const bodyOld = { id: "bodyOld", parentElement: null };
+  const scrollOld = { id: "scrollOld", parentElement: bodyOld, closest: sel => (sel === "[data-conversation-content]" ? bodyOld : null) };
+  assert.equal(context.resolveConversationBody(scrollOld).id, "bodyOld");
+
+  // 宿主改名：closest 找不到时退回 parentElement（保持既有行为，不完全失效）。
+  const fallbackParent = { id: "fallbackParent", parentElement: null };
+  const scrollFallback = { id: "scrollF", parentElement: fallbackParent, closest: () => null };
+  assert.equal(context.resolveConversationBody(scrollFallback).id, "fallbackParent");
+
+  // 空输入。
+  assert.equal(context.resolveConversationBody(null), null);
+  assert.equal(context.resolveConversationBody(undefined), null);
+});
+
+test("设置跳转失败必须带出真实原因，且菜单项缺失不得抛 TypeError（v0.16.1）", async () => {
+  const source = await clientSource();
+
+  // 旧实现 `.catch(() => toast(t("settingsOpenFailed")))` 把异常整个丢弃，
+  // 导致「卡在哪一步」的诊断信息从未被展示过。
+  assert.doesNotMatch(source, /\.catch\(\(\) => toast\(t\("settingsOpenFailed"\)\)\)/);
+  assert.match(source, /\.catch\(\(error\) => \{/);
+  assert.match(source, /console\.warn\("\[dsh-awesome-hud\] openSettingsAccount failed:", error\);/);
+  // toast 优先展示真实原因，仅当原因缺失时才回退到通用文案。
+  assert.match(source, /toast\(detail === "" \|\| detail === t\("settingsOpenFailed"\) \? t\("settingsOpenFailed"\) : detail\)/);
+
+  // menuItem 为 null 时直接 .click() 会抛 TypeError 并被转成「无法打开账户设置」，掩盖真因。
+  assert.doesNotMatch(source, /if \(settingsDialog\(\) === null\) menuItem\.click\(\);/);
+  assert.match(source, /if \(menuItem === null\) throw new Error\(`\$\{t\("settingsOpenFailed"\)\} \(settings-menu-missing\)`\);/);
+
+  // 三个等待步骤各自带上可区分的失败标记。
+  assert.match(source, /"settings-menu"\)/);
+  assert.match(source, /"settings-dialog"\)/);
+  assert.match(source, /"account-section"\)/);
+});
+
+test("菜单查找遍历全部 [role=menu]，且修复必须可运行（v0.16.1 回归）", async () => {
+  const source = await clientSource();
+
+  // 桌面端会话右键菜单、模型选择菜单也带 role="menu"；只取第一个会误命中，
+  // 在里面找不到「设置」后超时报 (settings-menu)——用户截图正是这个现象。
+  // 注意：注释里保留了旧写法作为说明，因此只在「可执行代码」范围内断言。
+  const codeOnly = source.split("\n")
+    .filter(line => !/^\s*(\*|\/\/)/.test(line))
+    .join("\n");
+  assert.doesNotMatch(codeOnly, /document\.querySelector\(['"]\[role="menu"\]['"]\)/, "不得只取第一个菜单");
+  assert.match(source, /const findMenuItemAnywhere = \(pattern\) => \{/);
+  assert.match(source, /for \(const menu of Array\.from\(document\.querySelectorAll\('\[role="menu"\]'\)\)\) \{/);
+  // 必须遍历到命中为止，而不是只看第一个。
+  assert.match(source, /if \(hit !== null\) return hit;/);
+
+  // 作用域约束：findMenuItemAnywhere 依赖 findButton，两者必须同处于
+  // openSettingsAccount 的 async 闭包内。曾把前者放到闭包外，运行时抛
+  // ReferenceError: findButton is not defined，而静态断言全部通过。
+  const fnStart = source.indexOf("function openSettingsAccount(target)");
+  assert.ok(fnStart > 0, "定位不到 openSettingsAccount");
+  const findButtonIdx = source.indexOf("const findButton = (scope, pattern) =>", fnStart);
+  const helperIdx = source.indexOf("const findMenuItemAnywhere = (pattern) => {", fnStart);
+  assert.ok(findButtonIdx > 0 && helperIdx > 0, "两个辅助函数都应在 openSettingsAccount 内");
+  assert.ok(findButtonIdx < helperIdx, "findButton 必须先于 findMenuItemAnywhere 定义");
+});
+
+test("findMenuItemAnywhere 在多菜单场景下只命中含目标文案的那个", async () => {
+  // 直接抽出源码里的真实实现来跑，避免「测试里另写一份」而掩盖真实实现的问题。
+  // （上一版就是因为另写桩 + const 提升导致 menus 未初始化，误判为未命中。）
+  const source = await clientSource();
+  const normSrc = extractFunction("normalizedControlText");
+  const helperStart = source.indexOf("const findMenuItemAnywhere = (pattern) => {");
+  assert.ok(helperStart > 0, "定位不到 findMenuItemAnywhere");
+  const helperEnd = source.indexOf("\n\t\t\t\t\t};", helperStart);
+  const helperSrc = source.slice(helperStart, helperEnd + "\n\t\t\t\t\t};".length);
+
+  const makeNode = (text) => ({
+    textContent: text,
+    cloneNode() { return makeNode(text); },
+    querySelectorAll: () => [],
+  });
+  const makeMenu = (texts) => ({ querySelectorAll: () => texts.map(makeNode) });
+
+  const run = (menus) => {
+    const context = vm.createContext({ document: { querySelectorAll: () => menus } });
+    vm.runInContext(
+      `${normSrc}
+       const findButton = (scope, pattern) => Array.from(scope?.querySelectorAll("button, [role=menuitem]") ?? [])
+         .find(node => pattern.test(normalizedControlText(node))) ?? null;
+       ${helperSrc}
+       this.hit = findMenuItemAnywhere(/^(设置|Settings)$/i);`,
+      context,
+    );
+    return context.hit;
+  };
+
+  // 第一个菜单是会话右键菜单（不含「设置」），第二个才是账号菜单 —— 必须跳过前者。
+  const hit = run([makeMenu(["置顶会话", "重命名", "分叉会话"]), makeMenu(["设置", "意见反馈"])]);
+  assert.notEqual(hit, null, "必须跳过会话菜单并在账号菜单里命中");
+  assert.equal(hit.textContent, "设置");
+
+  // 带 aria-hidden 快捷键字形的「设置⌥⌘,」也应命中（归一化会剥离快捷键）。
+  const hitWithShortcut = run([makeMenu(["置顶会话"]), makeMenu(["设置\u2325\u2318,", "意见反馈"])]);
+  assert.notEqual(hitWithShortcut, null, "带快捷键字形的设置项也必须命中");
+
+  // 全部菜单都不含目标时返回 null（由调用方走触发器分支），而不是抛错。
+  assert.equal(run([makeMenu(["置顶会话"])]), null);
+});
