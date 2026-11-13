@@ -88,8 +88,12 @@ test('桌面真实 subprocess：Git 全部操作与 host 路由、设置、MCP�
     await ok('git/unstage', { path: 'tracked.txt' });
     await ok('git/stage-all');
     assert.ok((await ok('git')).counts.staged >= 2);
-    const ai = await ok('git/commit-ai', { provider: 'fixture-provider', model: 'fixture-model' });
-    assert.equal(ai.message, message); assert.equal(aiCall.provider, 'fixture-provider');
+    const ai = await ok('git/commit-ai');
+    assert.equal(ai.message, message);
+    assert.equal(aiCall.provider, 'deepseek-account');
+    assert.equal(aiCall.model, 'deepseek-flash');
+    assert.equal(aiCall.reasoningEffort, 'low');
+    assert.equal(aiCall.sessionId, 'fixture');
     await ok('git/unstage-all');
     await ok('git/revert-file', { path: 'new.txt' });
     await ok('git/revert-all');

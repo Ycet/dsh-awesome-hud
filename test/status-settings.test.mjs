@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { deriveSessionStatus, subagentStatusKey } from "../lib/status.js";
-import { MODULE_KEYS, defaultModules, defaultUsageDisplay, normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch } from "../lib/settings.js";
+import { MODULE_KEYS, defaultModules, defaultUsageDisplay, defaultContextSettings, normalizeSettings, normalizeContextSettings, sanitizeModulesPatch, sanitizeUsagePatch, sanitizeContextPatch, contextSettingsOf, defaultSettings, isDefaultSettings } from "../lib/settings.js";
 
 test("状态优先级：待审批 > 待回答 > 等待子任务 > 任务中 > 空闲中", () => {
 	assert.equal(deriveSessionStatus({ running: true, pendingInteraction: "approval", subagentActive: true }), "awaiting-approval");
@@ -49,7 +49,8 @@ test("sanitizeModulesPatch", () => {
 
 test("defaultUsageDisplay 全键且默认展示", () => {
 	const usage = defaultUsageDisplay();
-	assert.deepEqual(Object.keys(usage).sort(), ["codex", "deepseek", "opencode"]);
+	// v0.18.2：showJump（用量模块「跳转」按钮）与三行用量数据同属「用量设置」。
+	assert.deepEqual(Object.keys(usage).sort(), ["codex", "deepseek", "opencode", "showJump"]);
 	assert.ok(Object.values(usage).every(Boolean));
 });
 
@@ -57,6 +58,8 @@ test("sanitizeUsagePatch：只接受 deepseek/opencode/codex 布尔", () => {
 	assert.deepEqual(sanitizeUsagePatch({ deepseek: false }), { patch: { deepseek: false }, changed: false });
 	assert.deepEqual(sanitizeUsagePatch({ opencode: true }), { patch: { opencode: true }, changed: false });
 	assert.deepEqual(sanitizeUsagePatch({ codex: false }), { patch: { codex: false }, changed: false });
+	// v0.18.2：「跳转」按钮开关也走同一白名单。
+	assert.deepEqual(sanitizeUsagePatch({ showJump: false }), { patch: { showJump: false }, changed: false });
 	assert.equal(sanitizeUsagePatch({ deepseek: "yes" }), null);
 	assert.equal(sanitizeUsagePatch({ other: true }), null); // 白名单外键
 	assert.equal(sanitizeUsagePatch({}), null);
@@ -65,9 +68,35 @@ test("sanitizeUsagePatch：只接受 deepseek/opencode/codex 布尔", () => {
 
 test("normalizeSettings：usage 缺失/损坏收敛为默认", () => {
 	assert.deepEqual(normalizeSettings(null).usage, defaultUsageDisplay());
-	assert.deepEqual(normalizeSettings({ usage: { deepseek: false } }).usage, { deepseek: false, opencode: true, codex: true });
+	assert.deepEqual(normalizeSettings({ usage: { deepseek: false } }).usage, { deepseek: false, opencode: true, codex: true, showJump: true });
 	assert.deepEqual(normalizeSettings({ modules: {} }).usage, defaultUsageDisplay());
 	assert.deepEqual(normalizeSettings({ usage: { deepseek: "x" } }).usage, defaultUsageDisplay());
 	// 历史设置（无 usage 字段）仍可完整收敛
 	assert.deepEqual(normalizeSettings({ modules: { git: false } }).usage, defaultUsageDisplay());
+});
+
+test("defaultContextSettings 与 normalizeContextSettings：默认样式/展示，坏值回退", () => {
+	assert.deepEqual(defaultContextSettings(), { barStyle: "default", showStats: true, showUsage: true });
+	assert.deepEqual(normalizeContextSettings(null), defaultContextSettings());
+	assert.deepEqual(normalizeContextSettings({ barStyle: "segmented", showStats: false }), { barStyle: "segmented", showStats: false, showUsage: true });
+	assert.deepEqual(normalizeContextSettings({ barStyle: "x", showStats: "x", showUsage: 0 }), defaultContextSettings());
+	// 历史设置没有 context 字段时，normalizeSettings 补齐默认值
+	assert.deepEqual(normalizeSettings({ modules: { git: false } }).context, defaultContextSettings());
+	assert.deepEqual(contextSettingsOf({ context: { barStyle: "segmented" } }), { barStyle: "segmented", showStats: true, showUsage: true });
+});
+
+test("sanitizeContextPatch：只接受 barStyle 合法值与非空布尔字段", () => {
+	assert.deepEqual(sanitizeContextPatch({ barStyle: "segmented" }), { patch: { barStyle: "segmented" }, changed: false });
+	assert.deepEqual(sanitizeContextPatch({ showStats: false, showUsage: true }), { patch: { showStats: false, showUsage: true }, changed: false });
+	assert.equal(sanitizeContextPatch({ barStyle: "other" }), null);
+	assert.equal(sanitizeContextPatch({ showStats: "yes" }), null);
+	assert.equal(sanitizeContextPatch({ other: true }), null);
+	assert.equal(sanitizeContextPatch({}), null);
+	assert.equal(sanitizeContextPatch(null), null);
+});
+
+test("上下文设置参与 isDefaultSettings 判定", () => {
+	assert.equal(isDefaultSettings(defaultSettings()), true);
+	assert.equal(isDefaultSettings({ ...defaultSettings(), context: { barStyle: "segmented", showStats: true, showUsage: true } }), false);
+	assert.equal(isDefaultSettings({ ...defaultSettings(), context: { barStyle: "default", showStats: false, showUsage: true } }), false);
 });

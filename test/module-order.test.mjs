@@ -185,7 +185,8 @@ test("HUD 设置弹窗：模块卡片列表、拖动排序、恢复默认均已�
   assert.match(source, /className: "hud-modal hud-settings-modal",/);
   assert.match(source, /role: "dialog",/);
   assert.match(source, /"aria-modal": "true",/);
-  assert.match(source, /"aria-labelledby": "hud-settings-dialog-title",/);
+  // v0.18.5：标题行改为两个标签，弹窗可达名改由 aria-label 提供。
+  assert.match(source, /"aria-label": t\("settingsTitle"\),/);
   assert.match(source, /return react_dom\.createPortal\(dialog, document\.body\);/);
 
   // 每个模块一张卡片：单列纵向列表 + 独立卡片类 + 关闭态标记。
@@ -194,12 +195,33 @@ test("HUD 设置弹窗：模块卡片列表、拖动排序、恢复默认均已�
   assert.match(source, /className: "hud-settings-card",/);
   assert.match(source, /"data-off": draft\[key\] === false,/);
   assert.match(source, /"data-dragging": dragPreview !== null && dragPreview\.key === key,/);
-  assert.match(source, /\.hud-settings-list\{display:flex;flex-direction:column;gap:8px\}/);
+  // v0.18.2：左栏列表更紧凑（9 张卡片要在不滚动的前提下全部露出）。
+  assert.match(source, /\.hud-settings-list\{display:flex;flex-direction:column;gap:6px;min-height:0;flex:none\}/);
   assert.doesNotMatch(source, /hud-settings-order/);
   assert.match(source, /className: "hud-settings-card-name" }, MODULE_LABELS\[key\]\(\)\)/);
-  // 「用量模块内容」仍是独立卡片。
-  assert.match(source, /className: "hud-settings-usage-card" },/);
+  // v0.18.2：改为左右分栏——左栏模块清单，右栏三个卡片式设置分区。
+  assert.match(source, /className: "hud-settings-panes" },/);
+  assert.match(source, /className: "hud-settings-pane hud-settings-pane-modules" },/);
+  assert.match(source, /className: "hud-settings-pane hud-settings-pane-detail" },/);
+  assert.match(source, /\.hud-settings-pane-modules\{flex:none;width:240px;/);
+  assert.match(source, /\.hud-settings-pane-modules\{[^}]*overflow:hidden/);
+  assert.match(source, /\.hud-settings-pane-detail\{[^}]*overflow-y:auto/);
+  // 右栏每个模块一张卡片（标题 + 若干设置行）。
+  assert.equal((source.match(/className: "hud-settings-section hud-settings-section-card" \},/g) ?? []).length, 3, "面板/上下文/用量三段都应渲染为卡片");
+  assert.match(source, /\.hud-settings-section-card\{display:flex;flex-direction:column;gap:2px;padding:8px 12px 10px;border:1px solid/);
+  assert.match(source, /className: "hud-settings-section-title" }, t\("settingsPanelTitle"\)\)/);
+  assert.match(source, /className: "hud-settings-section-title" }, t\("settingsContextTitle"\)\)/);
   assert.match(source, /className: "hud-settings-section-title" }, t\("settingsUsageTitle"\)\)/);
+  assert.match(source, /settingsContextBarStyle/);
+  assert.match(source, /settingsContextStats/);
+  assert.match(source, /settingsContextUsage/);
+  // 右栏控件用官方 Switch / SegmentedControl（缺失时回退本地同等几何实现）。
+  assert.match(source, /function HudSwitch\(props\) \{/);
+  assert.match(source, /function HudSegmented\(props\) \{/);
+  assert.match(source, /officialControl\("Switch"\)/);
+  assert.match(source, /officialControl\("SegmentedControl"\)/);
+  assert.match(source, /className: "hud-official-switch"/);
+  assert.match(source, /className: "hud-official-switch-thumb"/);
 
   // 拖动排序：仅手柄可拖；列表级 dragover/drop 计算落点，其他卡片按预览顺序 transform 让位。
   assert.match(source, /className: "hud-settings-grip",/);
@@ -211,7 +233,8 @@ test("HUD 设置弹窗：模块卡片列表、拖动排序、恢复默认均已�
   assert.match(source, /ref: listRef,/);
   assert.match(source, /onDragOver: dragOverList,/);
   assert.match(source, /onDrop: dropList,/);
-  assert.match(source, /event\.dataTransfer\.setDragImage\(card, event\.clientX - rect\.left, event\.clientY - rect\.top\);/);
+  assert.match(source, /dragRef\.current = \{ key, step, tops, order \};[\s\S]{0,400}suppressNativeDragImage\(event\);/);
+  assert.doesNotMatch(source, /setDragImage\(card/);
   // 用指针所在的原始槽位计算落点，避免卡片位移后落点抖动。
   assert.match(source, /function moduleDropIndex\(tops, step, relY\) \{/);
   assert.match(source, /relY < top \+ step \/ 2/);
@@ -232,9 +255,9 @@ test("HUD 设置弹窗：模块卡片列表、拖动排序、恢复默认均已�
   assert.match(source, /className: "hud-settings-footer" },/);
   assert.match(source, /"data-kind": "reset",/);
   assert.match(source, /disabled: !dirty,/);
-  assert.match(source, /const dirty = !isDefaultDraft\(draft, usageDraft, orderDraft, keys, usageKeys\);/);
-  assert.match(source, /function isDefaultDraft\(draft, usageDraft, orderDraft, visibleModuleKeys, visibleUsageKeys\) \{/);
-  assert.match(source, /onClick: \(\) => props\.onConfirm\(draft, usageDraft, orderDraft\)/);
+  assert.match(source, /const dirty = !isDefaultDraft\(draft, usageDraft, orderDraft, contextDraft, panelDraft, keys\);/);
+  assert.match(source, /function isDefaultDraft\(draft, usageDraft, orderDraft, contextDraft, panelDraft, visibleModuleKeys\) \{/);
+  assert.match(source, /onClick: \(\) => props\.onConfirm\(draft, usageDraft, orderDraft, contextDraft, panelDraft\)/);
   assert.match(source, /onClick: props\.onClose \}, t\("settingsCancel"\)\)/);
 });
 
@@ -268,11 +291,18 @@ test("排序经由设置链路持久化：hook 保存与读取都带上 order", 
   assert.match(source, /orderRef\.current = normalizeModuleOrder\(body\.order\);/);
   assert.match(source, /setOrder\(normalizeModuleOrder\(body\.order\)\);/);
   // 保存：请求体带 order，且未传时沿用当前顺序
-  assert.match(source, /call\("settings", \{ modules: nextModules, usage: nextUsage, order: nextOrder \}\)/);
+  assert.match(source, /call\("settings", \{ modules: nextModules, usage: nextUsage, context: nextContext, order: nextOrder, panel: nextPanel \}\)/);
+  // v0.18.2：面板设置随同一次请求落盘。
+  assert.match(source, /const nextPanel = normalizePanelSettings\(panelPatch === undefined \? panelRef\.current : \{ \.\.\.panelRef\.current, \.\.\.panelPatch \}\);/);
   assert.match(source, /const nextOrder = orderPatch === undefined \? \(orderRef\.current \?\? defaultModuleOrder\(\)\) : normalizeModuleOrder\(orderPatch\);/);
   // 顺序是全局设置（不按会话），因此由面板层统一传给会话模块与设置菜单。
   assert.match(source, /order: moduleOrder,/);
+  assert.match(source, /context: contextSettings,/);
   assert.match(source, /order: props\.order,/);
+  assert.match(source, /context: props\.context,/);
+  // v0.18.2：面板设置与用量置灰原因由面板层注入。
+  assert.match(source, /panel: props\.panel,/);
+  assert.match(source, /usageReasons: props\.usageReasons,/);
 });
 
 test("设置弹窗的关闭与焦点：Esc / 遮罩点击 / 取消确认，Tab 在弹窗内循环", async () => {
@@ -298,5 +328,5 @@ test("设置弹窗的关闭与焦点：Esc / 遮罩点击 / 取消确认，Tab �
 
   // 关闭（含确认）只需收起弹窗，草稿保存仍走 onConfirm。
   assert.match(source, /const closeSettings = react\.useCallback\(\(\) => \{ setSettingsOpen\(false\); \}, \[\]\);/);
-  assert.match(source, /props\.onSettingsChange\(draft, usageDraft, orderDraft\);\n\t\t\t\t\t\tcloseSettings\(\);/);
+  assert.match(source, /props\.onSettingsChange\(draft, usageDraft, orderDraft, contextDraft, panelDraft\);\n\t\t\t\t\t\tcloseSettings\(\);/);
 });

@@ -160,12 +160,16 @@ test("作用域无变化时不重复广播（避免无意义的重复渲染）",
   assert.equal(emitted.length, 1);
 });
 
-test("面板固定贴视口右侧、顶部跟随真实标题栏", () => {
-  // 面板不再有 data-side / left 切换，也没有任何「按页面测量」的分支
+test("面板顶部跟随真实标题栏，侧位由设置决定（v0.18.2）", () => {
+  // 入口按钮不按页面测量；面板侧位只有一处全局设置（不再按页面各测一套坐标）。
   assert.doesNotMatch(source, /data-side": floating/);
   assert.doesNotMatch(source, /floatingOffsets/);
   assert.doesNotMatch(source, /floatButtonStyle/);
-  assert.match(source, /className: "hud-panel",\s*\n\s*style: \{ top, maxHeight: limitH === null \? undefined : `\$\{limitH\}px` \},/);
+  // v0.18.2：面板根节点带 data-side，位置由 top + 侧位（left 测量值 / 右侧 8px）决定。
+  assert.match(source, /"data-side": panelSide,/);
+  assert.match(source, /left: panelSide === "left" \? `\$\{left\}px` : "auto",/);
+  assert.match(source, /right: panelSide === "right" \? `\$\{HUD_PANEL_GAP\}px` : "auto",/);
+  assert.match(source, /maxHeight: limitH === null \? undefined : `\$\{limitH\}px`,/);
   // 有会话页眉时跟随下沿；新建页的最低位置额外避开 Windows 原生标题栏。
   assert.match(source, /document\.querySelector\("\[data-conversation-header-corner\]"\)\?\.closest\("header"\)/);
   assert.match(source, /const minimumTop = HUD_NEW_SESSION_TOP \+ hudChromeTop\(\);/);
@@ -174,8 +178,8 @@ test("面板固定贴视口右侧、顶部跟随真实标题栏", () => {
   assert.match(source, /\.hud-btn-float\{position:fixed;top:\$\{HUD_FLOAT_INSET\}px;z-index:2147482000;-webkit-app-region:no-drag\}/);
   assert.match(source, /const HUD_FLOAT_INSET = 12;/);
   assert.match(source, /const HUD_FLOAT_RIGHT = 72;/);
-  // 让位逻辑保留（新建会话页同样收窄正文并左移内容）
-  assert.match(source, /conversationBody\.style\.setProperty\("margin-right", `\$\{PANEL_WIDTH\}px`\);/);
+  // 让位逻辑保留（新建会话页同样收窄正文，方向跟随面板侧位）
+  assert.match(source, /conversationBody\.style\.setProperty\(pushSide === "left" \? "margin-left" : "margin-right", `\$\{PANEL_WIDTH\}px`\);/);
   // 推挤/留白必须在同一提交内应用与清理（侧栏展开→面板卸载→同步移除空白）
   assert.match(source, /const useLayoutEffect = typeof react\.useLayoutEffect === "function" \? react\.useLayoutEffect : react\.useEffect;/);
   assert.match(source, /useLayoutEffect\(\(\) => \{\s*\n\s*const headerEl = document\.querySelector/);
@@ -195,7 +199,8 @@ test("新建页按钮保持在页眉原位，官方边栏展开时移到可见�
   assert.match(source, /window\.innerWidth - panel\.getBoundingClientRect\(\)\.left \+ 12/);
   assert.match(source, /sidebarBridge\(ctx\)\.subscribeState\(scheduleSync\)/);
   assert.match(source, /const \{ element, inset, kind \} = floatingHudTarget\(ctx\);/);
-  assert.match(source, /attributeFilter: \["data-sidebar-right-open", "hidden"\]/);
+  // v0.18.2：左侧抽屉的展开/收起也参与派生可见性，观察器需同时盯这两个属性。
+  assert.match(source, /attributeFilter: \["data-sidebar-right-open", "hidden", "data-sidebar-drawer", "data-sidebar-collapsed"\]/);
   // 新建页入口与聊天页同序：预留 better-sidebar 兜底切换按钮的宽度与间距
   assert.match(source, /const HUD_FLOAT_GAP = 8;/);
   assert.match(source, /floatingHudReserve\(rect, ctx\)/);

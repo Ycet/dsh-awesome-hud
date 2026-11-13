@@ -48,10 +48,16 @@ test('新建页无工作区、无任何会话也须加载全局 MCP，并显示�
   const mcp = moduleOf(client.panel(), 'McpModule');
   assert.ok(mcp);
   assert.equal(mcp.props.total, 0);
-  assert.equal(moduleOf(client.panel(), 'SessionModule').props.workspaceTitle, 'workspaceFallback');
   const session = moduleOf(client.panel(), 'SessionModule');
-  const rename = moduleOf(session.type(session.props), 'RenameSessionName');
-  assert.equal(nodes(rename.type(rename.props)).find(node => node.props.className === 'hud-session-rename-btn').props.disabled, true);
+  assert.equal(session.props.workspaceTitle, 'workspaceFallback');
+  // v0.18.1：新建会话页不展示会话标题与状态徽标，只保留可点击的工作区标题。
+  const tree = nodes(session.type(session.props));
+  assert.equal(tree.some(node => node.props.className === 'hud-session-name-row'), false);
+  assert.equal(tree.some(node => node.props.className === 'hud-session-name'), false);
+  const workspaceTitle = moduleOf(session.type(session.props), 'WorkspaceTitle');
+  const workspaceName = nodes(workspaceTitle.type(workspaceTitle.props)).find(node => node.props.className === 'hud-module-title hud-workspace-name');
+  assert.equal(workspaceName.type, 'button');
+  assert.equal(typeof workspaceName.props.onClick, 'function');
   assert.equal(client.calls.some(call => call.url.endsWith('/git')), false);
 });
 

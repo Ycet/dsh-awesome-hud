@@ -29,6 +29,11 @@ function setup({ hud = true, official = false, legacy = false, officialStuck = f
   const context = vm.createContext({
     getHudOpen: () => open,
     setHudOpen: value => { open = value; },
+    // v0.18.2：派生可见性还要读面板侧位与左侧抽屉状态（本文件固定为「右侧 + 抽屉关闭」）。
+    getPanelSide: () => "right",
+    getLeftDrawerOpen: () => false,
+    readLeftDrawerOpen: () => false,
+    setLeftDrawerOpen: () => {},
     window: { innerWidth: 1200 },
     document: {
       body: {},

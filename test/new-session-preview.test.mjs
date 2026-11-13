@@ -158,9 +158,12 @@ test("按 hooks 顺序真实渲染：预览开关切换组件返回 null / 按�
   };
   const context = vm.createContext({
     react,
-    // 悬浮入口使用派生可见性（展开记忆 ∩ 右侧栏未展开）
+    // 悬浮入口使用派生可见性（展开记忆 ∩ 右侧栏/左侧抽屉未遮挡）
     peekHudOpen: () => false,
     getSidebarExpanded: () => false,
+    // v0.18.2：面板侧位与左侧抽屉状态（本用例固定「右侧 + 抽屉关闭」）
+    getPanelSide: () => "right",
+    getLeftDrawerOpen: () => false,
     isHudVisible: () => false,
     subscribeHud: () => () => {},
     subscribeSidebar: () => () => {},

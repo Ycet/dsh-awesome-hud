@@ -113,6 +113,9 @@ test("resolveTargetWorkspace 新建会话页取最近更新的非空工作区，
   const target = context.resolveTargetWorkspace(snapshot, items);
   assert.equal(target.path, "/ws/new");
   assert.equal(target.workspaceTitle, "New");
+  // v0.18.1：工作区标题菜单需要 id 与路径做重命名/定位
+  assert.equal(target.workspaceId, "w2");
+  assert.equal(target.workspacePath, "/ws/new");
   // 代理会话取该工作区最近更新的存活会话
   assert.equal(target.gitSessionId, "s3");
   assert.equal(target.sendSessionId, "s3");
@@ -123,6 +126,13 @@ test("resolveTargetWorkspace 新建会话页取最近更新的非空工作区，
   assert.equal(inSession.path, "/ws/new");
   assert.equal(inSession.gitSessionId, "s2");
   assert.equal(inSession.sendSessionId, "s2");
+  assert.equal(inSession.workspaceId, "w2");
+  assert.equal(inSession.workspacePath, "/ws/new");
+  // 未注册工作区的会话：id/path 为 null，标题回退目录名（菜单里重命名置灰）
+  const unregistered = context.resolveTargetWorkspace({ current: "u1", byId: { u1: { cwd: "/ws/loose", updatedAt: 1 } } }, items);
+  assert.equal(unregistered.workspaceId, null);
+  assert.equal(unregistered.workspacePath, null);
+  assert.equal(unregistered.workspaceTitle, null);
 
   // 新版主视图绑定可先于旧列表的 current 更新，仍须以当前会话定位工作区。
   const staleList = context.resolveTargetWorkspace(snapshot, items, "s1");

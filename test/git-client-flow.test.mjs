@@ -250,3 +250,63 @@ test('revert 文案与提示：中英词条齐全，确认框渲染预登记/暂
   // staged 组常驻说明：暂存区文件不会被 revert 撤销
   assert.match(clientSource, /className: "hud-git-summary" \}, t\("gitStagedHint"\)\)/);
 });
+
+test('AI 生成提交信息：客户端只传 sessionId，不再读取当前会话模型', async () => {
+  const { context, calls, toasts } = createStub({
+    response: { message: '  [261113] demo v0.1.0：修复  ', warn: null },
+    globals: {
+      ctx: { get: () => { throw new Error('不得读取当前会话模型'); } },
+      setCommitMessage: (value) => calls.push({ method: '__message', payload: value }),
+      setAiBusy: (value) => calls.push({ method: '__busy', payload: value }),
+    },
+  });
+  const doAiGenerate = loadHandler(context, 'doAiGenerate');
+  await doAiGenerate();
+  assert.deepEqual(recorded(calls, 'git/commit-ai'), [{ sessionId: 'session' }]);
+  assert.deepEqual(recorded(calls, '__message'), ['[261113] demo v0.1.0：修复']);
+  assert.deepEqual(recorded(calls, '__busy'), [true, false]);
+  assert.equal(toasts.length, 0);
+});
+
+test('generate 首次点击只进入确认态，超时复位，第二次点击才生成', () => {
+  const calls = [];
+  const context = vm.createContext({
+    aiBusy: false,
+    aiConfirming: false,
+    aiConfirmTimerRef: { current: null },
+    GIT_AI_CONFIRM_MS: 3000,
+    setAiConfirming: (value) => { context.aiConfirming = value; calls.push(['confirm', value]); },
+    cancelAiConfirmation: () => { context.aiConfirming = false; calls.push(['cancel']); },
+    doAiGenerate: async () => { calls.push(['generate']); },
+    globalThis: {
+      setTimeout: (fn, ms) => { calls.push(['timeout', ms]); context.__timer = fn; return 7; },
+      clearTimeout: () => {},
+    },
+  });
+  vm.runInContext(`${extractArrowHandler('onAiGenerateClick')}; this.onAiGenerateClick = onAiGenerateClick;`, context);
+  context.onAiGenerateClick();
+  assert.equal(context.aiConfirming, true, '首次点击只进入确认态');
+  assert.equal(calls.some(([kind]) => kind === 'generate'), false, '首次点击不得直接生成');
+  assert.deepEqual(calls.find(([kind]) => kind === 'timeout'), ['timeout', 3000]);
+  context.__timer();
+  assert.equal(context.aiConfirming, false, '超时后自动复位');
+  context.onAiGenerateClick();
+  assert.equal(context.aiConfirming, true);
+  context.onAiGenerateClick();
+  assert.equal(calls.filter(([kind]) => kind === 'generate').length, 1, '第二次点击才生成');
+  assert.equal(context.aiConfirming, false);
+});
+
+test('generate 确认态展示官方模型说明并复用便笺式取消交互', () => {
+  assert.match(clientSource, /gitAiConfirmHint: "将调用 DeepSeek 官方 DeepSeek Flash 系列模型（effort: low）/);
+  assert.match(clientSource, /gitAiConfirm: "确认？"/);
+  assert.match(clientSource, /DeepSeek's official DeepSeek Flash model \(effort: low\)/);
+  assert.match(clientSource, /aiConfirming \? react\.createElement\("span", \{ className: "hud-commit-ai-hint" \}, t\("gitAiConfirmHint"\)\) : null/);
+  assert.match(clientSource, /className: aiConfirming \? "hud-btn-ai hud-btn-ai-confirm" : "hud-btn-ai"/);
+  assert.match(clientSource, /\.hud-btn-ai-confirm\{border-color:var\(--dsw-alias-state-error-primary\);background:var\(--hud-surface-bg\);color:var\(--dsw-alias-state-error-primary\)\}/);
+  assert.match(clientSource, /react\.createElement\(Icon, \{ name: "ai-generate", color: "inherit" \}\)/);
+  assert.match(clientSource, /const GIT_AI_CONFIRM_MS = 3000;/);
+  assert.match(clientSource, /aiConfirmTimerRef\.current = globalThis\.setTimeout/);
+  assert.match(clientSource, /if \(!aiConfirming\) return undefined;[\s\S]{0,700}addEventListener\?\.\("pointerdown"/);
+  assert.match(clientSource, /\.hud-commit-ai-hint\{/);
+});

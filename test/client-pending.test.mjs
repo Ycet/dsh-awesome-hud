@@ -35,7 +35,8 @@ test("HUD-03 reserves only the conversation body so rc.1 width handles and turn 
   // 在滚动容器与正文容器之间插入了包装层，parentElement 会命中包装层）。
   assert.match(source, /const conversationBody = resolveConversationBody\(scrollEl\);/);
   assert.match(source, /function resolveConversationBody\(scrollEl\) \{/);
-  assert.match(source, /conversationBody\.style\.setProperty\("margin-right", `\$\{PANEL_WIDTH\}px`\);/);
+  // v0.18.2：让位方向由面板侧位决定（右侧仍写 margin-right，左侧写 margin-left）。
+  assert.match(source, /conversationBody\.style\.setProperty\(pushSide === "left" \? "margin-left" : "margin-right", `\$\{PANEL_WIDTH\}px`\);/);
   assert.match(source, /conversationBody\.style\.setProperty\("--dsh-awesome-hud-column-width", `\$\{Math\.round\(columnWidth\)\}px`\);/);
   assert.match(source, /conversationBody\.style\.setProperty\("--dsh-chat-content-width", HUD_CONTENT_WIDTH\);/);
   assert.match(source, /conversationBody\.style\.setProperty\("--dsh-composer-card-max-width", "calc\(var\(--dsh-chat-content-width\) \+ 32px\)"\);/);

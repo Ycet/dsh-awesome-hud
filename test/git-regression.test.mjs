@@ -391,7 +391,7 @@ test('reset：资格校验与 soft / mixed / hard 三种模式', { timeout: 3000
   } finally { await cleanupRepo(root); }
 });
 
-test('AI 生成提交信息：使用暂存差异生成并按规范校验版本', { timeout: 30000 }, async () => {
+test('AI 生成提交信息：固定官方 Flash 模型并使用暂存差异生成', { timeout: 30000 }, async () => {
   const root = await createRepo('hud-reg-ai-');
   try {
     await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'hud-regression', version: '0.0.1' }));
@@ -411,23 +411,23 @@ test('AI 生成提交信息：使用暂存差异生成并按规范校验版本',
       },
     });
 
-    const noModel = await call('git/commit-ai', {});
-    assert.equal(noModel.status, 400);
-    assert.match(noModel.error, /模型信息/);
-
-    const empty = await call('git/commit-ai', { provider: 'fixture', model: 'fixture-model' });
+    const empty = await call('git/commit-ai');
     assert.equal(empty.status, 400, JSON.stringify(empty));
     assert.match(empty.error, /没有可提交的变更/);
 
     await call('git/stage-all');
+    // 即使调用方伪造 provider/model，host 也必须固定走 DeepSeek 官方 Flash（effort low）。
     const result = await call('git/commit-ai', { provider: 'fixture', model: 'fixture-model' });
     assert.equal(result.status, 200, JSON.stringify(result));
     assert.equal(result.warn, null, '版本号已递增时不应有告警');
     // 日期以宿主真实日期覆盖（模型可能给出旧日期），版本沿用模型输出
     assert.equal(result.message, `[${today}] hud-regression v0.0.2：修复回归测试夹具`);
     assert.equal(prompts.length, 1);
-    assert.equal(prompts[0].provider, 'fixture');
-    assert.equal(prompts[0].model, 'fixture-model');
+    assert.equal(prompts[0].provider, 'deepseek-account');
+    assert.equal(prompts[0].model, 'deepseek-flash');
+    assert.equal(prompts[0].reasoningEffort, 'low');
+    // 生成请求仍携带会话 id 作为路由元数据（不影响固定模型选择）。
+    assert.equal(prompts[0].sessionId, 'fixture');
     assert.match(prompts[0].messages[0].content[0].text, /tracked\.txt/, '提示词需包含暂存差异');
     assert.match(prompts[0].system, /CURRENT version is 0\.0\.1/);
     // 只生成不提交

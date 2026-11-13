@@ -52,6 +52,8 @@ test('待办模块拖动排序：列表级落点 + transform 让位，松手才�
   assert.match(source, /const dragOverList = \(event\) => \{/);
   assert.match(source, /const dropTodo = \(event\) => \{/);
   assert.match(source, /dragRef\.current = \{ id: item\.id, baseOrder: order, order, tops, heights, gap \};/);
+  assert.match(source, /dragRef\.current = \{ id: item\.id, baseOrder: order, order, tops, heights, gap \};[\s\S]{0,400}suppressNativeDragImage\(event\);/);
+  assert.doesNotMatch(source, /setDragImage\?\.\(row/);
   assert.match(source, /const overIndex = dropIndexAt\(state\.tops, state\.heights, event\.clientY - list\.getBoundingClientRect\(\)\.top\);/);
   assert.match(source, /const next = previewModuleOrder\(state\.order, state\.id, overIndex\);/);
 
@@ -70,4 +72,22 @@ test('待办模块拖动排序：列表级落点 + transform 让位，松手才�
   // 松手才 persist；拖到列表外不改变顺序
   assert.match(source, /const order = state\?\.order \?\? dragPreview\?\.order \?\? null;/);
   assert.match(source, /setDragSettling\(true\);\n\s*persist\(next\);/);
+});
+
+test('拖拽幽灵图：用 1x1 透明图隐藏跟随鼠标的原生快照', () => {
+  const context = vm.createContext({ TRANSPARENT_DRAG_IMAGE: { transparent: true } });
+  vm.runInContext(
+    `${extractFunction('suppressNativeDragImage')}\nthis.suppressNativeDragImage = suppressNativeDragImage;`,
+    context,
+  );
+  const calls = [];
+  const event = { dataTransfer: { setDragImage: (image, x, y) => calls.push([image, x, y]) } };
+  assert.equal(context.suppressNativeDragImage(event), true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0].transparent, true);
+  assert.deepEqual([calls[0][1], calls[0][2]], [0, 0]);
+  // 不支持 setDragImage / 没有事件对象时不抛错，保留浏览器默认行为。
+  assert.equal(context.suppressNativeDragImage({ dataTransfer: {} }), false);
+  assert.equal(context.suppressNativeDragImage(null), false);
+  assert.ok(source.includes("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"));
 });

@@ -20,9 +20,9 @@ function callbackAt(offset) {
 
 function fixture() {
   const actions = [];
-  const names = ['confirmEdit', 'cancelEdit', 'addTodo', 'commitEdit', 'createBranch',
+  const names = ['confirmEdit', 'cancelEdit', 'stopEdit', 'addTodo', 'commitEdit', 'createBranch',
     'cancelBranchAdd', 'cancelBranchCreate', 'closeMenu', 'closeBranchMenu', 'closeGraph',
-    'cancelConfirm', 'closeCommit', 'cancelClearConfirmation', 'setClearOpen', 'setOpenId', 'openMenu'];
+    'cancelConfirm', 'closeCommit', 'cancelClearConfirmation', 'cancelAiConfirmation', 'setClearOpen', 'setOpenId', 'openMenu'];
   const context = vm.createContext({ branchCreateOpenRef: { current: true },
     // v0.17.0 起设置弹窗的键盘监听器通过 props.onClose 关闭；补一个等价的桩函数供通用用例调用。
     props: { onClose: () => actions.push({ name: 'props.onClose', args: [] }) },
@@ -51,7 +51,8 @@ function inputHandler(f, className, occurrence = 0) {
 }
 
 const submitInputs = [
-  ['会话重命名', 'hud-session-edit', 0, 'confirmEdit'],
+  ['会话重命名', 'hud-session-edit', 0, 'commitEdit'],
+  ['工作区重命名', 'hud-workspace-edit', 0, 'commitEdit'],
   ['添加待办', 'hud-todo-input', 0, 'addTodo'],
   ['编辑待办', 'hud-todo-edit', 0, 'commitEdit'],
   ['新建 Git 分支', 'hud-branch-add-input', 1, 'createBranch'],
@@ -161,6 +162,6 @@ test('所有可编辑文本控件接入 composition 生命周期，包含便笺�
     }
     throw new Error('Unclosed input props');
   }).filter(props => !props.includes('type: "checkbox"'));
-  assert.equal(textControls.length, 7);
+  assert.equal(textControls.length, 8);
   for (const props of textControls) assert.ok(props.includes('...IME_INPUT_PROPS'), props);
 });
