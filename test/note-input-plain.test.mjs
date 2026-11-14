@@ -41,18 +41,20 @@ test("便笺 textarea 只处理输入与粘贴，不挂补全键盘/光标监听
   const noteStart = source.indexOf('className: "hud-note-area"');
   assert.ok(noteStart > 0, "应存在便笺 textarea");
   const noteBlock = source.slice(noteStart, noteStart + 700);
-  assert.match(noteBlock, /onChange: \(event\) => patchNote\(\{ text: event\.target\.value \}\)/);
+  // v0.20.0：编辑视图写入当前便笺（多便笺：updateNote(note.id, { text })）。
+  assert.match(noteBlock, /onChange: \(event\) => updateNote\(note\.id, \{ text: event\.target\.value \}\)/);
   assert.match(noteBlock, /onPaste,/);
   assert.equal(noteBlock.includes("onKeyUp"), false, "不再用 onKeyUp 追踪补全 token");
   assert.equal(noteBlock.includes("onClick"), false, "不再用 onClick 追踪补全 token");
   assert.equal(noteBlock.includes("trackTrigger"), false);
 });
 
-test("说明页便笺分节：仍是「展示 / 功能」两组，且不含 / 与 @ 要点", () => {
+test("说明页便笺分节：展示 / 功能 / 设置三组，且不含 / 与 @ 要点", () => {
   const sections = vm.runInNewContext(`${extractConst("GUIDE_SECTIONS")}\nGUIDE_SECTIONS;`);
   const note = sections.find((section) => section.key === "note");
   assert.ok(note !== undefined, "应有便笺分节");
-  assert.deepEqual(JSON.parse(JSON.stringify(note.groups.map((group) => group.kind))), ["show", "act"]);
+  // v0.20.0：新增「设置」组（便笺条数上限）。
+  assert.deepEqual(JSON.parse(JSON.stringify(note.groups.map((group) => group.kind))), ["show", "act", "set"]);
   const actItems = note.groups[1].items;
   assert.equal(actItems.includes("guideNoteSlashAt"), false);
   for (const key of ["guideNoteImages", "guideNoteImport", "guideNoteSend", "guideNoteClear"]) {

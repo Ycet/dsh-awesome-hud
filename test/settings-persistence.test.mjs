@@ -4,7 +4,9 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import {
   normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, sanitizeOrderPatch, sanitizeContextPatch, sanitizePanelPatch,
-  modulesOf, usageDisplayOf, contextSettingsOf, moduleOrderOf, panelSettingsOf, normalizeModuleOrder, defaultModuleOrder,
+  modulesOf, usageDisplayOf, contextSettingsOf, moduleOrderOf, panelSettingsOf, sanitizeNotePatch,
+  normalizeNoteSettings, noteSettingsOf, NOTE_COUNT_DEFAULT,
+  normalizeModuleOrder, defaultModuleOrder,
   isDefaultSettings, DEFAULT_MODULE_ORDER, defaultContextSettings, normalizeContextSettings,
   defaultPanelSettings, normalizePanelSettings, defaultUsageDisplay,
 } from "../lib/settings.js";
@@ -61,6 +63,16 @@ function loadUseHudModules(options = {}) {
     panelPrefs: defaultPanelSettings(),
     defaultPanelSettings,
     normalizePanelSettings,
+    // v0.20.0：便笺条数上限
+    NOTE_COUNT_MIN: 5,
+    NOTE_COUNT_MAX: 20,
+    NOTE_COUNT_DEFAULT,
+    defaultNoteSettings: () => ({ maxCount: NOTE_COUNT_DEFAULT }),
+    normalizeNoteMaxCount: (value) => {
+      const number = Number(value);
+      return Number.isFinite(number) ? Math.min(20, Math.max(5, Math.round(number))) : NOTE_COUNT_DEFAULT;
+    },
+    normalizeNoteSettings,
     ensurePanelPrefs: () => Promise.resolve(defaultPanelSettings()),
     applyPanelPrefs: () => {},
     MODULE_KEYS: ["context", "git", "subagents", "tasks", "mcp", "balance", "plans", "note", "todo"],
@@ -87,8 +99,9 @@ test("一次确认只发送一个同时包含模块与用量的设置请求", as
       context: defaultContextSettings(),
       // v0.16.0：确认时同时下发模块顺序（未改动即为默认顺序）
       order: defaultModuleOrder(),
-      // v0.18.2：面板设置随同一次请求落盘
+      // v0.18.2：面板设置随同一次请求落盘；v0.20.0 追加便笺上限
       panel: defaultPanelSettings(),
+      note: { maxCount: NOTE_COUNT_DEFAULT },
     },
   }]);
 });
@@ -98,18 +111,21 @@ test("settings 服务缺失时，进程内降级设置可被后续读取", async
   const start = hostSource.indexOf("const settingsHandler =");
   const end = hostSource.indexOf("\n\n\tctx.effect", start);
   const context = vm.createContext({
-    normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, sanitizeOrderPatch, sanitizeContextPatch, sanitizePanelPatch,
-    modulesOf, usageDisplayOf, contextSettingsOf, moduleOrderOf, panelSettingsOf, normalizeModuleOrder, defaultModuleOrder,
+    normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, sanitizeOrderPatch, sanitizeContextPatch, sanitizePanelPatch, sanitizeNotePatch,
+    modulesOf, usageDisplayOf, contextSettingsOf, moduleOrderOf, panelSettingsOf, noteSettingsOf, normalizeNoteSettings, NOTE_COUNT_DEFAULT,
+    normalizeModuleOrder, defaultModuleOrder,
     ctx: { get: () => undefined },
   });
-  vm.runInContext(`let settingsScope = null; let memoryModules = null; let memoryUsage = null; let memoryContext = null; let memoryOrder = null; let memoryPanel = null;\n${hostSource.slice(start, end)}\nthis.handler = settingsHandler;`, context);
-  await context.handler(false, { modules: { git: false }, usage: { codex: false }, context: { barStyle: "segmented", showStats: false }, panel: { side: "left", newSessionOpen: true } });
+  vm.runInContext(`let settingsScope = null; let memoryModules = null; let memoryUsage = null; let memoryContext = null; let memoryOrder = null; let memoryPanel = null; let memoryNote = null;\n${hostSource.slice(start, end)}\nthis.handler = settingsHandler;`, context);
+  await context.handler(false, { modules: { git: false }, usage: { codex: false }, context: { barStyle: "segmented", showStats: false }, panel: { side: "left", newSessionOpen: true }, note: { maxCount: 8 } });
   const restored = await context.handler(true, null);
   assert.equal(restored.modules.git, false);
   assert.equal(restored.usage.codex, false);
   assert.deepEqual(JSON.parse(JSON.stringify(restored.context)), { barStyle: "segmented", showStats: false, showUsage: true, pinned: false });
-  // v0.18.2：面板设置在进程内降级快照里同样可读回。
-  assert.deepEqual(JSON.parse(JSON.stringify(restored.panel)), { side: "left", newSessionOpen: true, chatOpen: true });
+  // v0.18.2：面板设置在进程内降级快照里同样可读回；v0.20.0 追加 style（未指定 → 默认 card）。
+  assert.deepEqual(JSON.parse(JSON.stringify(restored.panel)), { style: "card", side: "left", newSessionOpen: true, chatOpen: true });
+  // v0.20.0：便笺条数上限同样可读回。
+  assert.deepEqual(JSON.parse(JSON.stringify(restored.note)), { maxCount: 8 });
 });
 
 test("profile 运行时设置服务缺失不得伪装为保存成功", async () => {
@@ -117,11 +133,12 @@ test("profile 运行时设置服务缺失不得伪装为保存成功", async () 
   const start = hostSource.indexOf("const settingsHandler =");
   const end = hostSource.indexOf("\n\n\tctx.effect", start);
   const context = vm.createContext({
-    normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, sanitizeOrderPatch, sanitizeContextPatch, sanitizePanelPatch,
-    modulesOf, usageDisplayOf, contextSettingsOf, moduleOrderOf, panelSettingsOf, normalizeModuleOrder, defaultModuleOrder,
+    normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, sanitizeOrderPatch, sanitizeContextPatch, sanitizePanelPatch, sanitizeNotePatch,
+    modulesOf, usageDisplayOf, contextSettingsOf, moduleOrderOf, panelSettingsOf, noteSettingsOf, normalizeNoteSettings,
+    normalizeModuleOrder, defaultModuleOrder,
     ctx: { get: () => ({ name: "test-profile" }) },
   });
-  vm.runInContext(`let settingsScope = null; let memoryModules = null; let memoryUsage = null; let memoryContext = null; let memoryOrder = null; let memoryPanel = null;\n${hostSource.slice(start, end)}\nthis.handler = settingsHandler;`, context);
+  vm.runInContext(`let settingsScope = null; let memoryModules = null; let memoryUsage = null; let memoryContext = null; let memoryOrder = null; let memoryPanel = null; let memoryNote = null;\n${hostSource.slice(start, end)}\nthis.handler = settingsHandler;`, context);
   await assert.rejects(context.handler(false, { modules: { git: false } }), /未保存偏好/);
 });
 
@@ -140,7 +157,7 @@ test("较晚返回的初始化读取不会覆盖用户刚确认的设置", async
 });
 
 test("普通会话与新建会话页共用同一个原子设置确认入口", () => {
-  assert.match(source, /props\.onSettingsChange\(draft, usageDraft, orderDraft, contextDraft, panelDraft\)/);
+  assert.match(source, /props\.onSettingsChange\(draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft\)/);
   assert.doesNotMatch(source, /props\.onModulesChange\(draft\).*props\.onUsageChange/s);
   assert.match(source, /onSettingsChange: updateSettings/);
 });

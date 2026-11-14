@@ -30,8 +30,8 @@ function fakeIndexedDb() {
       onabort: null,
       objectStore: () => ({
         get: (key) => { reads.push(key); return request(records.get(key)); },
-        put: (record) => { records.set(record.key, record); return request(undefined); },
-        delete: (key) => { deletes.push(key); records.delete(key); return request(undefined); },
+        put: (record) => { records.set(record.key, record); return request(record.key); },
+        delete: (key) => { deletes.push(key); records.delete(key); return request(true); },
       }),
     }),
   };
@@ -81,6 +81,47 @@ function noteHarness(options = {}) {
   return { harness, element, render };
 }
 
+/** 图片存储函数的小上下文：只装载「工作区 → 便笺分桶」读写所需的函数。 */
+function loadImageStorage(globals = {}) {
+  const globalObject = { indexedDB: globals.indexedDB, URL: globals.URL };
+  const context = vm.createContext({
+    globalThis: globalObject,
+    indexedDB: globals.indexedDB,
+    URL: globals.URL,
+    setTimeout,
+    clearTimeout,
+    Promise,
+    Map,
+    Array,
+    Object,
+    String,
+    Number,
+    JSON,
+    Date,
+    Math,
+    console,
+  });
+  vm.runInContext(`
+    const NOTE_IMAGE_DB = "dsh-awesome-hud";
+    const NOTE_IMAGE_STORE = "noteImages";
+    const NOTE_MAX_IMAGES = 20;
+    const noteImageMemory = new Map();
+    let noteImageDbPromise = null;
+    ${extractFunction("openNoteImageDb")}
+    ${extractFunction("noteImageRequest")}
+    async ${extractFunction("readNoteImageValue")}
+    async ${extractFunction("writeNoteImageMap")}
+    async ${extractFunction("deleteNoteImages")}
+    ${extractFunction("dehydrateNoteImages")}
+    ${extractFunction("hydrateNoteImages")}
+    this.readNoteImageValue = readNoteImageValue;
+    this.writeNoteImageMap = writeNoteImageMap;
+    this.deleteNoteImages = deleteNoteImages;
+    this.dehydrateNoteImages = dehydrateNoteImages;
+  `, context);
+  return context;
+}
+
 const pasteEvent = (items) => {
   const event = { clipboardData: { items }, prevented: false, preventDefault() { this.prevented = true; } };
   return event;
@@ -92,7 +133,8 @@ const wait = (ms = 30) => new Promise((resolve) => setTimeout(resolve, ms));
 test("便笺取消字数上限：不再有 maxLength / slice，底部也不再显示字数", () => {
   assert.ok(!/const NOTE_MAX_LEN/.test(source), "NOTE_MAX_LEN 常量必须移除");
   assert.ok(!/maxLength: NOTE_MAX_LEN/.test(source), "textarea 不再设置 maxLength");
-  assert.match(source, /onChange: \(event\) => patchNote\(\{ text: event\.target\.value \}\)/);
+  // v0.20.0：编辑视图按当前便笺写入（多便笺：updateNote(note.id, { text })）。
+  assert.match(source, /onChange: \(event\) => updateNote\(note\.id, \{ text: event\.target\.value \}\)/);
   // v0.19.0：底部不再展示「0 chars / 0 字」这类字数信息
   assert.ok(!/noteCountText|hud-note-count|noteCountChars|noteCountImages/.test(source), "便笺底部不再渲染字数");
 });
@@ -156,21 +198,29 @@ test("图片上限 20 张：超出部分拒绝并给出提示文案", () => {
   assert.match(source, /noteImageLimit: "A note holds at most \{count\} images"/);
 });
 
-test("粘贴图片写入 IndexedDB：按工作区键、原图 Blob、受 20 张上限约束", async () => {
+test("粘贴图片写入 IndexedDB：按「工作区 → 便笺 id」分桶、原图 Blob、受 20 张上限约束", async () => {
   const idb = fakeIndexedDb();
-  const harness = noteHarness({ globals: { indexedDB: idb } });
-  const note = harness.render();
-  const area = byClass(note, "hud-note-area")[0];
-  const paste = pasteEvent(Array.from({ length: 23 }, () => imageItem("image/png")));
-  area.props.onPaste(paste);
-  assert.equal(paste.prevented, true, "有图片时接管粘贴，避免图片被当成文件路径文本写入");
-  await wait();
+  const context = loadImageStorage({ indexedDB: idb, URL: fakeUrl() });
+  const images = Array.from({ length: 23 }, (_, index) => ({
+    id: `img-${index}`, type: "image/png", name: "pasted.png", blob: { fake: index },
+  }));
+  const written = await context.writeNoteImageMap("/tmp/w", { "note-1": context.dehydrateNoteImages(images) });
+  assert.equal(written, true);
   const record = idb.records.get("/tmp/w");
-  assert.ok(record, "应以工作区路径为键保存图片记录（同一工作区共享、重启后仍在）");
-  assert.equal(record.images.length, 20, "超过 20 张时截断到上限");
-  assert.equal(record.images[0].type, "image/png");
-  assert.ok(record.images[0].blob, "保存的是原图 Blob");
+  assert.ok(record, "应以工作区路径为键保存图片记录");
+  assert.equal(record.images["note-1"].length, 20, "超过 20 张时截断到上限");
+  assert.equal(record.images["note-1"][0].type, "image/png");
+  assert.ok(record.images["note-1"][0].blob, "保存的是原图 Blob");
   assert.ok(record.updatedAt > 0);
+  // 读回：同一工作区的不同便笺互不干扰
+  const loaded = await context.readNoteImageValue("/tmp/w");
+  assert.equal(loaded["note-1"].length, 20);
+  assert.equal(loaded["note-2"], undefined);
+  // 粘贴入口：图片按 20 张上限合并，写入当前便笺的桶
+  assert.match(source, /const added = makeImages\(accepted\);/);
+  assert.match(source, /const room = noteMergeImages\(imagesRef\.current\.length, added\.length\);/);
+  assert.match(source, /queueImageWrite\(openNote\.id, next\);/);
+  assert.match(source, /map\[noteId\] = dehydrateNoteImages\(nextImages\);/);
 });
 
 test("挂载时按工作区键读回图片（重启后仍在）", async () => {
@@ -186,35 +236,40 @@ test("挂载时按工作区键读回图片（重启后仍在）", async () => {
 });
 
 test("IndexedDB 不可用时降级为内存并提示，不阻塞便笺文字", async () => {
-  const harness = noteHarness({ globals: { indexedDB: undefined } });
-  const note = harness.render();
-  const area = byClass(note, "hud-note-area")[0];
-  area.props.onPaste(pasteEvent([imageItem("image/png")]));
-  await wait();
+  const context = loadImageStorage({ indexedDB: undefined, URL: fakeUrl() });
+  const written = await context.writeNoteImageMap("/tmp/w", { "note-1": [{ id: "i1", type: "image/png", name: "a.png", blob: { fake: true } }] });
+  assert.equal(written, false, "IndexedDB 不可用时返回未持久化");
   assert.match(source, /noteImageMemory\.set\(key, images\)/, "降级时写内存镜像");
+  const loaded = await context.readNoteImageValue("/tmp/w");
+  assert.equal(loaded["note-1"].length, 1, "内存镜像仍可读回");
   assert.match(source, /t\("noteImageStorageUnavailable"\)/, "必须提示图片无法持久化");
   assert.match(source, /noteImageStorageUnavailable: "当前环境无法持久化图片，图片只在本次会话内保留"/);
   assert.match(source, /noteImageStorageUnavailable: "Images cannot be persisted here, so they stay for this session only"/);
   // 文字输入不受影响：超过 5000 字也不再截断
-  area.props.onChange({ target: { value: "x".repeat(6000) } });
-  assert.match(source, /onChange: \(event\) => patchNote\(\{ text: event\.target\.value \}\)/, "文字不截断");
+  assert.match(source, /onChange: \(event\) => updateNote\(note\.id, \{ text: event\.target\.value \}\)/, "文字不截断");
 });
 
-test("清空：连文字与图片一起清，并删除持久化记录", () => {
-  // 两次点击的状态机由 noteClearAction 覆盖；这里固定「确认后」的落盘与删除接线。
+test("清空：连文字与图片一起清，并清掉该便笺的图片桶", () => {
+  // 两次点击的状态机由 noteClearAction 覆盖；这里固定「确认后」的落盘与清理接线。
   const clearStart = source.indexOf("const onClear = () => {");
   const clearBody = source.slice(clearStart, clearStart + 1600);
   assert.match(clearBody, /const action = noteClearAction\(note\.text, clearConfirming, images\.length > 0\);/);
   // 文字与图片必须一起清，且失败时不能假装成功
-  assert.match(clearBody, /const result = persistNoteEntry\(scope, \{ \.\.\.note, text: "" \}\);/);
-  assert.match(clearBody, /if \(!result\.persisted\)/);
-  assert.match(clearBody, /toast\(t\("noteClearFailed"\)\)/);
-  assert.match(clearBody, /for \(const image of prev\) releaseNoteImage\(image\);/);
+  assert.match(clearBody, /releaseImages\(imagesRef\.current\);/);
+  assert.match(clearBody, /const result = persistDoc\(withNotePatch\(note\.id, \{ text: "" \}\)\);/);
+  assert.match(clearBody, /if \(!result\.persisted\) toast\(t\("noteClearFailed"\)\);/);
+  assert.match(clearBody, /setImages\(\[\]\);/);
+  assert.match(clearBody, /queueImageWrite\(note\.id, \[\]\);/);
   assert.match(clearBody, /setPreview\(null\);/);
-  assert.match(clearBody, /void deleteNoteImages\(scope\.key\);/);
   assert.match(clearBody, /publishNoteChange\(scope\.key\);/);
   // 有内容才可点：只有图片同样可清空
   assert.match(source, /disabled: note\.text === "" && images\.length === 0,/);
+  // 删除全部：清空文档并删除整条图片记录
+  const deleteAllStart = source.indexOf("const deleteAllNotes = () => {");
+  const deleteAllBody = source.slice(deleteAllStart, deleteAllStart + 600);
+  assert.match(deleteAllBody, /persistDoc\(\{ \.\.\.docRef\.current, notes: \[\] \}\);/);
+  assert.match(deleteAllBody, /void deleteNoteImages\(scope\.key\);/);
+  assert.match(deleteAllBody, /setImages\(\[\]\);/);
 });
 
 test("缩略图栏与灯箱：结构、交互与悬停保持标记", () => {
@@ -224,7 +279,10 @@ test("缩略图栏与灯箱：结构、交互与悬停保持标记", () => {
   assert.match(source, /className: "hud-note-thumb"/);
   assert.match(source, /className: "hud-note-thumb-remove"/);
   assert.match(source, /t\("noteImageRemove"\)/);
-  assert.match(source, /onClick: \(\) => setPreview\(image\.id\)/, "点击缩略图打开灯箱");
+  // 点击缩略图打开灯箱；拖动排序结束后补发的 click 必须被吃掉，不能自动放大。
+  assert.match(source, /if \(imageDragSuppressClickRef\.current\) \{ imageDragSuppressClickRef\.current = false; return; \}/);
+  assert.match(source, /imageDragSuppressClickRef\.current = imageDragMovedRef\.current;/);
+  assert.match(source, /Math\.abs\(moveEvent\.clientX - startX\) > 3\) imageDragMovedRef\.current = true;/);
   // 灯箱：portal 到 body、role=dialog + aria-modal、Esc / 遮罩关闭
   const lightboxStart = source.indexOf("function NoteImageLightbox(");
   const lightbox = source.slice(lightboxStart, lightboxStart + 2600);

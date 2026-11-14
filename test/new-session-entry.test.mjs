@@ -166,14 +166,20 @@ test("面板顶部跟随真实标题栏，侧位由设置决定（v0.18.2）", (
   assert.doesNotMatch(source, /floatingOffsets/);
   assert.doesNotMatch(source, /floatButtonStyle/);
   // v0.18.2：面板根节点带 data-side，位置由 top + 侧位（left 测量值 / 右侧 8px）决定。
+  // v0.20.0：根节点同时带 data-style（card / sidebar），卡片样式沿用 8px 侧距与限高。
   assert.match(source, /"data-side": panelSide,/);
+  assert.match(source, /"data-style": panelStyle,/);
   assert.match(source, /left: panelSide === "left" \? `\$\{left\}px` : "auto",/);
-  assert.match(source, /right: panelSide === "right" \? `\$\{HUD_PANEL_GAP\}px` : "auto",/);
-  assert.match(source, /maxHeight: limitH === null \? undefined : `\$\{limitH\}px`,/);
+  assert.match(source, /right: panelSide === "right" \? \(panelStyle === "sidebar" \? "0px" : `\$\{HUD_PANEL_GAP\}px`\) : "auto",/);
+  assert.match(source, /maxHeight: panelStyle === "sidebar" \? "none" : \(limitH === null \? undefined : `\$\{limitH\}px`\),/);
+  assert.match(source, /bottom: panelStyle === "sidebar" \? 0 : undefined,/);
   // 有会话页眉时跟随下沿；新建页的最低位置额外避开 Windows 原生标题栏。
   assert.match(source, /document\.querySelector\("\[data-conversation-header-corner\]"\)\?\.closest\("header"\)/);
   assert.match(source, /const minimumTop = HUD_NEW_SESSION_TOP \+ hudChromeTop\(\);/);
-  assert.match(source, /: Math\.max\(minimumTop, Math\.round\(headRect\.bottom \+ 8\)\);/);
+  // v0.20.0：顶部计算抽成 hudPanelTop（卡片 = 页眉下沿 + 8px，边栏 = 页眉下沿）。
+  // v0.20.0：边栏样式在没有页眉时从顶部 chrome 行下沿起（不再留空隙）。
+  assert.match(source, /const nextTop = hudPanelTop\(minimumTop, headRect\?\.bottom, pushStyle, hudChromeRowBottom\(hudChromeTop\(\)\)\);/);
+  assert.match(source, /function hudPanelTop\(minimumTop, headerBottom, style, chromeBottom = minimumTop\) \{/);
   // 按钮固定贴视口右上角（标题栏按钮的视觉位置）
   assert.match(source, /\.hud-btn-float\{position:fixed;top:\$\{HUD_FLOAT_INSET\}px;z-index:2147482000;-webkit-app-region:no-drag\}/);
   assert.match(source, /const HUD_FLOAT_INSET = 12;/);

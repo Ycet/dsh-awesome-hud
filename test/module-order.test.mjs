@@ -240,7 +240,8 @@ test("HUD 设置弹窗：模块卡片列表、拖动排序、恢复默认均已�
   assert.match(source, /\.hud-settings-pane-modules\{[^}]*overflow:hidden/);
   assert.match(source, /\.hud-settings-pane-detail\{[^}]*overflow-y:auto/);
   // 右栏每个模块一张卡片（标题 + 若干设置行）。
-  assert.equal((source.match(/className: "hud-settings-section hud-settings-section-card" \},/g) ?? []).length, 3, "面板/上下文/用量三段都应渲染为卡片");
+  // v0.20.0：新增「便笺」设置卡片 → 4 段。
+  assert.equal((source.match(/className: "hud-settings-section hud-settings-section-card" \},/g) ?? []).length, 4, "面板/上下文/用量/便笺四段都应渲染为卡片");
   assert.match(source, /\.hud-settings-section-card\{display:flex;flex-direction:column;gap:2px;padding:8px 12px 10px;border:1px solid/);
   assert.match(source, /className: "hud-settings-section-title" }, t\("settingsPanelTitle"\)\)/);
   assert.match(source, /className: "hud-settings-section-title" }, t\("settingsContextTitle"\)\)/);
@@ -293,7 +294,8 @@ test("HUD 设置弹窗：模块卡片列表、拖动排序、恢复默认均已�
   assert.match(source, /const endDrag = \(\) => \{\n\t+if \(!droppedRef\.current\) commitDragOrder\(\);/);
   assert.match(source, /const cancelDrag = \(\) => \{/);
   // 「恢复默认」不提交拖动的半成品，只清理拖动状态。
-  assert.match(source, /setPanelDraft\(defaultPanelSettings\(\)\);\n\t+cancelDrag\(\);/);
+  // v0.20.0：「恢复默认」同时复位便笺上限，再取消拖动。
+  assert.match(source, /setPanelDraft\(defaultPanelSettings\(\)\);\n\t+setNoteDraft\(defaultNoteSettings\(\)\);\n\t+cancelDrag\(\);/);
   assert.match(source, /\.hud-settings-list\[data-settling=true\] \.hud-settings-card\{transition:none\}/);
   assert.match(source, /transition:border-color \.12s var\(--ds-ease-in-out,ease\),background \.12s var\(--ds-ease-in-out,ease\),opacity \.12s var\(--ds-ease-in-out,ease\),transform \.16s var\(--ds-ease-in-out,ease\)/);
 
@@ -301,9 +303,14 @@ test("HUD 设置弹窗：模块卡片列表、拖动排序、恢复默认均已�
   assert.match(source, /className: "hud-settings-footer" },/);
   assert.match(source, /"data-kind": "reset",/);
   assert.match(source, /disabled: !dirty,/);
-  assert.match(source, /const dirty = !isDefaultDraft\(draft, usageDraft, orderDraft, contextDraft, panelDraft, keys\);/);
-  assert.match(source, /function isDefaultDraft\(draft, usageDraft, orderDraft, contextDraft, panelDraft, visibleModuleKeys\) \{/);
-  assert.match(source, /onClick: \(\) => props\.onConfirm\(draft, usageDraft, orderDraft, contextDraft, panelDraft\)/);
+  assert.match(source, /const dirty = !isDefaultDraft\(draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft, keys\);/);
+  assert.match(source, /function isDefaultDraft\(draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft, visibleModuleKeys\) \{/);
+  // v0.20.0：确认时一并提交便笺上限草稿，且先做上限校验；未改动时「保存设置」置灰。
+  assert.match(source, /disabled: !edited,\s*\n\s*onClick: confirmSettings,/);
+  // v0.20.0：确认按钮文案改为「保存设置」，且未改动时置灰。
+  assert.match(source, /t\("settingsConfirm"\)/);
+  assert.match(source, /disabled: !edited,/);
+  assert.match(source, /props\.onConfirm\(draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft\);/);
   assert.match(source, /onClick: props\.onClose \}, t\("settingsCancel"\)\)/);
 });
 
@@ -337,7 +344,7 @@ test("排序经由设置链路持久化：hook 保存与读取都带上 order", 
   assert.match(source, /orderRef\.current = normalizeModuleOrder\(body\.order\);/);
   assert.match(source, /setOrder\(normalizeModuleOrder\(body\.order\)\);/);
   // 保存：请求体带 order，且未传时沿用当前顺序
-  assert.match(source, /call\("settings", \{ modules: nextModules, usage: nextUsage, context: nextContext, order: nextOrder, panel: nextPanel \}\)/);
+  assert.match(source, /call\("settings", \{ modules: nextModules, usage: nextUsage, context: nextContext, order: nextOrder, panel: nextPanel, note: nextNote \}\)/);
   // v0.18.2：面板设置随同一次请求落盘。
   assert.match(source, /const nextPanel = normalizePanelSettings\(panelPatch === undefined \? panelRef\.current : \{ \.\.\.panelRef\.current, \.\.\.panelPatch \}\);/);
   assert.match(source, /const nextOrder = orderPatch === undefined \? \(orderRef\.current \?\? defaultModuleOrder\(\)\) : normalizeModuleOrder\(orderPatch\);/);
@@ -374,5 +381,5 @@ test("设置弹窗的关闭与焦点：Esc / 遮罩点击 / 取消确认，Tab �
 
   // 关闭（含确认）只需收起弹窗，草稿保存仍走 onConfirm。
   assert.match(source, /const closeSettings = react\.useCallback\(\(\) => \{ setSettingsOpen\(false\); \}, \[\]\);/);
-  assert.match(source, /props\.onSettingsChange\(draft, usageDraft, orderDraft, contextDraft, panelDraft\);\n\t\t\t\t\t\tcloseSettings\(\);/);
+  assert.match(source, /props\.onSettingsChange\(draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft\);\n\t\t\t\t\t\tcloseSettings\(\);/);
 });

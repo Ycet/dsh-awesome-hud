@@ -162,6 +162,7 @@ test('所有可编辑文本控件接入 composition 生命周期，包含便笺�
     }
     throw new Error('Unclosed input props');
   }).filter(props => !props.includes('type: "checkbox"'));
-  assert.equal(textControls.length, 8);
+  // v0.20.0：新增 commit 弹窗的「AI 生成提示词」文本域、便笺标题输入框与设置里的数字输入框（共 11 个）。
+  assert.equal(textControls.length, 11);
   for (const props of textControls) assert.ok(props.includes('...IME_INPUT_PROPS'), props);
 });

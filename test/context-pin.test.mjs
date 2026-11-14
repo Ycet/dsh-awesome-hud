@@ -80,7 +80,8 @@ test('contextPinState：首位可用、被排到后面禁用、被隐藏给 hidd
 test('设置弹窗：上下文卡片新增位置固定开关，草稿状态参与判定并提交', () => {
   // 用弹窗草稿（排序 + 模块开关）实时判定，不依赖已确认的设置
   assert.match(source, /const contextPin = contextPinState\(orderDraft, draft\);/);
-  assert.match(source, /label: t\("settingsContextPin"\),\n\s*hint: contextPin\.allowed \? undefined : t\(contextPin\.reason === "hidden" \? "settingsContextPinHidden" : "settingsContextPinOrder"\),\n\s*disabled: !contextPin\.allowed,/);
+  // v0.20.0：可用时给简短说明，不可用时优先显示原因。
+  assert.match(source, /label: t\("settingsContextPin"\),\n\s*\/\/ 位置固定：可用时给简短说明；不可用时优先说明原因。\n\s*hint: contextPin\.allowed \? t\("settingsContextPinHint"\) : t\(contextPin\.reason === "hidden" \? "settingsContextPinHidden" : "settingsContextPinOrder"\),/);
   assert.match(source, /checked: contextDraft\.pinned === true,/);
   assert.match(source, /disabled: !contextPin\.allowed,\n\s*label: t\("settingsContextPin"\),\n\s*onChange: \(next\) => setContextDraft\(\(prev\) => \(\{ \.\.\.prev, pinned: next \}\)\),/);
 });

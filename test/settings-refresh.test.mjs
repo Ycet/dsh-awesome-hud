@@ -80,6 +80,16 @@ function createHarness(options = {}) {
     panelPrefs,
     defaultPanelSettings,
     normalizePanelSettings,
+    // v0.20.0：便笺条数上限（useHudModules 读写 note 段）
+    NOTE_COUNT_MIN: 5,
+    NOTE_COUNT_MAX: 20,
+    NOTE_COUNT_DEFAULT: 5,
+    defaultNoteSettings: () => ({ maxCount: 5 }),
+    normalizeNoteMaxCount: (value) => {
+      const number = Number(value);
+      return Number.isFinite(number) ? Math.min(20, Math.max(5, Math.round(number))) : 5;
+    },
+    normalizeNoteSettings: (raw) => ({ maxCount: raw !== null && raw !== undefined && Number.isFinite(Number(raw.maxCount)) ? Math.min(20, Math.max(5, Math.round(Number(raw.maxCount)))) : 5 }),
     PANEL_SIDES: [...PANEL_SIDES],
     defaultModules,
     defaultUsageDisplay,
@@ -164,7 +174,8 @@ test('写入后重挂面板：首帧即为新设置，且会重新读取宿主�
   assert.equal(harness.calls[0].payload.panel.side, 'left');
   assert.equal(harness.calls[0].payload.usage.showJump, false);
   assert.equal(first.seed().panel.side, 'left', '写入成功即刷新「最近一次成功快照」');
-  assert.deepEqual(harness.panels, { side: 'left', newSessionOpen: false, chatOpen: true }, '面板缓存随写入更新');
+  // v0.20.0：写侧同样带上 style（本次未改样式 → 保持 card）。
+  assert.deepEqual(harness.panels, { style: 'card', side: 'left', newSessionOpen: false, chatOpen: true }, '面板缓存随写入更新');
 
   // 关开面板 / 切页面 / 开合右侧栏 → 组件重新挂载
   const second = await harness.mount();
@@ -192,7 +203,8 @@ test('未写入时重挂也重新读取：宿主侧被其它窗口改回的值�
   const second = await harness.mount();
   assert.equal(harness.settingsCalls, 2);
   assert.equal(second.panel().side, 'left', '宿主设置为权威值');
-  assert.deepEqual(harness.appliedPanels.at(-1), { side: 'left', newSessionOpen: true, chatOpen: true }, '宿主侧位同步回模块级缓存');
+  // 宿主响应缺 style（模拟旧宿主）时沿用当前样式，其余字段以宿主为权威值。
+  assert.deepEqual(harness.appliedPanels.at(-1), { style: 'card', side: 'left', newSessionOpen: true, chatOpen: true }, '宿主侧位同步回模块级缓存');
 });
 
 test('旧宿主（响应无 panel 段）不会把面板侧位冲回默认值', async () => {

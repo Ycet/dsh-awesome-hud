@@ -39,6 +39,18 @@ function createRuntime(primitives = null) {
     normalizeModuleOrder,
     defaultPanelSettings,
     normalizePanelSettings,
+    // v0.20.0：便笺条数上限
+    NOTE_COUNT_MIN: 5,
+    NOTE_COUNT_MAX: 20,
+    defaultNoteSettings: () => ({ maxCount: 5 }),
+    normalizeNoteMaxCount: (value) => {
+      const number = Number(value);
+      return Number.isFinite(number) ? Math.min(20, Math.max(5, Math.round(number))) : 5;
+    },
+    normalizeNoteSettings: (raw) => ({ maxCount: raw !== null && raw !== undefined && Number.isFinite(Number(raw.maxCount)) ? Math.min(20, Math.max(5, Math.round(Number(raw.maxCount)))) : 5 }),
+    noteCountViolations: () => [],
+    toast: () => {},
+    IME_INPUT_PROPS: {},
     window: { clearTimeout() {}, setTimeout() {} },
     document: { activeElement: null },
   });
@@ -70,8 +82,11 @@ function createRuntime(primitives = null) {
       extractFunction('officialControl'),
       extractFunction('HudSwitch'),
       extractFunction('HudSegmented'),
+      extractFunction('HudNumberStepper'),
       extractFunction('SettingRow'),
       extractFunction('SettingsGuide'),
+      extractFunction('sameOrder'),
+      extractFunction('sameSettingsDraft'),
       extractFunction('isDefaultDraft'),
       extractFunction('contextPinState'),
       extractFunction('SettingsDialog'),
@@ -190,9 +205,9 @@ test('说明页：11 个模块小节，按「展示 / 功能 / 设置」分组�
   assert.equal(toc.length, sections.length, '左侧目录项与大纲数量一致');
   assert.deepEqual(toc.map(textOf), sections.map(section => section.title));
 
-  // 按最新要求：只有「HUD 面板」一节带「设置」分组，其余模块只讲展示与功能。
+  // v0.20.0：「便笺」新增条数上限设置，同样带「设置」分组。
   const withSettings = sections.filter(section => section.groups.some(group => group.kind === 'set')).map(section => section.key);
-  assert.deepEqual(withSettings, ['panel']);
+  assert.deepEqual(withSettings, ['panel', 'note']);
 
   const rendered = byClass(dialog, 'hud-guide-section');
   assert.equal(rendered.length, sections.length);
@@ -209,12 +224,15 @@ test('说明页：11 个模块小节，按「展示 / 功能 / 设置」分组�
       assert.equal(textOf(label), expectedLabel, `${section.key}/${group.kind} 分组标签`);
       const items = byClass(groups[groupIndex], 'hud-guide-item');
       assert.deepEqual(items.map(textOf), group.items, `${section.key}/${group.kind} 的要点应与大纲一致`);
-      // v0.19.0：便笺一节新增图片 / 从聊天导入等能力（`/` 与 `@` 补全已移除），「功能」分组上限放宽到 8 条。
-      assert.ok(items.length >= 1 && items.length <= 8, `${section.key}/${group.kind} 要点数量应克制（1–8 条）`);
+      // v0.19.0：便笺一节新增图片 / 从聊天导入等能力（`/` 与 `@` 补全已移除），「功能」分组上限放宽到 8 条；
+      // v0.20.0：多便笺新增列表/编辑/拖动等条目，便笺功能组上限放宽到 12 条。
+      const maxItems = section.key === 'note' && group.kind === 'act' ? 12 : 8;
+      assert.ok(items.length >= 1 && items.length <= maxItems, `${section.key}/${group.kind} 要点数量应克制（1–${maxItems} 条）`);
       total += items.length;
     }
-    // v0.19.0：panel 一节同时讲「固定展示」与「悬停展示」，上限放宽到 16 条；其余仍按 12 条克制。
-    const limit = section.key === 'panel' ? 16 : 12;
+    // v0.19.0：panel 一节同时讲「固定展示」与「悬停展示」，上限放宽到 16 条；
+    // v0.20.0：便笺一节新增多便笺能力，同样放宽到 16 条；其余仍按 12 条克制。
+    const limit = section.key === 'panel' || section.key === 'note' ? 16 : 12;
     assert.ok(total >= 3 && total <= limit, `${section.key} 整节要点总数应为 3–${limit} 条（保持简短）`);
   }
 });
@@ -289,18 +307,30 @@ test('切换标签时弹窗高度不变：设置页保持挂载（隐藏）+ 说
   assert.match(clientSource, /\.hud-settings-guide\{position:absolute;inset:0;display:flex;align-items:stretch\}/);
 });
 
-test('说明页底部栏常驻：默认设置下「恢复默认」禁用，确认仍可提交', () => {
+test('底部栏常驻：未改动时「恢复默认」「保存设置」都置灰，改动后可提交', () => {
   const confirmations = [];
   const runtime = createRuntime();
   let dialog = runtime.render(baseProps({ onConfirm: (...args) => confirmations.push(args) }));
+  const footer = () => nodes(dialog).filter(node => node.type === 'button' && node.props?.['data-kind']);
+  assert.deepEqual(footer().map(node => node.props['data-kind']), ['reset', 'cancel', 'confirm']);
+  assert.equal(footer()[0].props.disabled, true, '没有改动时「恢复默认」置灰');
+  // v0.20.0：本次打开设置页后没有改动时，「保存设置」同样置灰。
+  assert.equal(footer()[2].props.disabled, true, '没有改动时「保存设置」置灰');
+  footer()[2].props.onClick();
+  assert.equal(confirmations.length, 0, '置灰时点击不提交');
+
+  // 改一个开关后再切到说明页：底部栏仍常驻，且「保存设置」可提交。
+  const switchNode = nodes(dialog).find(node => node.props?.role === 'switch' && node.type === 'button');
+  assert.ok(switchNode, '设置页应有可切换的开关');
+  switchNode.props.onClick();
+  dialog = runtime.render();
   clickTab(dialog, 'guide');
   dialog = runtime.render();
-
-  const footerButtons = nodes(dialog).filter(node => node.type === 'button' && node.props?.['data-kind']);
-  assert.deepEqual(footerButtons.map(node => node.props['data-kind']), ['reset', 'cancel', 'confirm']);
-  assert.equal(footerButtons[0].props.disabled, true, '没有改动时「恢复默认」置灰');
-  footerButtons[2].props.onClick();
+  assert.deepEqual(footer().map(node => node.props['data-kind']), ['reset', 'cancel', 'confirm']);
+  assert.equal(footer()[2].props.disabled, false, '改动后「保存设置」可点');
+  footer()[2].props.onClick();
   assert.equal(confirmations.length, 1);
+  assert.equal(confirmations[0].length, 6, '确认时同时提交六个草稿（含便笺）');
 });
 
 test('guideActiveKey：首屏 / 阈值边界 / 末尾 / 负滚动位置 / 空大纲', () => {

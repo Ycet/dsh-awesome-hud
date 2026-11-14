@@ -33,7 +33,14 @@ test('新建页便笺、待办、Git 与发送目标使用同一最近工作区�
   assert.equal(note.props.workspaceKey, recent);
   assert.equal(todo.props.workspaceKey, recent);
   assert.equal(note.props.sendSessionId, 'new');
-  assert.equal(nodes(note.type(note.props)).find(node => node.type === 'textarea').props.value, '最近便笺');
+  // v0.20.0：便笺模块默认展示便笺条列表（编辑视图才出现 textarea）；旧 v3 便笺在挂载时迁移为 v4 列表。
+  const noteTree = nodes(note.type(note.props));
+  assert.equal(noteTree.some(node => node.type === 'textarea'), false, '列表视图不渲染输入框');
+  assert.ok(noteTree.some(node => node.props.className === 'hud-note-list'), '列表视图渲染便笺条列表');
+  const migrated = JSON.parse(client.persisted.get('dsh-awesome-hud:notes'))[recent];
+  assert.equal(migrated.v, 4);
+  assert.equal(migrated.notes.length, 1);
+  assert.equal(migrated.notes[0].text, '最近便笺');
   assert.ok(nodes(todo.type(todo.props)).some(node => node.children?.includes('最近待办')));
   client.runPolls(); await settled();
   const git = client.calls.find(call => call.url.endsWith('/git'));

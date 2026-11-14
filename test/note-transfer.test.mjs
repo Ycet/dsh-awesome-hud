@@ -180,26 +180,27 @@ test("从聊天导入：读取输入框文字与图片；非图片附件计入 s
   assert.equal(content.skippedFiles, 1, "非图片附件跳过并计数");
 });
 
-test("从聊天导入：先清空便笺（文字 + 图片 + IndexedDB 记录），再写入输入框内容", () => {
+test("从聊天导入：先清空当前便笺（文字 + 图片），再写入输入框内容", () => {
   const importStart = source.indexOf("const runImportFromChat = async () => {");
   const body = source.slice(importStart, importStart + 3200);
   assert.match(body, /const content = await readComposerForNote\(targetSessionId\);/);
   // 源内容为空时直接返回，不清空便笺
   const emptyGuard = body.indexOf('toast(t("noteImportEmpty"))');
+  const clearStart = body.indexOf("persistDoc(withNotePatch(note.id, { text: \"\" }))");
   assert.ok(emptyGuard >= 0, "源为空要提示");
-  assert.ok(emptyGuard < body.indexOf("overwriteNoteContent("), "空源必须在清空便笺之前返回");
-  // 两段式：清空（写空文字 → 释放旧图片 → 删 IndexedDB 记录）→ 写入（文字 → 图片）
-  assert.match(body, /overwriteNoteContent\(\{/);
-  assert.match(body, /persistText: \(text\) => persistNoteEntry\(scope, \{ \.\.\.note, text \}\)/);
-  assert.match(body, /releaseImages: \(list\) => \{ for \(const image of list\) releaseNoteImage\(image\); \}/);
-  assert.match(body, /dropImages: \(\) => \{ void deleteNoteImages\(scope\.key\); \}/);
-  assert.match(body, /saveImages: \(list\) => \{ persistImages\(list\); \}/);
+  assert.ok(clearStart > emptyGuard, "空源必须在清空便笺之前返回");
+  // 两段式：先清空（释放旧图片 → 写空文字 → 清掉该便笺的图片桶）→ 再写入（文字 → 图片）
+  assert.match(body, /releaseImages\(imagesRef\.current\);/);
+  assert.match(body, /const emptied = persistDoc\(withNotePatch\(note\.id, \{ text: \"\" \}\)\);/);
+  assert.match(body, /queueImageWrite\(note\.id, \[\]\);/);
+  assert.match(body, /const written = persistDoc\(withNotePatch\(note\.id, \{ text: content\.text \}\)\);/);
+  assert.match(body, /setImages\(incoming\);/);
+  assert.match(body, /queueImageWrite\(note\.id, incoming\);/);
   assert.match(body, /const files = content\.files\.filter\(noteImageAcceptable\)\.slice\(0, NOTE_MAX_IMAGES\);/);
-  assert.match(body, /if \(content\.skippedFiles > 0\) toast\(interpolate\(t\("noteImportSkippedFiles"\), \{ count: content\.skippedFiles \}\), "warn"\)/);
-  assert.match(body, /setImages\(result\.images\);/);
+  assert.match(body, /if \(content\.skippedFiles > 0\) toast\(interpolate\(t\("noteImportSkippedFiles"\), \{ count: content\.skippedFiles \}\), "warn"\);/);
   assert.match(body, /publishNoteChange\(scope\.key\);/);
-  // 写入失败且便笺已清空时，界面同步成空，避免显示已被删除的旧内容
-  assert.match(body, /if \(result\.cleared === true && result\.payload !== undefined\)/);
+  // 清空失败时不写入新内容，并提示失败
+  assert.match(body, /if \(!emptied\.persisted\) \{[\s\S]{0,120}toast\(t\("noteClearFailed"\)\);/);
 });
 
 test("确认弹窗的触发条件：输入框非空才确认覆盖；便笺非空才确认导入", () => {
@@ -207,23 +208,22 @@ test("确认弹窗的触发条件：输入框非空才确认覆盖；便笺非�
   const addBody = source.slice(addStart, addStart + 900);
   // 输入框有文字或图片 → 弹确认；否则直接写入
   assert.match(addBody, /const busy = snapshot !== null && \(String\(snapshot\.draft \?\? ""\) !== "" \|\| \(Array\.isArray\(snapshot\.attachmentIds\) && snapshot\.attachmentIds\.length > 0\)\);/);
-  assert.match(addBody, /if \(busy\) \{ setConfirm\("add"\); return; \}/);
+  assert.match(addBody, /if \(busy\) \{ setConfirm\(\{ kind: "add", noteId: note\.id \}\); return; \}/);
   assert.match(addBody, /await runAddToChat\(\);/);
 
   const importStart = source.indexOf("const onImportFromChat = async () => {");
   const importBody = source.slice(importStart, importStart + 700);
-  assert.match(importBody, /if \(note\.text !== "" \|\| images\.length > 0\) \{ setConfirm\("import"\); return; \}/);
+  assert.match(importBody, /if \(note\.text !== "" \|\| images\.length > 0\) \{ setConfirm\(\{ kind: "import", noteId: note\.id \}\); return; \}/);
   assert.match(importBody, /await runImportFromChat\(\);/);
 
   // 确认弹窗：标题按场景、带「先清空再写入」文案、portal 到 body
-  assert.match(source, /\{ kind: "confirm", label: "noteConfirmOverwrite" \}/.source === "" ? /x/ : /noteConfirmOverwrite/);
-  assert.match(source, /className: "hud-modal hud-settings-modal",\n\t+role: "dialog",\n\t+"aria-modal": "true",\n\t+"aria-label": props\.title,/);
   assert.match(source, /noteAddOverwriteConfirm: "将先清空会话输入框里的文字与图片，再写入便笺内容"/);
   assert.match(source, /noteImportConfirm: "将先清空便笺里的文字与图片，再写入会话输入框的内容"/);
   assert.match(source, /noteConfirmOverwrite: "清空并写入"/);
+  assert.match(source, /className: "hud-modal hud-settings-modal",\n\t+role: "dialog",\n\t+"aria-modal": "true",\n\t+"aria-label": props\.title,/);
 });
 
-test("便笺动作行：导入/添加按钮在无目标会话时禁用，且不再显示字数", () => {
+test("便笺列表视图：空态、两行功能按钮与编辑视图按钮禁用条件", () => {
   const harness = hudClient({
     state: { byId: { s1: { id: "s1", cwd: "/tmp/w" } }, current: "s1" },
     current: "s1",
@@ -232,13 +232,26 @@ test("便笺动作行：导入/添加按钮在无目标会话时禁用，且不�
   });
   const panel = harness.panel();
   const element = nodes(panel).find((node) => node?.type?.name === "NoteModule");
-  const rendered = element.type({ ...element.props, sendSessionId: "" });
-  const buttons = byClass(rendered, "hud-note-buttons")[0].children.filter((child) => child?.type === "button");
-  assert.equal(buttons.length, 3, "清空 / 从聊天导入 / 添加至聊天");
-  assert.equal(buttons[1].props.disabled, true, "没有目标会话时「从聊天导入」禁用");
-  assert.equal(buttons[2].props.disabled, true, "空便笺时「添加至聊天」禁用");
-  // 底部不再有计数节点
-  assert.equal(byClass(rendered, "hud-note-count").length, 0);
+  const rendered = element.type({ ...element.props, sendSessionId: "", noteMaxCount: 5 });
+  // 空列表：空文案 + 「删除全部便笺」置灰
+  assert.equal(byClass(rendered, "hud-note-empty").length, 1, "空列表显示空文案");
+  const deleteAll = nodes(rendered).find((node) => typeof cls(node) === "string" && cls(node).includes("hud-note-delete-all"));
+  assert.equal(deleteAll.type, "button");
+  assert.equal(deleteAll.props.disabled, true, "空列表时「删除全部便笺」置灰");
+  // 第一行两个按钮（从聊天创建 / 添加便笺）各占一半
+  const row = byClass(rendered, "hud-note-list-actions")[0];
+  const buttons = row.children.filter((child) => child?.type === "button");
+  assert.equal(buttons.length, 2);
+  assert.equal(buttons[0].props.disabled, true, "无目标会话时「从聊天创建」置灰");
+  assert.equal(buttons[1].props.disabled, undefined, "「添加便笺」始终可用（受数量上限运行时判断）");
+  // 编辑视图的按钮顺序与禁用条件（源码级：清空 → 从聊天导入 → 添加至聊天）
+  const actions = source.indexOf('className: "hud-note-buttons"');
+  const clear = source.indexOf('t(clearConfirming ? "noteClearConfirm" : "noteClear")', actions);
+  const importFromChat = source.indexOf('t("noteImportFromChat")', actions);
+  const send = source.indexOf('t("noteSendToChat")', actions);
+  assert.ok(actions > 0 && clear > actions && importFromChat > clear && send > importFromChat);
+  assert.match(source, /disabled: note\.text === "" && images\.length === 0/);
+  assert.equal(byClass(rendered, "hud-note-count").length, 0, "底部不再有字数");
 });
 
 test("composerDraftHasContent：文字或图片任一存在即视为有内容（纯函数）", () => {
@@ -256,7 +269,7 @@ test("composerDraftHasContent：文字或图片任一存在即视为有内容（
   assert.equal(has({ draft: "", attachmentIds: null }), false);
 });
 
-test("从聊天导入按钮：输入框无文字/图片时置灰，有内容时可用，且不因面板渲染打开会话", () => {
+test("从聊天创建/导入按钮：输入框无文字/图片时置灰，有内容时可用，且不因面板渲染打开会话", () => {
   // 订阅辅助：只读解析输入框，绝不调用 uiWorkspace.openSession
   const hookStart = source.indexOf("function useComposerHasContent(sessionId)");
   assert.ok(hookStart > 0, "应存在 useComposerHasContent 订阅钩子");
@@ -265,39 +278,24 @@ test("从聊天导入按钮：输入框无文字/图片时置灰，有内容时�
   assert.match(hookBody, /composerDraftHasContent\(store\.getSnapshot\(\)\)/);
   assert.match(hookBody, /store\.subscribe\(/);
   assert.equal(/openSession/.test(hookBody), false, "置灰判定不得打开会话（不能跳页）");
-  // 按钮禁用条件：无目标会话，或输入框里没有文字/图片
-  assert.match(source, /disabled: targetSessionId === "" \|\| composerHasContent !== true,/);
+  // 两个入口用同一个禁用条件：无目标会话，或输入框里没有文字/图片
   assert.match(source, /const composerHasContent = useComposerHasContent\(targetSessionId\);/);
+  assert.ok((source.match(/disabled: targetSessionId === "" \|\| composerHasContent !== true,/g) ?? []).length >= 2, "「从聊天创建」与「从聊天导入」共用前置条件");
 
-  // 空输入框 → 置灰
-  const empty = hudClient({
+  const makeClient = (draft) => hudClient({
     state: { byId: { s1: { id: "s1", cwd: "/tmp/w" } }, current: "s1" },
     current: "s1",
     storage: { "dsh-awesome-hud:open": JSON.stringify({ s1: "1" }) },
     extraServices: {
       sessions: { list: { getSnapshot: () => ({ byId: { s1: { id: "s1", cwd: "/tmp/w" } }, current: "s1" }), subscribe: () => () => {} }, scope: () => ({}) },
-      conversation: { input: { for: () => ({ state: { getSnapshot: () => ({ draft: "", attachmentIds: [] }), subscribe: () => () => {} } }) } },
+      conversation: { input: { for: () => ({ state: { getSnapshot: () => ({ draft, attachmentIds: [] }), subscribe: () => () => {} } }) } },
     },
     respond: () => ({ ok: true, modules: {}, usage: {}, context: {}, order: [], panel: {}, entries: [], isRepo: true, servers: [], total: 0, enabled: 0 }),
   });
-  const element = nodes(empty.panel()).find((node) => node?.type?.name === "NoteModule");
-  const disabled = element.type({ ...element.props, sendSessionId: "s1" });
-  const disabledButtons = byClass(disabled, "hud-note-buttons")[0].children.filter((child) => child?.type === "button");
-  assert.equal(disabledButtons[1].props.disabled, true, "输入框为空时「从聊天导入」置灰");
-
-  // 输入框有文字 → 可用
-  const filled = hudClient({
-    state: { byId: { s1: { id: "s1", cwd: "/tmp/w" } }, current: "s1" },
-    current: "s1",
-    storage: { "dsh-awesome-hud:open": JSON.stringify({ s1: "1" }) },
-    extraServices: {
-      sessions: { list: { getSnapshot: () => ({ byId: { s1: { id: "s1", cwd: "/tmp/w" } }, current: "s1" }), subscribe: () => () => {} }, scope: () => ({}) },
-      conversation: { input: { for: () => ({ state: { getSnapshot: () => ({ draft: "hello", attachmentIds: [] }), subscribe: () => () => {} } }) } },
-    },
-    respond: () => ({ ok: true, modules: {}, usage: {}, context: {}, order: [], panel: {}, entries: [], isRepo: true, servers: [], total: 0, enabled: 0 }),
-  });
-  const element2 = nodes(filled.panel()).find((node) => node?.type?.name === "NoteModule");
-  const enabled = element2.type({ ...element2.props, sendSessionId: "s1" });
-  const enabledButtons = byClass(enabled, "hud-note-buttons")[0].children.filter((child) => child?.type === "button");
-  assert.equal(enabledButtons[1].props.disabled, false, "输入框有文字时「从聊天导入」可点");
+  for (const [draft, expected] of [["", true], ["hello", false]]) {
+    const element = nodes(makeClient(draft).panel()).find((node) => node?.type?.name === "NoteModule");
+    const rendered = element.type({ ...element.props, sendSessionId: "s1" });
+    const create = byClass(rendered, "hud-note-list-actions")[0].children.filter((child) => child?.type === "button")[0];
+    assert.equal(create.props.disabled, expected, draft === "" ? "输入框为空时「从聊天创建」置灰" : "输入框有文字时「从聊天创建」可点");
+  }
 });

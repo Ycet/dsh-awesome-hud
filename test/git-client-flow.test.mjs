@@ -311,3 +311,32 @@ test('generate 确认态展示官方模型说明并复用便笺式取消交互',
   assert.match(clientSource, /\.hud-commit-ai-hint\{[^}]*color:var\(--dsw-alias-state-error-primary\)/, '确认提示应为红色（与红色「确认？」按钮一致）');
   assert.doesNotMatch(clientSource, /\.hud-commit-ai-hint\{[^}]*color:var\(--dsw-alias-label-secondary\)/, '确认提示不再使用灰色次要文字');
 });
+
+test('v0.20.0：变更文件行改为「文件名 + 灰色相对目录」，保留状态徽章与加减行数', () => {
+  // 1) 路径拆分：文件名与相对目录（兼容 `/` 与 `\`，根目录文件没有目录段）。
+  const context = vm.createContext({});
+  vm.runInContext(`${extractRaw('splitRelativePath')}; this.splitRelativePath = splitRelativePath;`, context);
+  const split = (path) => JSON.parse(JSON.stringify(context.splitRelativePath(path)));
+  assert.deepEqual(split('dsh-awesome-hud/lib/client.js'), { name: 'client.js', dir: 'dsh-awesome-hud/lib' });
+  assert.deepEqual(split('a/b/c/d.ts'), { name: 'd.ts', dir: 'a/b/c' });
+  assert.deepEqual(split('README.md'), { name: 'README.md', dir: '' }, '工作区根目录文件没有目录段');
+  assert.deepEqual(split('dir\\win.md'), { name: 'win.md', dir: 'dir' }, '兼容反斜杠');
+  assert.deepEqual(split('/root.md'), { name: 'root.md', dir: '' }, '去掉前导空段');
+  assert.deepEqual(split(''), { name: '', dir: '' });
+  assert.deepEqual(split(undefined), { name: '', dir: '' });
+
+  // 2) 行结构：状态徽章 → 文件名 → 灰色目录 → 加减行数；目录为空时仍占位（flex:1），保证加减靠右。
+  const rowStart = clientSource.indexOf('const renderFileRow = (file, group) => {');
+  const rowEnd = clientSource.indexOf('// 文件行选项弹窗', rowStart);
+  assert.ok(rowStart > 0 && rowEnd > rowStart, '定位不到变更文件行渲染');
+  const row = clientSource.slice(rowStart, rowEnd);
+  assert.match(row, /className: "hud-file-status", "data-kind": file\.status/);
+  assert.match(row, /className: "hud-change-name" \}, parts\.name/);
+  assert.match(row, /className: "hud-change-dir" \}, parts\.dir/);
+  assert.match(row, /className: "hud-file-diff"/);
+  assert.doesNotMatch(row, /hud-file-path/, '整段路径文本已拆成文件名 + 目录');
+
+  // 3) 样式：文件名 500 字重、目录 11.5px 灰色次要色，与「产物」模块的文件行一致。
+  assert.match(clientSource, /\.hud-change-name\{flex:none;max-width:60%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var\(--dsw-alias-label-primary\)\}/);
+  assert.match(clientSource, /\.hud-change-dir\{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11\.5px;line-height:18px;color:var\(--dsw-alias-label-secondary\)\}/);
+});

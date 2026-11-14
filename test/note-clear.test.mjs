@@ -50,9 +50,14 @@ function createContext(storage) {
     Date, JSON, Object, Array, String, Number, Boolean, Set, Math, isNaN,
   });
   const helpers = clip('const NOTES_STORAGE_KEY = "dsh-awesome-hud:notes"', "const CSS_TAG = ")
-    + "const NOTE_STORAGE_VERSION = 3;\n"
+    + "const NOTE_STORAGE_VERSION = 4;\nconst NOTE_DEFAULT_HEIGHT = 180;\n"
     + extractFunction("loadJsonStorage")
-    + extractFunction("persistNoteEntry")
+    + "function t(key) { return key; }\nfunction interpolate(template, values) { return String(template).replace(/\\{(\\w+)\\}/g, function (match, key) { return String(values && values[key] != null ? values[key] : ''); }); }\n"
+    + extractFunction("defaultNoteTitle")
+    + extractFunction("newNoteId")
+    + extractFunction("normalizeNoteDocument")
+    + extractFunction("readNoteDocument")
+    + extractFunction("persistNoteDocument")
     + extractFunction("noteClearAction");
   vm.runInContext(helpers, context);
   return context;
@@ -66,27 +71,42 @@ test("noteClearAction separates empty, confirmation and clear actions", () => {
   assert.equal(context.noteClearAction(null, true), "noop");
 });
 
-test("persistNoteEntry reports successful workspace clearing", () => {
+test("v3 单便笺读取时迁移为一条便笺（legacy 标记）", () => {
+  const storage = memoryStorage({
+    "dsh-awesome-hud:notes": JSON.stringify({ "/ws/a": { text: "old", height: 200, v: 3 } }),
+  });
+  const context = createContext(storage);
+  const doc = context.readNoteDocument("/ws/a");
+  assert.equal(doc.notes.length, 1);
+  assert.equal(doc.notes[0].text, "old");
+  assert.equal(doc.notes[0].title, "noteDefaultTitle");
+  assert.equal(doc.height, 200);
+  assert.equal(doc.legacy, true);
+});
+
+test("persistNoteDocument 写入 v4 文档，清空后仍保留便笺条", () => {
   const storage = memoryStorage({
     "dsh-awesome-hud:notes": JSON.stringify({ "/ws/a": { text: "old", height: 180, v: 3 } }),
   });
   const context = createContext(storage);
-  const result = context.persistNoteEntry({ key: "/ws/a" }, { text: "", height: 180 });
-
+  const doc = context.readNoteDocument("/ws/a");
+  const cleared = { ...doc, notes: doc.notes.map((note) => ({ ...note, text: "" })) };
+  const result = context.persistNoteDocument({ key: "/ws/a" }, cleared);
   assert.equal(result.persisted, true);
-  assert.equal(result.payload.text, "");
-  assert.equal(storage.raw("dsh-awesome-hud:notes")["/ws/a"].text, "");
+  const stored = storage.raw("dsh-awesome-hud:notes")["/ws/a"];
+  assert.equal(stored.v, 4);
+  assert.equal(stored.notes.length, 1);
+  assert.equal(stored.notes[0].text, "");
 });
 
-test("persistNoteEntry reports storage failure without claiming the clear succeeded", () => {
+test("persistNoteDocument 存储失败时返回 persisted=false 且不覆盖旧数据", () => {
   const storage = memoryStorage({
     "dsh-awesome-hud:notes": JSON.stringify({ "/ws/a": { text: "old", height: 180, v: 3 } }),
   }, true);
   const context = createContext(storage);
-  const result = context.persistNoteEntry({ key: "/ws/a" }, { text: "", height: 180 });
-
+  const doc = context.readNoteDocument("/ws/a");
+  const result = context.persistNoteDocument({ key: "/ws/a" }, { ...doc, notes: doc.notes.map((note) => ({ ...note, text: "" })) });
   assert.equal(result.persisted, false);
-  assert.equal(result.payload.text, "");
   assert.equal(storage.raw("dsh-awesome-hud:notes")["/ws/a"].text, "old");
 });
 

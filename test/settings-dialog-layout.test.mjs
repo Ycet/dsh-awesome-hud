@@ -15,7 +15,7 @@ const MODULE_LABELS = Object.fromEntries(MODULE_KEYS.map(key => [key, () => `lab
  * 极简 hooks 运行时：state 按调用顺序保存在同一批槽位里，setState 后由测试重新渲染，
  * 这样「点开关 → 再确认」这类交互可以真实验证，而不是只看初始渲染。
  */
-function createRuntime(primitives) {
+function createRuntime(primitives, options = {}) {
   const slots = [];
   const refs = [];
   let cursor = 0;
@@ -23,8 +23,13 @@ function createRuntime(primitives) {
     // primitives 缺失时 officialControl 返回 null → 走本地回退控件
     primitives,
     Icon: 'Icon',
-    t: key => key,
+    t: key => ({
+      noteWorkspaceCount: '{path} ({count})',
+      noteCapRejected: 'cannot save: {workspaces} limit {count}',
+    }[key] ?? key),
+    interpolate: (template, values) => String(template).replace(/\{(\w+)\}/g, (match, key) => String(values?.[key] ?? '')),
     isImeComposing: () => false,
+    IME_INPUT_PROPS: {},
     suppressNativeDragImage: () => {},
     MODULE_KEYS: [...MODULE_KEYS],
     MODULE_LABELS,
@@ -36,6 +41,17 @@ function createRuntime(primitives) {
     normalizeModuleOrder,
     defaultPanelSettings,
     normalizePanelSettings,
+    // v0.20.0：便笺条数上限（设置卡片 + 保存校验）
+    NOTE_COUNT_MIN: 5,
+    NOTE_COUNT_MAX: 20,
+    defaultNoteSettings: () => ({ maxCount: 5 }),
+    normalizeNoteMaxCount: (value) => {
+      const number = Number(value);
+      return Number.isFinite(number) ? Math.min(20, Math.max(5, Math.round(number))) : 5;
+    },
+    normalizeNoteSettings: (raw) => ({ maxCount: raw !== null && raw !== undefined && Number.isFinite(Number(raw.maxCount)) ? Math.min(20, Math.max(5, Math.round(Number(raw.maxCount)))) : 5 }),
+    noteCountViolations: options.noteViolations ?? (() => []),
+    toast: (message) => { (options.toasts ?? []).push(message); },
     window: { clearTimeout() {}, setTimeout() {} },
     document: { activeElement: null },
   });
@@ -65,10 +81,13 @@ function createRuntime(primitives) {
     `${extractFunction('officialControl')}
      ${extractFunction('HudSwitch')}
      ${extractFunction('HudSegmented')}
+     ${extractFunction('HudNumberStepper')}
      ${extractFunction('SettingRow')}
      ${extractFunction('guideActiveKey')}
      ${extractConst('GUIDE_SECTIONS')}
      ${extractFunction('SettingsGuide')}
+     ${extractFunction('sameOrder')}
+     ${extractFunction('sameSettingsDraft')}
      ${extractFunction('isDefaultDraft')}
      ${extractFunction('contextPinState')}
      ${extractFunction('SettingsDialog')}`,
@@ -101,6 +120,7 @@ function baseProps(overrides = {}) {
     context: defaultContextSettings(),
     order: normalizeModuleOrder(null),
     panel: defaultPanelSettings(),
+    note: { maxCount: 5 },
     balanceAvailable: true,
     usageAvailability: { deepseek: true, opencode: true, codex: true },
     usageReasons: {},
@@ -135,26 +155,33 @@ test('左右分栏：左栏模块清单，右栏三个卡片式设置分区', ()
   assert.equal(nodes(left).filter(node => node.type === 'input').length, MODULE_KEYS.length);
   assert.equal(nodes(left).filter(node => node.props?.role === 'switch').length, 0, '左栏保留勾选框，不换开关');
 
-  // 右栏：面板 / 上下文 / 用量 三张卡片，顺序固定。
+  // 右栏：面板 / 上下文 / 用量 / 便笺 四张卡片，顺序固定（v0.20.0 新增「便笺」）。
   const right = byClass(dialog, 'hud-settings-pane hud-settings-pane-detail')[0];
   const cards = byClass(right, 'hud-settings-section hud-settings-section-card');
-  assert.equal(cards.length, 3);
+  assert.equal(cards.length, 4);
   assert.deepEqual(cards.map(card => textOf(byClass(card, 'hud-settings-section-title')[0])), [
-    'settingsPanelTitle', 'settingsContextTitle', 'settingsUsageTitle',
+    'settingsPanelTitle', 'settingsContextTitle', 'settingsUsageTitle', 'settingsNoteTitle',
   ]);
 });
 
-test('HUD 面板设置：侧位分段控件 + 两处默认开合开关', () => {
+test('HUD 面板设置：样式与侧位分段控件 + 两处默认开合开关', () => {
   const runtime = createRuntime(null);
   const card = byClass(runtime.render(baseProps()), 'hud-settings-section hud-settings-section-card')[0];
   const rows = byClass(card, 'hud-setting-row');
-  // 侧位 + 两处默认开合 = 3 行（悬停展示的「展示方式」行已随功能移除）
-  assert.equal(rows.length, 3);
+  // v0.20.0：样式 + 侧位 + 两处默认开合 = 4 行；样式行必须在侧位行上方。
+  assert.equal(rows.length, 4);
+  assert.deepEqual(rows.map(row => textOf(byClass(row, 'hud-setting-name')[0])), [
+    'settingsPanelStyle', 'settingsPanelSide', 'settingsPanelNewSessionOpen', 'settingsPanelChatOpen',
+  ]);
 
-  // 侧位：本地回退的分段控件（官方 SegmentedControl 缺失时）。
-  const seg = byClass(card, 'hud-seg')[0];
-  assert.ok(seg, '侧位行应渲染分段控件');
-  const options = seg.children.filter(node => node?.props?.role === 'radio');
+  // 样式与侧位：本地回退的分段控件（官方 SegmentedControl 缺失时）。
+  const segs = byClass(card, 'hud-seg');
+  assert.equal(segs.length, 2, '样式与侧位各一个分段控件');
+  const styleOptions = segs[0].children.filter(node => node?.props?.role === 'radio');
+  assert.deepEqual(styleOptions.map(node => textOf(node)), ['settingsPanelStyleCard', 'settingsPanelStyleSidebar']);
+  assert.equal(styleOptions[0].props['aria-checked'], true, 'v0.20.0 默认卡片样式');
+  assert.equal(styleOptions[1].props['aria-checked'], false);
+  const options = segs[1].children.filter(node => node?.props?.role === 'radio');
   assert.deepEqual(options.map(node => textOf(node)), ['settingsPanelSideLeft', 'settingsPanelSideRight']);
   assert.equal(options[0].props['aria-checked'], false);
   assert.equal(options[1].props['aria-checked'], true, '默认右侧展开');
@@ -171,9 +198,11 @@ test('点击侧位分段 / 开关后，确认时把面板草稿一起提交', ()
   const runtime = createRuntime(null);
   runtime.render(baseProps({ onConfirm: (...args) => confirmations.push(args) }));
 
-  // 切到左侧并打开「新建会话页默认展示」。
+  // 切到边栏样式、切到左侧，并打开「新建会话页默认展示」。
   let card = byClass(runtime.element, 'hud-settings-section hud-settings-section-card')[0];
-  byClass(card, 'hud-seg')[0].children[0].props.onClick();
+  byClass(card, 'hud-seg')[0].children[1].props.onClick();
+  card = byClass(runtime.render(), 'hud-settings-section hud-settings-section-card')[0];
+  byClass(card, 'hud-seg')[1].children[0].props.onClick();
   card = byClass(runtime.render(), 'hud-settings-section hud-settings-section-card')[0];
   const switches = nodes(card).filter(node => node.type === 'button' && node.props?.role === 'switch');
   switches[0].props.onClick();
@@ -184,7 +213,7 @@ test('点击侧位分段 / 开关后，确认时把面板草稿一起提交', ()
   confirm.props.onClick();
   assert.equal(confirmations.length, 1);
   const panelDraft = confirmations[0][4];
-  assert.deepEqual(JSON.parse(JSON.stringify(panelDraft)), { side: 'left', newSessionOpen: true, chatOpen: true });
+  assert.deepEqual(JSON.parse(JSON.stringify(panelDraft)), { style: 'sidebar', side: 'left', newSessionOpen: true, chatOpen: true });
 });
 
 test('「恢复默认」把面板设置与「跳转」开关一并复位', () => {
@@ -236,8 +265,8 @@ test('primitives 可用时右栏直接使用官方 Switch / SegmentedControl', (
   const official = nodes(dialog).filter(node => node.type === OfficialSwitch);
   // 面板 2 + 上下文 4（三项展示 + v0.18.7 位置固定）+ 用量 4（三行 + 跳转）= 10
   assert.equal(official.length, 10, '所有启停项都应走官方 Switch');
-  // 侧位 = 1 个分段控件（展示方式已移除）
-  assert.equal(nodes(dialog).filter(node => node.type === OfficialSegmented).length, 1);
+  // v0.20.0：分段控件 2 个（样式 + 侧位；展示方式已移除）
+  assert.equal(nodes(dialog).filter(node => node.type === OfficialSegmented).length, 2);
   // 官方组件必须收到受控 props。
   const first = official[0];
   assert.equal(typeof first.props.checked, 'boolean');
@@ -250,6 +279,11 @@ test('primitives 可用时右栏直接使用官方 Switch / SegmentedControl', (
   assert.deepEqual(JSON.parse(JSON.stringify(seg.props.options.map(option => option.value))), ['left', 'right']);
   assert.equal(seg.props.value, 'right');
   assert.equal(seg.props.id, 'hud-settings-panel-side');
+  // v0.20.0：样式行同样走官方分段控件，默认 card。
+  const styleSeg = segs.find(node => node.props.id === 'hud-settings-panel-style');
+  assert.ok(styleSeg, '样式应使用官方分段控件');
+  assert.deepEqual(JSON.parse(JSON.stringify(styleSeg.props.options.map(option => option.value))), ['card', 'sidebar']);
+  assert.equal(styleSeg.props.value, 'card');
 });
 
 test('用量设置：三项恒列出，未安装/未配置置灰并给出行内原因', () => {
@@ -333,10 +367,19 @@ test('新建会话页不展示的模块：左栏保持真实开关状态，但�
   assert.equal(typeof lockedInput.props.onChange, 'function');
   assert.equal(lockedInput.props.disabled, true, '禁用后原生点击不会触发 onChange');
 
+  // 只有改动后才能保存：这里关掉一个可编辑模块（git），锁定项保持原样。
+  const gitCard = byKey.get(nameOf('git'));
+  const gitInput = nodes(gitCard).find(node => node.type === 'input');
+  gitInput.props.onChange({ target: { checked: false } });
   const dialog = runtime.render();
   const confirm = nodes(dialog).find(node => node.type === 'button' && node.props?.['data-kind'] === 'confirm');
+  assert.equal(confirm.props.disabled, false, '改动后可保存');
   confirm.props.onClick();
-  assert.deepEqual(JSON.parse(JSON.stringify(confirmations[0][0])), defaultModules(), '确认时不得把本页不展示的模块写成关闭');
+  const submitted = JSON.parse(JSON.stringify(confirmations[0][0]));
+  assert.equal(submitted.git, false);
+  for (const key of ['context', 'subagents', 'tasks', 'plans']) {
+    assert.equal(submitted[key], true, `本页不展示的 ${key} 不得被写成关闭`);
+  }
 });
 
 test('锁定项保留用户真实的关闭状态（不强行改成启用）', () => {
@@ -349,4 +392,121 @@ test('锁定项保留用户真实的关闭状态（不强行改成启用）', ()
   assert.equal(input.props.checked, false, '真实设置为关闭就显示关闭（只置灰，不改值）');
   assert.equal(input.props.disabled, true);
   assert.equal(taskCard.props['data-off'], true);
+});
+
+test('便笺设置卡片：数字步进器 5–20，确认时随设置一起提交 note', () => {
+  const calls = [];
+  const runtime = createRuntime(null);
+  const dialog = runtime.render(baseProps({ onConfirm: (...args) => calls.push(args) }));
+  const cards = byClass(dialog, 'hud-settings-section hud-settings-section-card');
+  const noteCard = cards.find(card => textOf(byClass(card, 'hud-settings-section-title')[0]) === 'settingsNoteTitle');
+  assert.ok(noteCard, '右栏应有「便笺」设置卡片');
+  const rows = byClass(noteCard, 'hud-setting-row');
+  assert.equal(rows.length, 1, '便笺卡片只有「便笺条数上限」一行');
+  assert.match(textOf(rows[0]), /settingsNoteMax/);
+  assert.equal(byClass(noteCard, 'hud-number-stepper').length, 1);
+  const valueInput = nodes(noteCard).find(node => node.type === 'input' && node.props?.className === 'hud-number-input');
+  assert.equal(valueInput.props.value, '5');
+  assert.equal(valueInput.props.min, 5);
+  assert.equal(valueInput.props.max, 20);
+  // 加号到 6；边界按钮禁用。
+  const steps = nodes(noteCard).filter(node => node.type === 'button' && node.props?.className === 'hud-number-step');
+  assert.equal(steps.length, 2);
+  assert.equal(steps[0].props.disabled, true, '已在最小值时减号禁用');
+  steps[1].props.onClick();
+  const next = runtime.render();
+  const card2 = byClass(next, 'hud-settings-section hud-settings-section-card').find(card => textOf(byClass(card, 'hud-settings-section-title')[0]) === 'settingsNoteTitle');
+  const input2 = nodes(card2).find(node => node.type === 'input' && node.props?.className === 'hud-number-input');
+  assert.equal(input2.props.value, '6', '加号后数值为 6');
+  const confirmButton = nodes(next).find(node => node.type === 'button' && node.props?.['data-kind'] === 'confirm');
+  confirmButton.props.onClick();
+  assert.equal(calls.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[0][5])), { maxCount: 6 }, '确认时提交 note.maxCount');
+});
+
+test('便笺上限降低导致工作区超限：整次保存被拒绝并提示工作区与条数', () => {
+  const toasts = [];
+  const calls = [];
+  const runtime = createRuntime(null, {
+    noteViolations: (maxCount) => (maxCount < 8 ? [{ key: '/ws/alpha', count: 8 }] : []),
+    toasts,
+  });
+  const dialog = runtime.render(baseProps({ note: { maxCount: 5 }, onConfirm: (...args) => calls.push(args) }));
+  // 先改动便笺上限（5 → 6）才允许保存，并触发「上限低于现有条数」校验。
+  const noteCard = byClass(dialog, 'hud-settings-section hud-settings-section-card').find(card => textOf(byClass(card, 'hud-settings-section-title')[0]) === 'settingsNoteTitle');
+  const steps = nodes(noteCard).filter(node => node.type === 'button' && node.props?.className === 'hud-number-step');
+  steps[1].props.onClick();
+  const dialog2 = runtime.render();
+  const confirmButton = nodes(dialog2).find(node => node.type === 'button' && node.props?.['data-kind'] === 'confirm');
+  assert.equal(confirmButton.props.disabled, false, '改动后可点');
+  confirmButton.props.onClick();
+  assert.equal(calls.length, 0, '超限时不调用 onConfirm');
+  assert.equal(toasts.length, 1);
+  assert.match(toasts[0], /cannot save/);
+  assert.match(toasts[0], /\/ws\/alpha/);
+  assert.match(toasts[0], /8/);
+});
+
+test('「保存设置」未改动时置灰；只改其它设置时便笺上限校验不再拦截保存', () => {
+  // 常量式违规：只要执行便笺上限校验就必然失败（复现旧版「点了没反应」）。
+  const calls = [];
+  const runtime = createRuntime(null, { noteViolations: () => [{ key: '/ws/alpha', count: 8 }] });
+  let dialog = runtime.render(baseProps({ note: { maxCount: 5 }, onConfirm: (...args) => calls.push(args) }));
+  const confirm = () => nodes(dialog).find(node => node.type === 'button' && node.props?.['data-kind'] === 'confirm');
+  assert.equal(confirm().props.disabled, true, '未改动时置灰');
+  confirm().props.onClick();
+  assert.equal(calls.length, 0);
+
+  // 只关闭「HUD 面板」里的一个开关（不改便笺上限）→ 可保存，且不再被便笺条数拦截。
+  const panelCard = byClass(dialog, 'hud-settings-section hud-settings-section-card')[0];
+  const toggle = nodes(panelCard).find(node => node.props?.role === 'switch' && node.type === 'button');
+  assert.ok(toggle, 'HUD 面板设置应有开关');
+  toggle.props.onClick();
+  dialog = runtime.render();
+  assert.equal(confirm().props.disabled, false, '改动后可点');
+  confirm().props.onClick();
+  assert.equal(calls.length, 1, '只改其它设置时必须能保存');
+  assert.equal(calls[0].length, 6);
+});
+
+test('调整便笺上限且工作区超限时才拦截保存，并提示具体工作区', () => {
+  const calls = [];
+  const toasts = [];
+  const runtime = createRuntime(null, {
+    noteViolations: (maxCount) => (maxCount < 8 ? [{ key: '/ws/alpha', count: 8 }] : []),
+    toasts,
+  });
+  let dialog = runtime.render(baseProps({ note: { maxCount: 5 }, onConfirm: (...args) => calls.push(args) }));
+  const noteCard = () => byClass(dialog, 'hud-settings-section hud-settings-section-card').find(card => textOf(byClass(card, 'hud-settings-section-title')[0]) === 'settingsNoteTitle');
+  // 5 → 6：上限确实改了，且低于 /ws/alpha 的 8 条 → 拦截。
+  nodes(noteCard()).filter(node => node.type === 'button' && node.props?.className === 'hud-number-step')[1].props.onClick();
+  dialog = runtime.render();
+  const confirm = nodes(dialog).find(node => node.type === 'button' && node.props?.['data-kind'] === 'confirm');
+  assert.equal(confirm.props.disabled, false);
+  confirm.props.onClick();
+  assert.equal(calls.length, 0, '超限时不保存');
+  assert.equal(toasts.length, 1);
+  assert.match(toasts[0], /\/ws\/alpha/);
+  assert.match(toasts[0], /8/);
+});
+
+test('上下文与用量设置行都带上简短说明文案', () => {
+  const runtime = createRuntime(null);
+  const dialog = runtime.render(baseProps());
+  const cards = byClass(dialog, 'hud-settings-section hud-settings-section-card');
+  const cardOf = title => cards.find(card => textOf(byClass(card, 'hud-settings-section-title')[0]) === title);
+  const hintOf = (card, index) => textOf(byClass(byClass(card, 'hud-setting-row')[index], 'hud-setting-hint')[0]);
+  const contextCard = cardOf('settingsContextTitle');
+  assert.deepEqual([
+    hintOf(contextCard, 0), hintOf(contextCard, 1), hintOf(contextCard, 2), hintOf(contextCard, 3),
+  ], [
+    'settingsContextStatsHint', 'settingsContextUsageHint', 'settingsContextBarStyleHint', 'settingsContextPinHint',
+  ]);
+  const usageCard = cardOf('settingsUsageTitle');
+  assert.deepEqual([hintOf(usageCard, 0), hintOf(usageCard, 1), hintOf(usageCard, 2)], [
+    'settingsUsageDeepseekHint', 'settingsUsageOpencodeHint', 'settingsUsageCodexHint',
+  ]);
+  // 「展示跳转按钮」行也有说明。
+  const jumpRow = byClass(usageCard, 'hud-setting-row').at(-1);
+  assert.equal(textOf(byClass(jumpRow, 'hud-setting-hint')[0]), 'settingsUsageJumpHint');
 });

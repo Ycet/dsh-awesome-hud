@@ -75,7 +75,8 @@ test("说明页文案：中英字典 guide 键成对，便笺关键键仍在", (
   }
   const note = sections.find((section) => section.key === "note");
   assert.ok(note.groups[1].items.includes("guideNoteImportEnabled"), "便笺功能组应包含导入前置条件一条");
-  assert.ok(note.groups[1].items.length <= 8, "便笺功能组仍不超过 8 条");
+  // v0.20.0：多便笺新增列表/编辑/拖动/上限等条目，功能组上限放宽到 12 条。
+  assert.ok(note.groups[1].items.length <= 12, "便笺功能组仍不超过 12 条");
 });
 
 test("说明页文案：不再出现实现细节与旧写法", () => {

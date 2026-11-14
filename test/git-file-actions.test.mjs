@@ -18,7 +18,9 @@ test('HUD 面板上下滑动不展示滚动条（v0.17.0）', () => {
 
 test('文件行左键先开官方「第 N 轮改动」review，再回退 diff tab；右键弹原菜单（v0.17.0）', () => {
   // 左键不再走 openFileMenu；右键才 preventDefault 并打开菜单。
-  assert.match(source, /const renderFileRow = \(file, group\) => react\.createElement\("button", \{/);
+  // v0.20.0：renderFileRow 改为块级函数（先拆文件名 / 相对目录，再渲染按钮）。
+  assert.match(source, /const renderFileRow = \(file, group\) => \{/);
+  assert.match(source, /const parts = splitRelativePath\(file\.path\);/);
   assert.match(source, /onClick: \(\) => openFileDiff\(file, group\)/);
   assert.match(source, /onContextMenu: \(event\) => \{\s*event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*openFileMenu\(event, file, group\);/s);
   assert.doesNotMatch(source, /title: file\.path/);
