@@ -7,8 +7,13 @@ const source = readFileSync(new URL('../../lib/client.js', import.meta.url), 'ut
 // React 适配器仅记录元素与 effect；测试手动重渲染，避免依赖桌面进程或网络。
 export function hudClient({ state = { byId: {} }, workspaces = [], pinnedSessions = [], current, windows = false, fullscreen = false,
   storage = {}, workspaceApi = {}, extraServices = {}, primitives = null, querySelector = () => null,
+  // v0.19.0：便笺图片走 IndexedDB / URL.createObjectURL，测试可按需注入这两个平台对象。
+  globals = {},
   respond = () => ({ ok: true, servers: [], total: 0, enabled: 0, isRepo: true }) } = {}) {
   const effects = [], styles = [], calls = [], slots = new Map(), intervals = new Map(), domListeners = new Set();
+  // v0.19.0：同一 slot 可能有多个注册（如会话头部的 HUD 按钮 + 展示方式按钮），
+  // slots 仍按「后注册覆盖」保留旧语义，另用 slotEntries 保留全部注册供断言。
+  const slotEntries = [];
   // v0.18.5：捕获 register 传入的中英字典，供「文案键齐全」类断言使用。
   const dictionaries = [];
   let sidebarEffect;
@@ -36,7 +41,10 @@ export function hudClient({ state = { byId: {} }, workspaces = [], pinnedSession
       if (/styles|dictionaries/.test(label)) fn();
       if (label?.includes('sidebar watcher')) sidebarEffect = fn;
     },
-    slots: { inject: (name, fn) => fn(), register: (meta, Component) => slots.set(meta.name, Component) },
+    slots: {
+      inject: (name, fn) => fn(),
+      register: (meta, Component) => { slotEntries.push({ meta, Component }); slots.set(meta.name, Component); },
+    },
   };
   const document = {
     createElement: () => ({ dataset: {}, remove() {} }), head: { appendChild: tag => styles.push(tag.textContent) },
@@ -59,7 +67,7 @@ export function hudClient({ state = { byId: {} }, workspaces = [], pinnedSession
   };
   const reactDom = { createPortal: (node) => node };
   vm.runInNewContext(source, {
-    window, document, URLSearchParams, setTimeout, clearTimeout,
+    window, document, URLSearchParams, setTimeout, clearTimeout, ...globals,
     MutationObserver: class {
       constructor(callback) { this.callback = callback; }
       observe() { domListeners.add(this.callback); }
@@ -86,7 +94,7 @@ export function hudClient({ state = { byId: {} }, workspaces = [], pinnedSession
     effects.length = 0;
     return element.type(element.props);
   };
-  return { styles, calls, effects, intervals, services, persisted, dictionaries, root, button, panel,
+  return { styles, calls, effects, intervals, services, persisted, dictionaries, root, button, panel, slotEntries,
     // 模拟「发送首条消息后进入真实会话」：同时更新列表 current 与主视图绑定。
     setSession: (id) => { state.current = id; binding.key = id; },
     runPolls: () => effects.filter(fn => /call\("(?:git|mcp)"/.test(String(fn))).map(fn => fn()),

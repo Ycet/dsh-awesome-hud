@@ -30,7 +30,7 @@ test("面板设置默认值：右侧展开、新建会话页隐藏、聊天会�
   assert.deepEqual(defaultSettings().panel, defaultPanelSettings());
 });
 
-test("normalizePanelSettings 收敛坏输入：未知侧位/非布尔值回到默认", () => {
+test("normalizePanelSettings 收敛坏输入：未知侧位/展示方式、非布尔值回到默认", () => {
   for (const bad of [null, undefined, 0, "left", ["left"], true]) {
     assert.deepEqual(normalizePanelSettings(bad), defaultPanelSettings());
   }
@@ -43,6 +43,8 @@ test("normalizePanelSettings 收敛坏输入：未知侧位/非布尔值回到�
     normalizePanelSettings({ side: "left", newSessionOpen: true, chatOpen: false }),
     { side: "left", newSessionOpen: true, chatOpen: false },
   );
+  // 已移除的 displayMode 字段不再被回写（旧 profile 里残留也直接丢弃）。
+  assert.deepEqual(normalizePanelSettings({ displayMode: "hover" }), defaultPanelSettings());
   // 旧 profile（完全没有 panel 段）升级后即为默认值
   assert.deepEqual(normalizeSettings({ modules: { git: false } }).panel, defaultPanelSettings());
   assert.deepEqual(panelSettingsOf({}), defaultPanelSettings());
@@ -52,6 +54,7 @@ test("normalizePanelSettings 收敛坏输入：未知侧位/非布尔值回到�
 test("sanitizePanelPatch：只接受白名单字段与合法取值，坏输入整包拒绝", () => {
   assert.deepEqual(sanitizePanelPatch({ side: "left" }), { patch: { side: "left" }, changed: false });
   assert.deepEqual(sanitizePanelPatch({ newSessionOpen: true, chatOpen: false }), { patch: { newSessionOpen: true, chatOpen: false }, changed: false });
+  assert.equal(sanitizePanelPatch({ displayMode: "hover" }), null, "displayMode 已移除，不再是合法 patch");
   assert.equal(sanitizePanelPatch({ side: "up" }), null);
   assert.equal(sanitizePanelPatch({ side: 1 }), null);
   assert.equal(sanitizePanelPatch({ newSessionOpen: "yes" }), null);
@@ -87,6 +90,7 @@ test("客户端与 host 的面板默认值/收敛规则完全一致", () => {
   const samples = [
     null, {}, { side: "left" }, { side: "up" }, { side: "left", newSessionOpen: true, chatOpen: false },
     { newSessionOpen: "yes" }, { side: "right", chatOpen: 0 },
+    { displayMode: "hover" }, { side: "left", side2: "x" },
   ];
   for (const sample of samples) {
     assert.deepEqual(

@@ -13,7 +13,7 @@ test('点击子代理任务通过官方资源在右侧栏打开，保持主会�
     sessions: { openSubagent: () => assert.fail('不应使用主会话导航兜底') },
   };
   const scope = vm.createContext({ ctx: { get: name => services[name] }, t: key => key, URLSearchParams });
-  vm.runInContext(clip('async function navigateSubagent', 'const NOTE_MAX_LEN'), scope);
+  vm.runInContext(clip('async function navigateSubagent', 'const NOTE_STORAGE_VERSION'), scope);
   await scope.navigateSubagent({ parentId: 'direct parent/?', id: 'child/?', mode: 'continuable' });
   const [[address, options]] = calls;
   const url = new URL(address);
@@ -29,7 +29,7 @@ test('子代理保留各模式和直接父会话，缺失侧栏及打开失败�
   const calls = [];
   const services = { sidebarRight: { openResource: address => calls.push(address) } };
   const scope = vm.createContext({ ctx: { get: name => services[name] }, t: key => key, URLSearchParams });
-  vm.runInContext(clip('async function navigateSubagent', 'const NOTE_MAX_LEN'), scope);
+  vm.runInContext(clip('async function navigateSubagent', 'const NOTE_STORAGE_VERSION'), scope);
   const entry = { parentId: 'nested-parent', id: 'child', mode: 'continuable' };
   for (const mode of ['continuable', 'one-shot', 'unknown']) {
     await scope.navigateSubagent({ ...entry, mode });

@@ -181,3 +181,22 @@ test('会话改名走 ISession.rename，成功后列表标题自动刷新', asyn
   await session.props.onRename('Renamed');
   assert.deepEqual([...renames], ['Renamed']);
 });
+
+test('v0.18.7：会话名称的悬浮/点击热区覆盖整行（右侧状态区与图钉仍占位）', () => {
+  // 名称按钮从「按文字收缩」改为撑满整行剩余宽度；长度仍由 ellipsis 处理，高度不变。
+  assert.match(source, /\.hud-session-name\{flex:1 1 auto\}/);
+  assert.match(source, /\.hud-session-name\{box-sizing:border-box;display:block;font:inherit;font-weight:500;font-size:13px;line-height:20px;min-width:0;max-width:100%;flex:0 1 auto;/);
+  // 工作区名称本来就是整行（flex:1 1 auto），一并写明防止回归
+  assert.match(source, /\.hud-workspace-name\{flex:1 1 auto\}/);
+  // 右侧状态胶囊靠 margin-left:auto 仍在最右，不会被名称按钮挤走
+  assert.match(source, /\.hud-session-name-row \.hud-chip\{margin-left:auto\}/);
+});
+
+test('v0.18.7：会话菜单「复制名称」文案与上一项同一大小写规则', () => {
+  const client = hudClient();
+  const [dicts] = client.dictionaries;
+  assert.equal(dicts.en.sessionMenuCopyName, 'Copy Session Name');
+  assert.equal(dicts.en.sessionMenuCopyId, 'Copy Session ID');
+  // 中文没有大小写问题，保持原文案
+  assert.equal(dicts.zh.sessionMenuCopyName, '复制会话名称');
+});

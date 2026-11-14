@@ -107,7 +107,7 @@ test("settings 服务缺失时，进程内降级设置可被后续读取", async
   const restored = await context.handler(true, null);
   assert.equal(restored.modules.git, false);
   assert.equal(restored.usage.codex, false);
-  assert.deepEqual(JSON.parse(JSON.stringify(restored.context)), { barStyle: "segmented", showStats: false, showUsage: true });
+  assert.deepEqual(JSON.parse(JSON.stringify(restored.context)), { barStyle: "segmented", showStats: false, showUsage: true, pinned: false });
   // v0.18.2：面板设置在进程内降级快照里同样可读回。
   assert.deepEqual(JSON.parse(JSON.stringify(restored.panel)), { side: "left", newSessionOpen: true, chatOpen: true });
 });

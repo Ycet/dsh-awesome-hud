@@ -252,11 +252,11 @@ test('新建会话页：设置弹窗读真实模块开关（不是本页过滤�
   const { hudClient, moduleOf } = await import('./helpers/client-harness.mjs');
   const openPanel = client => { client.button().props.onClick(); return client.panel(); };
 
-  // 新建会话页（无会话）：9 个模块卡片全部为启用，其中 4 个只读
+  // 新建会话页（无会话）：10 个模块卡片全部为启用，其中 5 个只读
   const blank = hudClient({});
   const blankSession = moduleOf(openPanel(blank), 'SessionModule');
   assert.deepEqual(JSON.parse(JSON.stringify(blankSession.props.modules)), defaultModules(), '新建会话页也必须拿到真实模块开关，不能是过滤后的 false');
-  assert.deepEqual([...blankSession.props.lockedModules].sort(), ['context', 'plans', 'subagents', 'tasks']);
+  assert.deepEqual([...blankSession.props.lockedModules].sort(), ['context', 'outputs', 'plans', 'subagents', 'tasks']);
 
   // 会话页：没有只读项（会话页没有悬浮入口，直接用该会话的展开记忆打开面板）
   const chat = hudClient({

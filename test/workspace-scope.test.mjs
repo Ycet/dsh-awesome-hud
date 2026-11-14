@@ -298,7 +298,7 @@ test("panelVisibleModules 在新建会话页只放行有数据源的模块", () 
   vm.runInContext(scopeHelpers + moduleConstants, moduleContext);
 
   const all = moduleContext.panelVisibleModules(null, false);
-  assert.deepEqual(Array.from(Object.keys(all)).sort(), ["balance", "context", "git", "mcp", "note", "plans", "subagents", "tasks", "todo"]);
+  assert.deepEqual(Array.from(Object.keys(all)).sort(), ["balance", "context", "git", "mcp", "note", "outputs", "plans", "subagents", "tasks", "todo"]);
   assert.equal(Array.from(Object.values(all)).every(Boolean), true);
 
   // 新建会话页：上下文/子代理/任务/计划清单无数据源，恒不展示
@@ -307,6 +307,8 @@ test("panelVisibleModules 在新建会话页只放行有数据源的模块", () 
   assert.equal(hero.subagents, false);
   assert.equal(hero.tasks, false);
   assert.equal(hero.plans, false);
+  // v0.19.1：「产物」依赖会话改动记录，新建会话页同样不展示
+  assert.equal(hero.outputs, false);
   assert.equal(hero.note, true);
   assert.equal(hero.todo, true);
   assert.equal(hero.mcp, true);

@@ -22,7 +22,7 @@ async function clientSource() {
 function loadClientOrderHelpers() {
   const context = vm.createContext({ Set });
   vm.runInContext(
-    `const MODULE_KEYS = ["context", "balance", "git", "subagents", "tasks", "plans", "mcp", "note", "todo"];
+    `const MODULE_KEYS = ["context", "balance", "git", "outputs", "subagents", "tasks", "plans", "mcp", "note", "todo"];
      ${extractFunction("defaultModuleOrder")}
      ${extractFunction("normalizeModuleOrder")}`,
     context,
@@ -53,12 +53,13 @@ test("normalizeModuleOrder 收敛坏输入：非数组/未知键/重复/缺失",
   // 未知键与非字符串被丢弃，重复只保留首次，末尾补齐缺失键
   const messy = ["git", "nope", "context", "git", 42, null, "todo"];
   const normalized = normalizeModuleOrder(messy);
-  assert.deepEqual(normalized.slice(0, 3), ["git", "context", "todo"]);
+  // v0.19.1：补齐后按锚点落位，新增的 outputs 紧跟在 git 之后
+  assert.deepEqual(normalized.slice(0, 4), ["git", "outputs", "context", "todo"]);
   assert.equal(new Set(normalized).size, MODULE_KEYS.length, "结果必须是完整排列");
   assert.deepEqual([...normalized].sort(), [...MODULE_KEYS].sort());
 
   // 完整且合法的顺序原样保留
-  const custom = ["todo", "note", "mcp", "plans", "tasks", "subagents", "git", "balance", "context"];
+  const custom = ["todo", "note", "mcp", "plans", "tasks", "subagents", "git", "outputs", "balance", "context"];
   assert.deepEqual(normalizeModuleOrder(custom), custom);
 });
 
@@ -70,7 +71,7 @@ test("sanitizeOrderPatch 拒绝空数组/非数组，合法输入收敛为完整
 
   const result = sanitizeOrderPatch(["git", "context"]);
   assert.notEqual(result, null);
-  assert.deepEqual(result.patch.slice(0, 2), ["git", "context"]);
+  assert.deepEqual(result.patch.slice(0, 2), ["git", "outputs"], "缺失的 outputs 按锚点落在 git 之后");
   assert.equal(result.patch.length, MODULE_KEYS.length, "补齐为完整排列");
 });
 
@@ -248,6 +249,19 @@ test("HUD 设置弹窗：模块卡片列表、拖动排序、恢复默认均已�
   assert.match(source, /if \(previewOrder !== null\) \{\n\t+setDragSettling\(true\);\n\t+setOrderDraft\(mergePreviewOrder\(orderDraft, orderedKeys, previewOrder\)\);/);
   // 落盘当帧关闭过渡，避免「新布局 + 旧位移」二次滑动。
   assert.match(source, /"data-settling": dragSettling,/);
+  // v0.18.7：拖动期间在 document 捕获阶段接管 dragover/drop，松手点落在列表外也能落到首位/末位；
+  // 列表自身收不到 drop 时由 dragend 兜底提交，不再「拖到首位又弹回原位」。
+  assert.match(source, /const dragOverAt = \(event\) => \{/);
+  assert.match(source, /const dragOverList = \(event\) => \{ dragOverAt\(event\); \};/);
+  assert.match(source, /const commitDragOrder = \(\) => \{/);
+  assert.match(source, /document\.addEventListener\("dragover", onOver, true\);/);
+  assert.match(source, /document\.addEventListener\("drop", onDrop, true\);/);
+  assert.match(source, /document\.removeEventListener\("dragover", onOver, true\);/);
+  assert.match(source, /document\.removeEventListener\("drop", onDrop, true\);/);
+  assert.match(source, /const endDrag = \(\) => \{\n\t+if \(!droppedRef\.current\) commitDragOrder\(\);/);
+  assert.match(source, /const cancelDrag = \(\) => \{/);
+  // 「恢复默认」不提交拖动的半成品，只清理拖动状态。
+  assert.match(source, /setPanelDraft\(defaultPanelSettings\(\)\);\n\t+cancelDrag\(\);/);
   assert.match(source, /\.hud-settings-list\[data-settling=true\] \.hud-settings-card\{transition:none\}/);
   assert.match(source, /transition:border-color \.12s var\(--ds-ease-in-out,ease\),background \.12s var\(--ds-ease-in-out,ease\),opacity \.12s var\(--ds-ease-in-out,ease\),transform \.16s var\(--ds-ease-in-out,ease\)/);
 

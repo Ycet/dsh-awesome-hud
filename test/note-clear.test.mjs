@@ -90,17 +90,21 @@ test("persistNoteEntry reports storage failure without claiming the clear succee
   assert.equal(storage.raw("dsh-awesome-hud:notes")["/ws/a"].text, "old");
 });
 
-test("NoteModule renders a disabled clear button before Add to chat", () => {
+test("NoteModule renders the clear / import / add buttons in order", () => {
   const actions = source.indexOf('className: "hud-note-buttons"');
   const clear = source.indexOf('t(clearConfirming ? "noteClearConfirm" : "noteClear")', actions);
+  const importFromChat = source.indexOf('t("noteImportFromChat")', actions);
   const send = source.indexOf('t("noteSendToChat")', actions);
 
   assert.ok(actions > 0);
   assert.ok(clear > actions);
-  assert.ok(send > clear);
-  assert.match(source, /disabled: note\.text === ""/);
+  // v0.19.0：「从聊天导入」固定在「添加至聊天」左侧
+  assert.ok(importFromChat > clear);
+  assert.ok(send > importFromChat);
+  // 文字与图片都为空时才置灰（只有图片同样可清空）
+  assert.match(source, /disabled: note\.text === "" && images\.length === 0/);
   assert.match(source, /"aria-label": t\(clearConfirming \? "noteClearConfirm" : "noteClear"\)/);
-  assert.match(source, /className: clearConfirming \? "hud-btn-small hud-note-clear-confirm" : "hud-btn-small"/);
+  assert.match(source, /className: clearConfirming \? "hud-btn-small hud-note-clear hud-note-clear-confirm" : "hud-btn-small hud-note-clear"/);
 });
 
 test("NoteModule implements the requested confirmation cancellation and synchronization", () => {
@@ -118,6 +122,10 @@ test("NoteModule implements the requested confirmation cancellation and synchron
 
 test("clear confirmation styling is theme-aware and uses the error color", () => {
   assert.match(source, /\.hud-note-clear-confirm\{border:1px solid var\(--dsw-alias-state-error-primary\);background:var\(--hud-surface-bg\);color:var\(--dsw-alias-state-error-primary\)\}/);
-  assert.match(source, /\.hud-note-buttons\{display:flex;align-items:center;gap:6px\}/);
+  // v0.19.0：按钮区固定两行，且容器铺满便笺内容宽度（不再收缩到内容宽、右对齐）
+  assert.match(source, /\.hud-note-buttons\{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:nowrap;min-width:0;flex:1 1 100%\}/);
+  assert.match(source, /\.hud-note-buttons\[data-stacked\] \.hud-note-clear\{order:-1;flex:1 0 100%;justify-content:center\}/);
+  // 外层容器只占位，不应再对收缩后的容器做右对齐（否则两行按钮会被推到右边、左边留空）
+  assert.match(source, /\.hud-note-actions\{display:flex;align-items:center;gap:6px;flex-wrap:wrap\}/);
   assert.ok((source.match(/noteClear:/g) ?? []).length >= 2, "Chinese and English clear labels must exist");
 });

@@ -236,3 +236,14 @@ test('菜单渲染：portal 遮罩 + role=menu + 置灰项带原因，点击项�
   assert.deepEqual(fired, ['run']);
   assert.equal(disabled.closed.length, 0);
 });
+
+test('v0.18.7：复制路径项前有分割线，与改名/显示分组', () => {
+  const { workspaceMenuItems } = menuContext();
+  const items = workspaceMenuItems({ t, workspacePath: '/work/session', canRename: true, desktopAvailable: true, fileManager: 'finder' });
+  // 三项顺序不变，只有复制项前插入分割线（HudMenu 已支持 separatorBefore）
+  assert.deepEqual([...items.map((item) => item.key)], ['rename', 'reveal', 'copy-path']);
+  assert.deepEqual([...items.map((item) => item.separatorBefore === true)], [false, false, true]);
+  // 分割线复用现有样式，不新增类名
+  assert.equal(source.includes('.hud-menu-divider'), false);
+  assert.match(source, /\.hud-git-menu-divider\{flex:none;height:1px;/);
+});

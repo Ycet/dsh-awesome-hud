@@ -73,6 +73,7 @@ function createRuntime(primitives = null) {
       extractFunction('SettingRow'),
       extractFunction('SettingsGuide'),
       extractFunction('isDefaultDraft'),
+      extractFunction('contextPinState'),
       extractFunction('SettingsDialog'),
     ].join('\n'),
     context,
@@ -176,9 +177,9 @@ test('点「使用说明」切到说明页，再点「HUD 设置」切回（随�
 test('说明页：11 个模块小节，按「展示 / 功能 / 设置」分组且与大纲一致', () => {
   const runtime = createRuntime();
   const sections = runtime.sections;
-  assert.equal(sections.length, 11, '每个模块一个小节');
+  assert.equal(sections.length, 12, '每个模块一个小节');
   assert.deepEqual(sections.map(section => section.key), [
-    'panel', 'session', 'context', 'usage', 'git', 'subagents', 'tasks', 'plans', 'mcp', 'note', 'todo',
+    'panel', 'session', 'context', 'usage', 'git', 'outputs', 'subagents', 'tasks', 'plans', 'mcp', 'note', 'todo',
   ]);
 
   let dialog = runtime.render(baseProps());
@@ -208,10 +209,13 @@ test('说明页：11 个模块小节，按「展示 / 功能 / 设置」分组�
       assert.equal(textOf(label), expectedLabel, `${section.key}/${group.kind} 分组标签`);
       const items = byClass(groups[groupIndex], 'hud-guide-item');
       assert.deepEqual(items.map(textOf), group.items, `${section.key}/${group.kind} 的要点应与大纲一致`);
-      assert.ok(items.length >= 1 && items.length <= 6, `${section.key}/${group.kind} 要点数量应克制（1–6 条）`);
+      // v0.19.0：便笺一节新增图片 / 从聊天导入等能力（`/` 与 `@` 补全已移除），「功能」分组上限放宽到 8 条。
+      assert.ok(items.length >= 1 && items.length <= 8, `${section.key}/${group.kind} 要点数量应克制（1–8 条）`);
       total += items.length;
     }
-    assert.ok(total >= 3 && total <= 12, `${section.key} 整节要点总数应为 3–12 条（保持简短）`);
+    // v0.19.0：panel 一节同时讲「固定展示」与「悬停展示」，上限放宽到 16 条；其余仍按 12 条克制。
+    const limit = section.key === 'panel' ? 16 : 12;
+    assert.ok(total >= 3 && total <= limit, `${section.key} 整节要点总数应为 3–${limit} 条（保持简短）`);
   }
 });
 

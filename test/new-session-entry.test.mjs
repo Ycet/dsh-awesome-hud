@@ -419,6 +419,7 @@ test("悬浮按钮仅在新建会话页渲染，且与面板共用同一派生�
 
 test("入口位于右侧工具区，面板与存储键保持兼容", () => {
   const registrations = Array.from(source.matchAll(/ctx\.slots\.inject\("([^"]+)"/g), match => match[1]);
+  // v0.19.0：展示方式切换按钮移入面板，会话头部工具条只剩 HUD 开合按钮。
   assert.deepEqual(registrations.sort(), ["conversation.session.header.utilities", "shell.overlay"]);
   // 根组件需要列表和当前视图；漏声明依赖会让新建页入口或面板整体失效。
   assert.match(source, /const inject = \["slots", "locale", "sessions", "uiSession"\];/);

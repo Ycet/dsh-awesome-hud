@@ -6,7 +6,7 @@ import {
   MODULE_KEYS, defaultModules, defaultUsageDisplay, defaultContextSettings, normalizeContextSettings,
   normalizeModuleOrder, defaultPanelSettings, normalizePanelSettings,
 } from '../lib/settings.js';
-import { extractFunction, extractConst, nodes } from './helpers/client-harness.mjs';
+import { extractFunction, extractConst, nodes, clientSource as clientSource } from './helpers/client-harness.mjs';
 
 const USAGE_SETTING_KEYS = ['deepseek', 'opencode', 'codex', 'showJump'];
 const MODULE_LABELS = Object.fromEntries(MODULE_KEYS.map(key => [key, () => `label:${key}`]));
@@ -70,6 +70,7 @@ function createRuntime(primitives) {
      ${extractConst('GUIDE_SECTIONS')}
      ${extractFunction('SettingsGuide')}
      ${extractFunction('isDefaultDraft')}
+     ${extractFunction('contextPinState')}
      ${extractFunction('SettingsDialog')}`,
     context,
   );
@@ -147,6 +148,7 @@ test('HUD 面板设置：侧位分段控件 + 两处默认开合开关', () => {
   const runtime = createRuntime(null);
   const card = byClass(runtime.render(baseProps()), 'hud-settings-section hud-settings-section-card')[0];
   const rows = byClass(card, 'hud-setting-row');
+  // 侧位 + 两处默认开合 = 3 行（悬停展示的「展示方式」行已随功能移除）
   assert.equal(rows.length, 3);
 
   // 侧位：本地回退的分段控件（官方 SegmentedControl 缺失时）。
@@ -213,6 +215,18 @@ test('「恢复默认」把面板设置与「跳转」开关一并复位', () =>
   assert.deepEqual(JSON.parse(JSON.stringify(contextDraft)), defaultContextSettings());
 });
 
+test('设置弹窗高度固定：右栏独立滚动，不因新增设置行变高', () => {
+  // v0.19.0：展示方式新增一行后，弹窗体高度由 CSS 固定（约等于 0.18.7 的内容高度），
+  // 右栏自己滚动承载超长内容，弹窗本身不再随内容增高。
+  assert.match(clientSource, /\.hud-settings-modal-card\{width:min\(760px,calc\(100vw - 40px\)\);height:min\(760px,calc\(100vh - 24px\)\);max-height:calc\(100vh - 24px\)\}/);
+  assert.match(clientSource, /\.hud-settings-body\{flex:1 1 auto;min-height:0;position:relative;display:flex;align-items:stretch\}/);
+  // 右栏可滚动、左栏不滚动（保持原设计）
+  assert.match(clientSource, /\.hud-settings-pane-detail\{flex:1 1 auto;min-width:0;overflow-y:auto;overscroll-behavior:contain;/);
+  assert.match(clientSource, /\.hud-settings-pane-modules\{flex:none;width:240px;display:flex;flex-direction:column;gap:8px;padding:12px 12px 12px 14px;overflow:hidden;/);
+  // 右栏卡片之间保留间距，滚动时不会贴边
+  assert.match(clientSource, /\.hud-settings-pane-detail\{[^}]*gap:14px/);
+});
+
 test('primitives 可用时右栏直接使用官方 Switch / SegmentedControl', () => {
   const OfficialSwitch = function OfficialSwitch() {};
   const OfficialSegmented = function OfficialSegmented() {};
@@ -220,15 +234,18 @@ test('primitives 可用时右栏直接使用官方 Switch / SegmentedControl', (
   const dialog = runtime.render(baseProps());
 
   const official = nodes(dialog).filter(node => node.type === OfficialSwitch);
-  // 面板 2 + 上下文 3 + 用量 4（三行 + 跳转）= 9
-  assert.equal(official.length, 9, '所有启停项都应走官方 Switch');
+  // 面板 2 + 上下文 4（三项展示 + v0.18.7 位置固定）+ 用量 4（三行 + 跳转）= 10
+  assert.equal(official.length, 10, '所有启停项都应走官方 Switch');
+  // 侧位 = 1 个分段控件（展示方式已移除）
   assert.equal(nodes(dialog).filter(node => node.type === OfficialSegmented).length, 1);
   // 官方组件必须收到受控 props。
   const first = official[0];
   assert.equal(typeof first.props.checked, 'boolean');
   assert.equal(typeof first.props.onChange, 'function');
   assert.equal(typeof first.props.label, 'string');
-  const seg = nodes(dialog).find(node => node.type === OfficialSegmented);
+  const segs = nodes(dialog).filter(node => node.type === OfficialSegmented);
+  const seg = segs.find(node => node.props.id === 'hud-settings-panel-side');
+  assert.ok(seg, '侧位应使用官方分段控件');
   // 跨 realm 数组不能直接 deepEqual，先转本域普通对象。
   assert.deepEqual(JSON.parse(JSON.stringify(seg.props.options.map(option => option.value))), ['left', 'right']);
   assert.equal(seg.props.value, 'right');

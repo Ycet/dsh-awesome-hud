@@ -76,18 +76,25 @@ test("normalizeSettings：usage 缺失/损坏收敛为默认", () => {
 });
 
 test("defaultContextSettings 与 normalizeContextSettings：默认样式/展示，坏值回退", () => {
-	assert.deepEqual(defaultContextSettings(), { barStyle: "default", showStats: true, showUsage: true });
+	// v0.18.7：pinned（上下文模块位置固定）默认关闭
+	assert.deepEqual(defaultContextSettings(), { barStyle: "default", showStats: true, showUsage: true, pinned: false });
 	assert.deepEqual(normalizeContextSettings(null), defaultContextSettings());
-	assert.deepEqual(normalizeContextSettings({ barStyle: "segmented", showStats: false }), { barStyle: "segmented", showStats: false, showUsage: true });
+	assert.deepEqual(normalizeContextSettings({ barStyle: "segmented", showStats: false }), { barStyle: "segmented", showStats: false, showUsage: true, pinned: false });
 	assert.deepEqual(normalizeContextSettings({ barStyle: "x", showStats: "x", showUsage: 0 }), defaultContextSettings());
+	// pinned 只接受布尔值
+	assert.equal(normalizeContextSettings({ pinned: true }).pinned, true);
+	assert.equal(normalizeContextSettings({ pinned: "yes" }).pinned, false);
 	// 历史设置没有 context 字段时，normalizeSettings 补齐默认值
 	assert.deepEqual(normalizeSettings({ modules: { git: false } }).context, defaultContextSettings());
-	assert.deepEqual(contextSettingsOf({ context: { barStyle: "segmented" } }), { barStyle: "segmented", showStats: true, showUsage: true });
+	assert.deepEqual(contextSettingsOf({ context: { barStyle: "segmented" } }), { barStyle: "segmented", showStats: true, showUsage: true, pinned: false });
 });
 
 test("sanitizeContextPatch：只接受 barStyle 合法值与非空布尔字段", () => {
 	assert.deepEqual(sanitizeContextPatch({ barStyle: "segmented" }), { patch: { barStyle: "segmented" }, changed: false });
 	assert.deepEqual(sanitizeContextPatch({ showStats: false, showUsage: true }), { patch: { showStats: false, showUsage: true }, changed: false });
+	// v0.18.7：位置固定的布尔 patch 可通过白名单
+	assert.deepEqual(sanitizeContextPatch({ pinned: true }), { patch: { pinned: true }, changed: false });
+	assert.equal(sanitizeContextPatch({ pinned: "yes" }), null);
 	assert.equal(sanitizeContextPatch({ barStyle: "other" }), null);
 	assert.equal(sanitizeContextPatch({ showStats: "yes" }), null);
 	assert.equal(sanitizeContextPatch({ other: true }), null);
@@ -99,4 +106,6 @@ test("上下文设置参与 isDefaultSettings 判定", () => {
 	assert.equal(isDefaultSettings(defaultSettings()), true);
 	assert.equal(isDefaultSettings({ ...defaultSettings(), context: { barStyle: "segmented", showStats: true, showUsage: true } }), false);
 	assert.equal(isDefaultSettings({ ...defaultSettings(), context: { barStyle: "default", showStats: false, showUsage: true } }), false);
+	// v0.18.7：位置固定不是默认值 → 同样视为「已改动」
+	assert.equal(isDefaultSettings({ ...defaultSettings(), context: { barStyle: "default", showStats: true, showUsage: true, pinned: true } }), false);
 });

@@ -57,6 +57,8 @@ test("HUD 展开后轮次导航须位于正文可见区域，而非被右侧面�
     turnNavStyles: new Map(),
     turnNavDisplayStyles: new Map(),
     turnNavSlotStyles: new Map(),
+    // v0.19.0：固定展示仍要避让轮次导航（只有悬停覆盖层 skipped）。
+    pushed: true,
     Math,
   });
   vm.runInContext(`${extractArrow("syncTurnNavigation")}; syncTurnNavigation();`, context);
@@ -90,6 +92,8 @@ test("HUD 收窄正文至 900px 以下时，仍应覆盖宿主容器查询的导
     turnNavStyles: new Map(),
     turnNavSlotStyles: new Map(),
     turnNavDisplayStyles: new Map(),
+    // v0.19.0：固定展示仍要避让轮次导航（只有悬停覆盖层 skipped）。
+    pushed: true,
     Math,
   });
   vm.runInContext([
