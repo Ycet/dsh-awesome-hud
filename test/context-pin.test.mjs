@@ -6,6 +6,7 @@
 //   3. 设置弹窗：上下文卡片新增一行开关，不满足条件时置灰并给出行内原因；
 //   4. 面板：固定生效时上下文节点移出滚动容器渲染到 .hud-panel-pin，未开启时结构与旧版一致；
 //   5. 样式：固定区限高 + 内部滚动；中英字典键齐备。
+//   6. v0.19.2：上下文卡片内「始终显示分段进度条」排到「上下文模块位置固定」上方。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -142,4 +143,15 @@ test('新建会话页不展示上下文：固定块自然不出现', () => {
 test('「恢复默认」的激活态把 pinned 计入比较', () => {
   // 只翻动「位置固定」也应视为「已改动」，否则恢复默认按钮不会激活、也无法复位。
   assert.match(source, /\|\| context\.pinned !== defaultContext\.pinned\) return false;/);
+});
+
+test('v0.19.2：「始终显示分段进度条」位于「上下文模块位置固定」上方', () => {
+  // 卡片内顺序：会话统计 → Token 用量 → 分段进度条 → 位置固定。
+  const stats = source.indexOf('label: t("settingsContextStats")');
+  const usage = source.indexOf('label: t("settingsContextUsage")');
+  const bar = source.indexOf('label: t("settingsContextBarStyle")');
+  const pin = source.indexOf('label: t("settingsContextPin")');
+  assert.ok(stats > 0 && usage > stats, '会话统计在 Token 用量之前');
+  assert.ok(bar > usage, '分段进度条在 Token 用量之后');
+  assert.ok(pin > bar, '分段进度条在「位置固定」之前');
 });

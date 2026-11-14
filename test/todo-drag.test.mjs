@@ -71,7 +71,9 @@ test('待办模块拖动排序：列表级落点 + transform 让位，松手才�
 
   // 松手才 persist；拖到列表外不改变顺序
   assert.match(source, /const order = state\?\.order \?\? dragPreview\?\.order \?\? null;/);
-  assert.match(source, /setDragSettling\(true\);\n\s*persist\(next\);/);
+  // v0.19.2：拖动只重排未完成条目，落盘时把已完成整组接回末尾。
+  assert.match(source, /const merged = next\.length === activeTodos\.length \? next\.concat\(doneTodos\) : \[\];/);
+  assert.match(source, /setDragSettling\(true\);\n\s*persist\(merged\);/);
 });
 
 test('拖拽幽灵图：用 1x1 透明图隐藏跟随鼠标的原生快照', () => {

@@ -1,8 +1,8 @@
 // dsh-awesome-hud — v0.19.1「产物 / Outputs」模块：
 //  1) 汇总本会话**所有轮次**里指定格式、位于工作区内、仍存在的改动文件；
-//     按最后改动轮次倒序，最多展示 OUTPUT_LIMIT（24）个。
+//     按最后改动轮次倒序，最多展示 OUTPUT_LIMIT（10）个；界面默认先显示前 3 个、可展开全部。
 //  2) 点击行在官方右侧栏打开文件内容：地址按 DSH 的 file 资源语法逐段编码。
-//  3) 客户端：模块键紧跟 git、新建会话页不展示、能力不可用与空态可区分。
+//  3) 客户端：默认位于 git 之上、无产物时整模块隐藏、新建会话页不展示。
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
@@ -67,9 +67,9 @@ test("collectOutputs：跨全部轮次取并集，同一文件以最后一次改
   return collectOutputs(base).then((output) => {
     // 不受轮次窗口限制：候选总数覆盖最初一轮至今的全部去重文件
     assert.equal(output.total, 31, "去重后的候选总数 = 30 个独立文件 + 1 个共享文件");
-    assert.equal(output.files.length, 24, "展示仍受 24 条上限约束");
+    assert.equal(output.files.length, 10, "展示仍受 10 条上限约束");
     const paths = output.files.map((file) => file.path);
-    assert.equal(paths.includes("docs/t1.md"), false, "最早的轮次排在 24 名之外");
+    assert.equal(paths.includes("docs/t1.md"), false, "最早的轮次排在 10 名之外");
     return collectOutputs({ ...base, limit: 100 }).then((all) => {
       const allPaths = all.files.map((file) => file.path);
       assert.ok(allPaths.includes("docs/t1.md"), "放大上限后能拿到最早轮次的文件");
@@ -81,7 +81,7 @@ test("collectOutputs：跨全部轮次取并集，同一文件以最后一次改
   });
 });
 
-test("collectOutputs：按最后改动倒序，最多 24 个并标记截断", () => {
+test("collectOutputs：按最后改动倒序，最多 10 个并标记截断", () => {
   const events = [changeEvent(10, 1)];
   const files = [];
   for (let index = 1; index <= 30; index += 1) files.push({ path: `out/f${index}.png`, display: `out/f${index}.png` });
@@ -92,14 +92,14 @@ test("collectOutputs：按最后改动倒序，最多 24 个并标记截断", ()
     exists: async () => true,
   });
   return result.then((output) => {
-    assert.equal(OUTPUT_LIMIT, 24);
-    assert.equal(output.files.length, 24, "只返回 24 个");
+    assert.equal(OUTPUT_LIMIT, 10);
+    assert.equal(output.files.length, 10, "只返回 10 个");
     assert.equal(output.total, 30);
     assert.equal(output.truncated, true);
     // 同一轮内按 display 升序：f1、f10、f11… 的码元序
     assert.equal(output.files[0].path, "out/f1.png");
     const next = collectOutputs({ sessionId: "s1", events, summaryFor: () => ({ turn: 1, files: files.slice(0, 3) }), exists: async () => true });
-    return next.then((small) => assert.equal(small.truncated, false, "不足 24 个时不算截断"));
+    return next.then((small) => assert.equal(small.truncated, false, "不足 10 个时不算截断"));
   });
 });
 
@@ -111,6 +111,7 @@ test("collectOutputs：只保留仍存在的文件，且存在性检查有次数
     sessionId: "s1",
     events: [changeEvent(10, 1)],
     summaryFor: () => ({ turn: 1, files }),
+    limit: 100,
     exists: async (path) => {
       checks.push(path);
       // 前 10 个已被删除
@@ -182,12 +183,13 @@ test("宿主契约：默认开启、命令在白名单里、图标资产已放�
   await access(join(root, "assets/icons/outputs.svg"));
 });
 
-test("客户端接线：模块键紧跟 git、新建会话页不展示、说明页与文案齐全", () => {
+test("客户端接线：默认位于 git 之上、新建会话页不展示、说明页与文案齐全", () => {
   const moduleKeys = vm.runInNewContext(`${extractConst("MODULE_KEYS")}\nMODULE_KEYS;`);
   const newSessionKeys = vm.runInNewContext(`${extractConst("NEW_SESSION_MODULE_KEYS")}\nNEW_SESSION_MODULE_KEYS;`);
-  assert.equal(moduleKeys.indexOf("outputs"), moduleKeys.indexOf("git") + 1, "默认位于 git 之下");
+  assert.equal(moduleKeys.indexOf("outputs"), moduleKeys.indexOf("git") - 1, "默认位于 git 之上");
   assert.equal(newSessionKeys.includes("outputs"), false, "新建会话页不展示该模块");
-  assert.match(source, /outputs: \(\) => activeModules\.outputs === false \|\| outputs === null \? null : react\.createElement\(OutputsModule/);
+  assert.match(source, /outputs: \(\) => activeModules\.outputs === false \|\| outputs === null \|\| \(Array\.isArray\(outputs\.files\) \? outputs\.files\.length : 0\) === 0 \? null : react\.createElement\(OutputsModule/, "无产物时渲染门直接返回 null");
+  assert.doesNotMatch(source, /supported: outputs\.supported !== false/, "不再向组件传 supported");
   assert.match(source, /const refreshOutputs = async \(\) => \{/, "轮询存在");
   assert.match(source, /const polls = \[refreshGit, refreshSubagents, refreshPlans, refreshOutputs\]/, "并入 5 秒轮询批次");
   assert.match(source, /setOutputs\(null\);/, "新建会话页/切会话时清空快照");
@@ -200,20 +202,31 @@ test("客户端接线：模块键紧跟 git、新建会话页不展示、说明�
   assert.deepEqual(plain(sections.find((section) => section.key === "outputs").groups.map((group) => group.kind)), ["show", "act"]);
   // 中英文案成对
   const { zh, en } = hudClient().dictionaries[0];
-  for (const key of ["outputsModule", "outputsEmpty", "outputsUnsupported", "outputsLimitHint", "outputsOpenFailed",
+  for (const key of ["outputsModule", "outputsLimitHint", "outputsOpenFailed",
     "guideOutputsTitle", "guideOutputsShowList", "guideOutputsShowOrder", "guideOutputsOpen", "guideOutputsScope"]) {
     assert.equal(typeof zh[key], "string", `${key} 需要中文`);
     assert.equal(typeof en[key], "string", `${key} 需要英文`);
   }
+  // 无产物时整模块不渲染，因此不再保留空态文案。
+  for (const key of ["outputsEmpty", "outputsUnsupported"]) {
+    assert.equal(zh[key], undefined, `${key} 应已移除`);
+    assert.equal(en[key], undefined, `${key} 应已移除`);
+  }
 });
 
-/** 在沙箱里跑真实的 OutputsModule，验证渲染结果而不依赖宿主。 */
-function loadOutputsModule(dict) {
+/**
+ * 在沙箱里跑真实的 OutputsModule，验证渲染结果而不依赖宿主。
+ * controls.expanded 用来模拟「已展开」的初始 state（真实组件内是 useState(false)），
+ * 点击展开/收起时把目标值写进 controls.next，供测试断言。
+ */
+function loadOutputsModule(dict, controls = {}) {
   const context = vm.createContext({
     Set,
     Number,
+    Math,
     react: {
       Fragment: "fragment",
+      useState: () => [controls.expanded === true, (next) => { controls.next = next; }],
       createElement: (type, props, ...children) => ({
         type: typeof type === "string" ? type : type?.name ?? "Component",
         props: props ?? {},
@@ -224,8 +237,11 @@ function loadOutputsModule(dict) {
     t: (key) => dict[key] ?? key,
     interpolate: (template, values) => template.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? ""),
   });
-  vm.runInContext(`${extractFunction("OutputsModule")}\nthis.OutputsModule = OutputsModule;`, context);
-  return context.OutputsModule;
+  vm.runInContext(
+    `${extractConst("LIST_PREVIEW_COUNT")}\n${extractFunction("previewListRows")}\n${extractFunction("listMoreButton")}\n${extractFunction("OutputsModule")}\nthis.OutputsModule = OutputsModule; this.previewListRows = previewListRows;`,
+    context,
+  );
+  return { Component: context.OutputsModule, rowsView: context.previewListRows };
 }
 
 const walk = (node) => {
@@ -236,15 +252,15 @@ const walk = (node) => {
 };
 const textOf = (node) => walk(node).filter((child) => typeof child === "string" || typeof child === "number").join("");
 
-test("组件：计数、文件名与目录、截断提示、空态与能力不可用", () => {
+test("组件：计数、文件名与目录、截断提示；无产物时整个模块不渲染", () => {
   const { zh } = hudClient().dictionaries[0];
-  const OutputsModule = loadOutputsModule(zh);
+  const { Component: OutputsModule } = loadOutputsModule(zh);
   const opened = [];
   const files = [
     { path: "docs/a.md", display: "docs/a.md", name: "a.md", dir: "docs" },
     { path: "out.png", display: "out.png", name: "out.png", dir: "" },
   ];
-  const tree = OutputsModule({ files, supported: true, limit: 24, truncated: true, fold: false, onOpen: (file) => opened.push(file.path), onFoldChange: () => {} });
+  const tree = OutputsModule({ files, limit: 10, truncated: true, fold: false, onOpen: (file) => opened.push(file.path), onFoldChange: () => {} });
   assert.equal(tree.type, "div");
   const head = walk(tree).find((node) => node.type === "ModuleHead");
   assert.equal(head.props.icon, "outputs");
@@ -262,18 +278,68 @@ test("组件：计数、文件名与目录、截断提示、空态与能力不�
   assert.equal(rows[1].children.filter((child) => child !== null).length, 1, "无目录时只渲染文件名");
   rows[0].props.onClick();
   assert.deepEqual(opened, ["docs/a.md"]);
-  assert.match(textOf(tree), /仅展示最近改动的 24 个文件/, "截断时给出提示");
+  assert.match(textOf(tree), /仅展示最近改动的 10 个文件/, "截断时给出提示");
 
-  const empty = OutputsModule({ files: [], supported: true, limit: 24, truncated: false, fold: false });
-  assert.match(textOf(empty), /本会话还没有符合格式的改动文件/);
-  assert.equal(walk(empty).find((node) => node.type === "ModuleHead").props.countText, "0");
+  // v0.19.2：没有产物时整个模块不渲染（与子代理 / 任务 / 计划清单一致）。
+  assert.equal(OutputsModule({ files: [], limit: 10, truncated: false, fold: false }), null, "无产物时不渲染模块");
+  assert.equal(OutputsModule({ files: [], supported: false, limit: 10, truncated: false, fold: false }), null, "能力不可用时同样隐藏");
+  assert.equal(OutputsModule({ limit: 10, truncated: false, fold: false }), null, "快照缺失时也隐藏");
 
-  const unsupported = OutputsModule({ files: [], supported: false, limit: 24, truncated: false, fold: false });
-  assert.match(textOf(unsupported), /当前 DSH 不支持读取本会话改动/);
-  assert.equal(walk(unsupported).find((node) => node.type === "ModuleHead").props.countText, undefined, "不可用时不显示计数");
-
-  const folded = OutputsModule({ files, supported: true, limit: 24, truncated: false, fold: true, onFoldChange: () => {} });
+  const folded = OutputsModule({ files, limit: 10, truncated: false, fold: true, onFoldChange: () => {} });
   assert.equal(walk(folded).filter((node) => node.type === "button").length, 0, "折叠时不渲染列表行");
+});
+
+test("v0.19.2：列表默认只给前 3 个，超过时提供「展开其余 n 个文件 / 收起」", () => {
+  const { zh } = hudClient().dictionaries[0];
+  const files = Array.from({ length: 8 }, (_, index) => ({
+    path: `docs/f${index + 1}.md`,
+    display: `docs/f${index + 1}.md`,
+    name: `f${index + 1}.md`,
+    dir: "docs",
+  }));
+
+  // 纯函数：折叠只取前 3 个，展开给全部；remaining 与是否可展开无关，始终是「超出 3 个的数量」。
+  const collapsed = loadOutputsModule(zh);
+  assert.equal(collapsed.rowsView(files, false).rows.length, 3);
+  assert.equal(collapsed.rowsView(files, false).remaining, 5);
+  assert.equal(collapsed.rowsView(files, false).expanded, false);
+  assert.equal(collapsed.rowsView(files, true).rows.length, 8);
+  assert.equal(collapsed.rowsView(files, true).remaining, 5);
+  assert.equal(collapsed.rowsView(files, true).expanded, true);
+  // 不超过 3 个时无需展开：直接全量展示，不出现入口。
+  assert.equal(collapsed.rowsView(files.slice(0, 2), false).rows.length, 2);
+  assert.equal(collapsed.rowsView(files.slice(0, 2), false).remaining, 0);
+  assert.equal(collapsed.rowsView(files.slice(0, 3), false).expanded, true, "恰好 3 个时不折叠");
+
+  // 折叠态：3 行 + 第 3 行下方的「展开其余 5 个文件」。
+  const foldControls = {};
+  const collapsedModule = loadOutputsModule(zh, foldControls);
+  const foldedTree = collapsedModule.Component({ files, limit: 10, truncated: false, fold: false, onOpen: () => {}, onFoldChange: () => {} });
+  const rows = walk(foldedTree).filter((node) => node.type === "button" && node.props.className === "hud-output-row");
+  assert.equal(rows.length, 3, "折叠时只渲染 3 行");
+  assert.equal(rows[2].props.title, "docs/f3.md", "第 3 行就是切分点");
+  const more = walk(foldedTree).find((node) => node.type === "button" && node.props.className === "hud-list-more");
+  assert.ok(more, "超过 3 个时出现展开入口");
+  assert.match(textOf(more), /展开其余 5 个文件/);
+  more.props.onClick();
+  assert.equal(foldControls.next, true, "点击展开");
+
+  // 展开态：全部行 + 最后一行下方的「收起」。
+  const openControls = { expanded: true };
+  const expandedModule = loadOutputsModule(zh, openControls);
+  const expandedTree = expandedModule.Component({ files, limit: 10, truncated: true, fold: false, onOpen: () => {}, onFoldChange: () => {} });
+  const expandedRows = walk(expandedTree).filter((node) => node.type === "button" && node.props.className === "hud-output-row");
+  assert.equal(expandedRows.length, 8, "展开后渲染全部行");
+  const collapse = walk(expandedTree).find((node) => node.type === "button" && node.props.className === "hud-list-more");
+  assert.match(textOf(collapse), /收起/);
+  collapse.props.onClick();
+  assert.equal(openControls.next, false, "点击收起");
+  // 截断提示仍在最后一行下方。
+  assert.match(textOf(expandedTree), /仅展示最近改动的 10 个文件/);
+
+  // 3 个及以内不出现任何展开 / 收起入口。
+  const smallTree = expandedModule.Component({ files: files.slice(0, 3), limit: 10, truncated: false, fold: false });
+  assert.equal(walk(smallTree).find((node) => node.props?.className === "hud-list-more"), undefined, "不超过 3 个时没有入口");
 });
 
 test("点击打开：调用 sidebarRight.openResource；服务缺失或抛错时 toast", () => {

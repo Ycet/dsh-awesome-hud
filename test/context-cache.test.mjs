@@ -132,3 +132,46 @@ test("上下文模块三行垂直节奏：进度条行与统计/用量两行视�
 	assert.match(source, /\.hud-context-stats\{display:flex;flex-direction:column;gap:3px;padding:0 14px 10px\}/);
 	assert.match(source, /\.hud-context-stat\{display:flex;align-items:center;gap:6px;min-width:0;padding:2px 6px;/);
 });
+
+test("v0.19.2：上下文模块支持折叠，折叠后只保留标题行（占用率仍在）", () => {
+	const projectionValues = {
+		contextPressure: { projectedTokens: 199000, contextWindow: 1000000 },
+		contextBreakdown: { systemTokens: 2500, toolsTokens: 27600, messageTokens: 397000 },
+		sessionStats: { turns: 19, steps: 781, llmMs: 6435000, toolMs: 587000, ttftMs: 4400, ttftSteps: 1, decodeMs: 10000, decodeTokens: 1750 },
+		tokenUsage: { uncachedInputTokens: 2223544, cacheReadTokens: 223577472, cacheWriteTokens: 0, outputTokens: 526005 },
+	};
+	const client = hudClient({
+		state: { current: "sess", byId: { sess: { cwd: "/work/session", updatedAt: 2, projectionValues } } },
+		current: "sess",
+		workspaces: [{ path: "/work/session", title: "session", updatedAt: 2, sessionIds: ["sess"] }],
+	});
+	const context = moduleOf(client.panel(), "ContextModule");
+	// 面板把折叠状态与回调接进来（默认展开，与其它模块共用同一份 localStorage 状态）。
+	assert.equal(context.props.fold, false);
+	assert.equal(typeof context.props.onFoldChange, "function");
+
+	// 展开态：进度条行、压缩按钮与两行统计都在，标题行右侧有折叠按钮。
+	const openTree = context.type(context.props);
+	const openNodes = nodes(openTree);
+	assert.equal(openNodes.some((node) => node.props.className === "hud-context-row"), true);
+	assert.equal(openNodes.filter((node) => node.props.className === "hud-context-stat").length, 2);
+	const foldButton = openNodes.find((node) => node.props.className === "hud-module-fold");
+	assert.ok(foldButton, "标题行要有折叠按钮");
+	assert.equal(foldButton.props["data-fold"], false);
+	assert.equal(foldButton.props["aria-label"], "collapseModule");
+
+	// 折叠态：只保留标题行（含占用率），进度条与统计行都不渲染。
+	const foldedNodes = nodes(context.type({ ...context.props, fold: true }));
+	assert.equal(foldedNodes.some((node) => node.props.className === "hud-context-row"), false);
+	assert.equal(foldedNodes.some((node) => node.props.className === "hud-context-stats"), false);
+	assert.equal(foldedNodes.some((node) => node.props.className === "hud-module-head"), true);
+	assert.equal(foldedNodes.some((node) => node.props.className === "hud-module-count hud-context-count"), true);
+	const expandButton = foldedNodes.find((node) => node.props.className === "hud-module-fold");
+	assert.equal(expandButton.props["data-fold"], true);
+	assert.equal(expandButton.props["aria-label"], "expandModule");
+
+	// 折叠状态持久化：loadStoredFolds 默认值与会话读取都包含 context。
+	assert.match(source, /const fallback = \{ context: false, git: false/);
+	assert.match(source, /context: typeof parsed\.context === "boolean" \? parsed\.context : fallback\.context/);
+	assert.match(source, /fold: folds\.context/);
+});

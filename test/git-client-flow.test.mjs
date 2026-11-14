@@ -308,5 +308,6 @@ test('generate 确认态展示官方模型说明并复用便笺式取消交互',
   assert.match(clientSource, /const GIT_AI_CONFIRM_MS = 3000;/);
   assert.match(clientSource, /aiConfirmTimerRef\.current = globalThis\.setTimeout/);
   assert.match(clientSource, /if \(!aiConfirming\) return undefined;[\s\S]{0,700}addEventListener\?\.\("pointerdown"/);
-  assert.match(clientSource, /\.hud-commit-ai-hint\{/);
+  assert.match(clientSource, /\.hud-commit-ai-hint\{[^}]*color:var\(--dsw-alias-state-error-primary\)/, '确认提示应为红色（与红色「确认？」按钮一致）');
+  assert.doesNotMatch(clientSource, /\.hud-commit-ai-hint\{[^}]*color:var\(--dsw-alias-label-secondary\)/, '确认提示不再使用灰色次要文字');
 });

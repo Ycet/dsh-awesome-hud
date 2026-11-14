@@ -22,7 +22,7 @@ async function clientSource() {
 function loadClientOrderHelpers() {
   const context = vm.createContext({ Set });
   vm.runInContext(
-    `const MODULE_KEYS = ["context", "balance", "git", "outputs", "subagents", "tasks", "plans", "mcp", "note", "todo"];
+    `const MODULE_KEYS = ["context", "balance", "outputs", "git", "subagents", "tasks", "plans", "mcp", "note", "todo"];
      ${extractFunction("defaultModuleOrder")}
      ${extractFunction("normalizeModuleOrder")}`,
     context,
@@ -35,6 +35,8 @@ function loadClientOrderHelpers() {
 test("默认顺序覆盖全部模块键，且与客户端渲染表的键集合一致", () => {
   assert.deepEqual([...DEFAULT_MODULE_ORDER].sort(), [...MODULE_KEYS].sort(), "默认顺序必须恰好覆盖全部模块键");
   assert.equal(new Set(DEFAULT_MODULE_ORDER).size, DEFAULT_MODULE_ORDER.length, "默认顺序不得有重复键");
+  // v0.19.2：默认位置在 git 之上（面板里先看产物、再看 git 变更）。
+  assert.equal(DEFAULT_MODULE_ORDER.indexOf("outputs"), DEFAULT_MODULE_ORDER.indexOf("git") - 1, "outputs 默认排在 git 之前");
   assert.deepEqual(defaultModuleOrder(), [...DEFAULT_MODULE_ORDER]);
   // 返回的是副本：调用方改动不会污染模块级常量。
   const copy = defaultModuleOrder();
@@ -53,8 +55,8 @@ test("normalizeModuleOrder 收敛坏输入：非数组/未知键/重复/缺失",
   // 未知键与非字符串被丢弃，重复只保留首次，末尾补齐缺失键
   const messy = ["git", "nope", "context", "git", 42, null, "todo"];
   const normalized = normalizeModuleOrder(messy);
-  // v0.19.1：补齐后按锚点落位，新增的 outputs 紧跟在 git 之后
-  assert.deepEqual(normalized.slice(0, 4), ["git", "outputs", "context", "todo"]);
+  // v0.19.1：补齐后按锚点落位，新增的 outputs 排在 git 之前
+  assert.deepEqual(normalized.slice(0, 4), ["outputs", "git", "context", "todo"]);
   assert.equal(new Set(normalized).size, MODULE_KEYS.length, "结果必须是完整排列");
   assert.deepEqual([...normalized].sort(), [...MODULE_KEYS].sort());
 
@@ -71,8 +73,38 @@ test("sanitizeOrderPatch 拒绝空数组/非数组，合法输入收敛为完整
 
   const result = sanitizeOrderPatch(["git", "context"]);
   assert.notEqual(result, null);
-  assert.deepEqual(result.patch.slice(0, 2), ["git", "outputs"], "缺失的 outputs 按锚点落在 git 之后");
+  assert.deepEqual(result.patch.slice(0, 2), ["outputs", "git"], "缺失的 outputs 按锚点落在 git 之前");
   assert.equal(result.patch.length, MODULE_KEYS.length, "补齐为完整排列");
+});
+
+test("v0.19.2：用户调整后的模块位置不会被锚点覆盖", () => {
+  // 用户把 outputs 拖到首位 / 中间 / 末尾：写侧、读侧都必须原样保留，
+  // 否则每次「确认」都会把它拉回 git 下方，看起来像排序没生效（本次修复的缺陷）。
+  const movedTop = ["outputs", "context", "balance", "git", "subagents", "tasks", "plans", "mcp", "note", "todo"];
+  const movedMid = ["context", "balance", "git", "subagents", "outputs", "tasks", "plans", "mcp", "note", "todo"];
+  const movedTail = ["context", "balance", "git", "subagents", "tasks", "plans", "mcp", "note", "todo", "outputs"];
+  for (const moved of [movedTop, movedMid, movedTail]) {
+    assert.deepEqual(normalizeModuleOrder(moved), moved, `已保存的顺序必须原样保留：${moved.join(",")}`);
+    assert.deepEqual(sanitizeOrderPatch(moved).patch, moved, "写侧不得改写用户调整后的位置");
+    assert.deepEqual(normalizeSettings({ order: moved }).order, moved, "读侧不得改写用户调整后的位置");
+    // 幂等：多次读写的收敛结果不变，位置不会来回漂移。
+    assert.deepEqual(normalizeModuleOrder(normalizeModuleOrder(moved)), moved);
+  }
+
+  // 锚点只服务于旧配置迁移：保存的顺序里没有 outputs 时仍插到 git 之前。
+  const legacy = ["context", "balance", "git", "subagents", "tasks", "plans", "mcp", "note", "todo"];
+  assert.deepEqual(normalizeModuleOrder(legacy).slice(0, 4), ["context", "balance", "outputs", "git"]);
+
+  // 客户端同规则：不把用户拖走的 outputs 拉回来。
+  const client = loadClientOrderHelpers();
+  for (const order of [movedTop, movedMid, movedTail, legacy]) {
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(client.normalizeModuleOrder(order))),
+      normalizeModuleOrder(order),
+      `客户端与 host 结果必须一致：${order.join(",")}`,
+    );
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(client.normalizeModuleOrder(movedTop))), movedTop);
 });
 
 test("normalizeSettings 读侧补齐 order，坏数据不会让顺序错乱", () => {

@@ -145,8 +145,9 @@ export function extractArrowHandler(name) {
 }
 
 /**
- * 抽取 `const <name> = [...]` / `const <name> = {...}` 形式的顶层常量：跳过字符串与模板字符串，
- * 按方括号/花括号平衡扫描，直到与开头括号配对（不依赖换行与缩进，避免格式化后失效）。
+ * 抽取 `const <name> = [...]` / `const <name> = {...}` / `const <name> = <字面量>;` 形式的顶层常量：
+ * 跳过字符串与模板字符串，按方括号/花括号平衡扫描，直到与开头括号配对；数字等简单字面量扫到第一个分号
+ * （不依赖换行与缩进，避免格式化后失效）。
  */
 export function extractConst(name) {
   const pattern = `const ${name} = `;
@@ -155,7 +156,23 @@ export function extractConst(name) {
   const bodyStart = start + pattern.length;
   const opener = source[bodyStart];
   const closer = opener === '[' ? ']' : opener === '{' ? '}' : null;
-  if (closer === null) throw new Error(`const ${name} is not an array or object literal`);
+  if (closer === null) {
+    // 简单字面量（数字 / 字符串 / 布尔）：扫到第一个分号，跳过引号内内容。
+    let simpleQuote = null;
+    let simpleEscaped = false;
+    for (let index = bodyStart; index < source.length; index += 1) {
+      const ch = source[index];
+      if (simpleQuote !== null) {
+        if (simpleEscaped) simpleEscaped = false;
+        else if (ch === '\\') simpleEscaped = true;
+        else if (ch === simpleQuote) simpleQuote = null;
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === '`') { simpleQuote = ch; continue; }
+      if (ch === ';') return source.slice(start, index + 1);
+    }
+    throw new Error(`unterminated const ${name}`);
+  }
   let depth = 0;
   let quote = null;
   let escaped = false;
