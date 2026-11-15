@@ -22,7 +22,9 @@ function fixture() {
   const actions = [];
   const names = ['confirmEdit', 'cancelEdit', 'stopEdit', 'addTodo', 'commitEdit', 'createBranch',
     'cancelBranchAdd', 'cancelBranchCreate', 'closeMenu', 'closeBranchMenu', 'closeGraph',
-    'cancelConfirm', 'closeCommit', 'cancelClearConfirmation', 'cancelAiConfirmation', 'setClearOpen', 'setOpenId', 'openMenu', 'setDeleteConfirmId'];
+    'cancelConfirm', 'closeCommit', 'cancelClearConfirmation', 'cancelAiConfirmation', 'setClearOpen', 'setOpenId', 'openMenu', 'setDeleteConfirmId',
+    // v0.21.0：官方样式下拉菜单的开合 / 设置弹窗重置菜单。
+    'setOpen', 'setResetMenu'];
   const context = vm.createContext({ branchCreateOpenRef: { current: true },
     // v0.17.0 起设置弹窗的键盘监听器通过 props.onClose 关闭；补一个等价的桩函数供通用用例调用。
     props: { onClose: () => actions.push({ name: 'props.onClose', args: [] }) },

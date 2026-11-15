@@ -45,12 +45,16 @@ function createRuntime(primitives, options = {}) {
     // v0.20.0：便笺条数上限（设置卡片 + 保存校验）
     NOTE_COUNT_MIN: 5,
     NOTE_COUNT_MAX: 20,
-    defaultNoteSettings: () => ({ maxCount: 5 }),
+    defaultNoteSettings: () => ({ maxCount: 5, popupEdit: false }),
     normalizeNoteMaxCount: (value) => {
       const number = Number(value);
       return Number.isFinite(number) ? Math.min(20, Math.max(5, Math.round(number))) : 5;
     },
-    normalizeNoteSettings: (raw) => ({ maxCount: raw !== null && raw !== undefined && Number.isFinite(Number(raw.maxCount)) ? Math.min(20, Math.max(5, Math.round(Number(raw.maxCount)))) : 5 }),
+    defaultGitSettings: () => ({ view: 'list' }),
+    normalizeGitView: value => value === 'tree' ? 'tree' : 'list',
+    normalizeGitSettings: raw => ({ view: raw?.view === 'tree' ? 'tree' : 'list' }),
+    GIT_VIEW_DEFAULT: 'list',
+    normalizeNoteSettings: (raw) => ({ maxCount: raw !== null && raw !== undefined && Number.isFinite(Number(raw.maxCount)) ? Math.min(20, Math.max(5, Math.round(Number(raw.maxCount)))) : 5, popupEdit: raw?.popupEdit === true }),
     noteCountViolations: options.noteViolations ?? (() => []),
     toast: (message) => { (options.toasts ?? []).push(message); },
     window: { clearTimeout() {}, setTimeout() {} },
@@ -79,7 +83,28 @@ function createRuntime(primitives, options = {}) {
   };
   context.react_dom = { createPortal: node => node };
   vm.runInContext(
-    `${extractFunction('officialControl')}
+    `const HUD_MENU_WIDTH = 200;
+     const HUD_MENU_ITEM_HEIGHT = 29;
+     const HUD_MENU_DIVIDER_HEIGHT = 9;
+     const HUD_MENU_PADDING = 12;
+     const HUD_MENU_MARGIN = 8;
+     const RESET_MENU_WIDTH = ${248};
+     const HUD_SELECT_WIDTH_MIN = 180;
+     const HUD_SELECT_WIDTH_MAX = 320;
+     const HUD_SELECT_ITEM_HEIGHT = 34;
+     const HUD_SELECT_PADDING = 4;
+     ${extractConst('HUD_CHEVRON_PATH')}
+     ${extractConst('HUD_CHECK_PATH')}
+     ${extractFunction('officialIcon')}
+     ${extractFunction('officialControl')}
+     ${extractFunction('viewportSize')}
+     ${extractFunction('clampMenuPosition')}
+     ${extractFunction('menuAnchorFrom')}
+     ${extractFunction('HudMenu')}
+     ${extractFunction('hudSelectMenuWidth')}
+     ${extractFunction('selectMenuPlacement')}
+     ${extractFunction('HudSelectGlyph')}
+     ${extractFunction('HudSelect')}
      ${extractFunction('HudSwitch')}
      ${extractFunction('HudSegmented')}
      ${extractFunction('HudNumberStepper')}
@@ -89,6 +114,8 @@ function createRuntime(primitives, options = {}) {
      ${extractFunction('SettingsGuide')}
      ${extractFunction('sameOrder')}
      ${extractFunction('sameSettingsDraft')}
+     ${extractFunction('isDefaultModulesSettings')}
+     ${extractFunction('isDefaultFeatureSettings')}
      ${extractFunction('isDefaultDraft')}
      ${extractFunction('contextPinState')}
      ${extractFunction('SettingsDialog')}`,
@@ -121,7 +148,8 @@ function baseProps(overrides = {}) {
     context: defaultContextSettings(),
     order: normalizeModuleOrder(null),
     panel: defaultPanelSettings(),
-    note: { maxCount: 5 },
+    note: { maxCount: 5, popupEdit: false },
+    git: { view: "list" },
     balanceAvailable: true,
     usageAvailability: { deepseek: true, opencode: true, codex: true },
     usageReasons: {},
@@ -140,7 +168,7 @@ const textOf = node => {
   return (node.children ?? []).flat(Infinity).map(textOf).join('');
 };
 
-test('左右分栏：左栏模块清单，右栏三个卡片式设置分区', () => {
+test('左右分栏：左栏模块清单，右栏五个卡片式设置分区', () => {
   const runtime = createRuntime(null);
   const dialog = runtime.render(baseProps());
 
@@ -156,12 +184,12 @@ test('左右分栏：左栏模块清单，右栏三个卡片式设置分区', ()
   assert.equal(nodes(left).filter(node => node.type === 'input').length, MODULE_KEYS.length);
   assert.equal(nodes(left).filter(node => node.props?.role === 'switch').length, 0, '左栏保留勾选框，不换开关');
 
-  // 右栏：面板 / 上下文 / 用量 / 便笺 四张卡片，顺序固定（v0.20.0 新增「便笺」）。
+  // 右栏：面板 / 上下文 / 用量 / git变更 / 便笺 五张卡片，顺序固定（v0.21.0 新增 git变更）。
   const right = byClass(dialog, 'hud-settings-pane hud-settings-pane-detail')[0];
   const cards = byClass(right, 'hud-settings-section hud-settings-section-card');
-  assert.equal(cards.length, 4);
+  assert.equal(cards.length, 5);
   assert.deepEqual(cards.map(card => textOf(byClass(card, 'hud-settings-section-title')[0])), [
-    'settingsPanelTitle', 'settingsContextTitle', 'settingsUsageTitle', 'settingsNoteTitle',
+    'settingsPanelTitle', 'settingsContextTitle', 'settingsUsageTitle', 'settingsGitTitle', 'settingsNoteTitle',
   ]);
 });
 
@@ -217,7 +245,7 @@ test('点击侧位分段 / 开关后，确认时把面板草稿一起提交', ()
   assert.deepEqual(JSON.parse(JSON.stringify(panelDraft)), { style: 'sidebar', side: 'left', newSessionOpen: true, chatOpen: true });
 });
 
-test('「恢复默认」把面板设置与折叠展示一并复位', () => {
+test('「恢复默认设置」点击后在鼠标位置弹出三项菜单，选「恢复所有设置」全部复位', () => {
   const confirmations = [];
   const runtime = createRuntime(null);
   const changed = {
@@ -226,23 +254,37 @@ test('「恢复默认」把面板设置与折叠展示一并复位', () => {
   };
   runtime.render(baseProps({ ...changed, onConfirm: (...args) => confirmations.push(args) }));
 
-  // 与默认值不同 → 「恢复默认」可用。
+  // 与默认值不同 → 按钮可用；点击后先弹出菜单（不立即复位）。
   let dialog = runtime.render();
   let reset = nodes(dialog).find(node => node.type === 'button' && node.props?.['data-kind'] === 'reset');
   assert.equal(reset.props.disabled, false);
-  reset.props.onClick();
+  assert.equal(reset.props['aria-haspopup'], 'menu');
+  reset.props.onClick({ preventDefault() {}, stopPropagation() {}, clientX: 320, clientY: 480 });
 
+  dialog = runtime.render();
+  const menu = nodes(dialog).find(node => node.props?.role === 'menu');
+  assert.ok(menu, '应渲染三项重置菜单');
+  const items = nodes(menu).filter(node => node.type === 'button' && node.props?.role === 'menuitem');
+  assert.equal(items.length, 3);
+  assert.deepEqual(items.map(item => textOf(item)), ['settingsResetAll', 'settingsResetModules', 'settingsResetModuleSettings']);
+  // 左栏默认、右栏已改动：模块项置灰，功能项可点。
+  assert.equal(items[0].props.disabled, false);
+  assert.equal(items[1].props.disabled, true);
+  assert.equal(items[2].props.disabled, false);
+
+  items[0].props.onClick();
   dialog = runtime.render();
   reset = nodes(dialog).find(node => node.type === 'button' && node.props?.['data-kind'] === 'reset');
   assert.equal(reset.props.disabled, true, '复位后按钮应回到禁用态');
   const confirm = nodes(dialog).find(node => node.type === 'button' && node.props?.['data-kind'] === 'confirm');
   confirm.props.onClick();
-  const [draft, usageDraft, orderDraft, contextDraft, panelDraft] = confirmations[0];
+  const [draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft] = confirmations[0];
   assert.deepEqual(JSON.parse(JSON.stringify(panelDraft)), defaultPanelSettings());
   assert.equal(usageDraft.folded, 'none');
   assert.deepEqual(JSON.parse(JSON.stringify(draft)), defaultModules());
   assert.deepEqual(JSON.parse(JSON.stringify(orderDraft)), normalizeModuleOrder(null));
   assert.deepEqual(JSON.parse(JSON.stringify(contextDraft)), defaultContextSettings());
+  assert.deepEqual(JSON.parse(JSON.stringify(noteDraft)), { maxCount: 5, popupEdit: false });
 });
 
 test('设置弹窗高度固定：右栏独立滚动，不因新增设置行变高', () => {
@@ -264,10 +306,11 @@ test('primitives 可用时右栏直接使用官方 Switch / SegmentedControl', (
   const dialog = runtime.render(baseProps());
 
   const official = nodes(dialog).filter(node => node.type === OfficialSwitch);
-  // 面板 2 + 上下文 4（三项展示 + v0.18.7 位置固定）+ 用量 3（三行数据；折叠展示用下拉）= 9
-  assert.equal(official.length, 9, '所有启停项都应走官方 Switch');
-  // v0.20.0：分段控件 2 个（样式 + 侧位；展示方式已移除）
-  assert.equal(nodes(dialog).filter(node => node.type === OfficialSegmented).length, 2);
+  // 面板 2 + 上下文 4（三项展示 + v0.18.7 位置固定）+ 用量 3（三行数据；折叠展示用下拉）
+  // + 便笺 1（v0.21.0 弹窗编辑）= 10
+  assert.equal(official.length, 10, '所有启停项都应走官方 Switch');
+  // v0.21.0：分段控件 3 个（面板样式 + 侧位 + git 变更查看方式）。
+  assert.equal(nodes(dialog).filter(node => node.type === OfficialSegmented).length, 3);
   // 官方组件必须收到受控 props。
   const first = official[0];
   assert.equal(typeof first.props.checked, 'boolean');
@@ -285,6 +328,11 @@ test('primitives 可用时右栏直接使用官方 Switch / SegmentedControl', (
   assert.ok(styleSeg, '样式应使用官方分段控件');
   assert.deepEqual(JSON.parse(JSON.stringify(styleSeg.props.options.map(option => option.value))), ['card', 'sidebar']);
   assert.equal(styleSeg.props.value, 'card');
+  // v0.21.0：git 变更查看方式同样走官方分段控件，默认 list。
+  const gitSeg = segs.find(node => node.props.id === 'hud-settings-git-view');
+  assert.ok(gitSeg, 'git 变更查看方式应使用官方分段控件');
+  assert.deepEqual(JSON.parse(JSON.stringify(gitSeg.props.options.map(option => option.value))), ['list', 'tree']);
+  assert.equal(gitSeg.props.value, 'list');
 });
 
 test('置灰设置项：原因文字走红字样式，未置灰行保持次要色', () => {
@@ -352,12 +400,26 @@ test('用量设置：三项恒列出，未安装/未配置置灰并给出行内�
   assert.equal(switches[0].props.disabled, false);
   assert.equal(switches[1].props.disabled, true);
   assert.equal(switches[2].props.disabled, true);
-  const select = nodes(rows[3]).find(node => node.type === 'select');
-  assert.ok(select, '折叠展示用下拉菜单');
-  const options = select.props.children;
-  assert.equal(options.length, 7);
-  const disabledOptions = options.filter(option => option.props.disabled).map(option => option.props.value);
-  assert.deepEqual(JSON.parse(JSON.stringify(disabledOptions)), ['oc-5h', 'oc-1w', 'oc-1m', 'codex-5h', 'codex-1w']);
+  // v0.21.0：折叠展示改为官方样式下拉（本地回退路径）。
+  const trigger = nodes(rows[3]).find(node => node.type === 'button' && node.props?.className === 'hud-select-trigger');
+  assert.ok(trigger, '折叠展示用下拉菜单');
+  assert.equal(trigger.props['aria-haspopup'], 'menu');
+  assert.equal(trigger.props['aria-expanded'], false);
+  assert.equal(textOf(trigger), 'settingsUsageFoldedNone', '默认选中「无」');
+  trigger.props.onClick({ preventDefault() {}, stopPropagation() {} });
+  const opened = runtime.render();
+  const items = nodes(opened).filter(node => node.type === 'button' && node.props?.role === 'menuitemradio');
+  assert.equal(items.length, 7, '七个额度选项恒列出');
+  assert.deepEqual(JSON.parse(JSON.stringify(items.map(item => item.props.key))),
+    ['none', 'deepseek', 'oc-5h', 'oc-1w', 'oc-1m', 'codex-5h', 'codex-1w']);
+  assert.deepEqual(JSON.parse(JSON.stringify(items.filter(item => item.props.disabled).map(item => item.props.key))),
+    ['oc-5h', 'oc-1w', 'oc-1m', 'codex-5h', 'codex-1w'], '不可用额度置灰不可选');
+  assert.equal(items[0].props['aria-checked'], true);
+  // 点选可用项 → 草稿更新，触发器显示新标签。
+  items[1].props.onClick();
+  const reopened = runtime.render();
+  const trigger2 = nodes(reopened).find(node => node.type === 'button' && node.props?.className === 'hud-select-trigger');
+  assert.equal(textOf(trigger2), 'settingsUsageFoldedDeepseek');
 });
 
 test('侧位控件关闭「新建会话页默认展示」时开关为关，且不误触禁用项', () => {
@@ -446,8 +508,13 @@ test('便笺设置卡片：数字步进器 5–20，确认时随设置一起提�
   const noteCard = cards.find(card => textOf(byClass(card, 'hud-settings-section-title')[0]) === 'settingsNoteTitle');
   assert.ok(noteCard, '右栏应有「便笺」设置卡片');
   const rows = byClass(noteCard, 'hud-setting-row');
-  assert.equal(rows.length, 1, '便笺卡片只有「便笺条数上限」一行');
+  // v0.21.0：两行——便笺条数上限 + 弹窗编辑开关。
+  assert.equal(rows.length, 2, '便笺卡片有「便笺条数上限」与「弹窗编辑」两行');
   assert.match(textOf(rows[0]), /settingsNoteMax/);
+  assert.match(textOf(rows[1]), /settingsNotePopup/);
+  const popupSwitch = nodes(rows[1]).find(node => node.type === 'button' && node.props?.role === 'switch');
+  assert.ok(popupSwitch, '弹窗编辑用开关');
+  assert.equal(popupSwitch.props['aria-checked'], false, '默认关闭');
   assert.equal(byClass(noteCard, 'hud-number-stepper').length, 1);
   const valueInput = nodes(noteCard).find(node => node.type === 'input' && node.props?.className === 'hud-number-input');
   assert.equal(valueInput.props.value, '5');
@@ -465,7 +532,15 @@ test('便笺设置卡片：数字步进器 5–20，确认时随设置一起提�
   const confirmButton = nodes(next).find(node => node.type === 'button' && node.props?.['data-kind'] === 'confirm');
   confirmButton.props.onClick();
   assert.equal(calls.length, 1);
-  assert.deepEqual(JSON.parse(JSON.stringify(calls[0][5])), { maxCount: 6 }, '确认时提交 note.maxCount');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[0][5])), { maxCount: 6, popupEdit: false }, '确认时提交 note.maxCount');
+  // 打开弹窗编辑开关后再确认：popupEdit=true 一并提交。
+  const opened = runtime.render();
+  const openedCard = byClass(opened, 'hud-settings-section hud-settings-section-card').find(card => textOf(byClass(card, 'hud-settings-section-title')[0]) === 'settingsNoteTitle');
+  const popupToggle = nodes(openedCard).find(node => node.type === 'button' && node.props?.role === 'switch');
+  popupToggle.props.onClick();
+  const confirmed = runtime.render();
+  nodes(confirmed).find(node => node.type === 'button' && node.props?.['data-kind'] === 'confirm').props.onClick();
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[1][5])), { maxCount: 6, popupEdit: true }, '确认时提交 note.popupEdit');
 });
 
 test('便笺上限降低导致工作区超限：仍然正常保存，不再拦截', () => {
@@ -485,7 +560,7 @@ test('便笺上限降低导致工作区超限：仍然正常保存，不再拦�
   confirmButton.props.onClick();
   assert.equal(calls.length, 1, 'v0.20.1：上限低于现有条数也照常保存');
   assert.equal(toasts.length, 0, '不再 toast 拦截');
-  assert.deepEqual(JSON.parse(JSON.stringify(calls[0][5])), { maxCount: 6 });
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[0][5])), { maxCount: 6, popupEdit: false });
 });
 
 test('「保存设置」未改动时置灰；只改其它设置时便笺上限校验不再拦截保存', () => {
@@ -507,7 +582,7 @@ test('「保存设置」未改动时置灰；只改其它设置时便笺上限�
   assert.equal(confirm().props.disabled, false, '改动后可点');
   confirm().props.onClick();
   assert.equal(calls.length, 1, '只改其它设置时必须能保存');
-  assert.equal(calls[0].length, 6);
+  assert.equal(calls[0].length, 7);
 });
 
 test('调整便笺上限且工作区超限时同样保存成功', () => {
@@ -544,4 +619,28 @@ test('上下文与用量设置行都带上简短说明文案', () => {
   assert.deepEqual([hintOf(usageCard, 0), hintOf(usageCard, 1), hintOf(usageCard, 2), hintOf(usageCard, 3)], [
     'settingsUsageDeepseekHint', 'settingsUsageOpencodeHint', 'settingsUsageCodexHint', 'settingsUsageFoldedHint',
   ]);
+});
+
+test('git 变更查看方式：切换为文件树并保存，重新打开设置仍选中文件树', () => {
+  const calls = [];
+  const runtime = createRuntime(null);
+  let dialog = runtime.render(baseProps({ onConfirm: (...args) => calls.push(args) }));
+  const segItems = () => nodes(dialog).filter(node => node.type === 'button' && node.props?.className === 'hud-seg-item');
+  const listItem = segItems().find(node => textOf(node) === 'settingsGitViewList');
+  const treeItem = segItems().find(node => textOf(node) === 'settingsGitViewTree');
+  assert.ok(listItem && treeItem, 'git 查看方式应有列表/文件树两个选项');
+  assert.equal(listItem.props['aria-checked'], true, '默认列表');
+  treeItem.props.onClick();
+  dialog = runtime.render();
+  const confirm = nodes(dialog).find(node => node.type === 'button' && node.props?.['data-kind'] === 'confirm');
+  assert.equal(confirm.props.disabled, false, '切换后可保存');
+  confirm.props.onClick();
+  assert.equal(calls.length, 1);
+  assert.equal(JSON.parse(JSON.stringify(calls[0][6])).view, 'tree', '保存时提交 git.view=tree');
+
+  // 重新打开设置（宿主回显文件树）→ 分段控件仍选中文件树。
+  dialog = runtime.render(baseProps({ git: { view: 'tree' } }));
+  const reopened = nodes(dialog).filter(node => node.type === 'button' && node.props?.className === 'hud-seg-item')
+    .find(node => textOf(node) === 'settingsGitViewTree');
+  assert.equal(reopened.props['aria-checked'], true);
 });

@@ -84,12 +84,16 @@ function createHarness(options = {}) {
     NOTE_COUNT_MIN: 5,
     NOTE_COUNT_MAX: 20,
     NOTE_COUNT_DEFAULT: 5,
-    defaultNoteSettings: () => ({ maxCount: 5 }),
+    defaultNoteSettings: () => ({ maxCount: 5, popupEdit: false }),
     normalizeNoteMaxCount: (value) => {
       const number = Number(value);
       return Number.isFinite(number) ? Math.min(20, Math.max(5, Math.round(number))) : 5;
     },
-    normalizeNoteSettings: (raw) => ({ maxCount: raw !== null && raw !== undefined && Number.isFinite(Number(raw.maxCount)) ? Math.min(20, Math.max(5, Math.round(Number(raw.maxCount)))) : 5 }),
+    defaultGitSettings: () => ({ view: 'list' }),
+    normalizeGitView: value => value === 'tree' ? 'tree' : 'list',
+    normalizeGitSettings: raw => ({ view: raw?.view === 'tree' ? 'tree' : 'list' }),
+    GIT_VIEW_DEFAULT: 'list',
+    normalizeNoteSettings: (raw) => ({ maxCount: raw !== null && raw !== undefined && Number.isFinite(Number(raw.maxCount)) ? Math.min(20, Math.max(5, Math.round(Number(raw.maxCount)))) : 5, popupEdit: raw?.popupEdit === true }),
     PANEL_SIDES: [...PANEL_SIDES],
     defaultModules,
     defaultUsageDisplay,

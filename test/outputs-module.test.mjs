@@ -223,7 +223,7 @@ test("客户端接线：默认位于 git 之上、新建会话页不展示、说
  * 重新调用 render 即可看到 setState 后的结果；定时器由 window 桩攒起来，测试可手动触发。
  * controls.expanded 用来模拟「已展开」的初始 state；controls.next 保留最后一次 setState 的值。
  */
-function loadOutputsModule(dict, controls = {}) {
+function loadOutputsModule(dict, controls = {}, extra = {}) {
   const states = [];
   const refs = [];
   const timers = new Map();
@@ -267,11 +267,17 @@ function loadOutputsModule(dict, controls = {}) {
       innerWidth: 1280, innerHeight: 800,
     },
     ModuleHead: (props) => ({ type: "ModuleHead", props, children: [] }),
+    HudMenu: (props) => ({ type: "HudMenu", props, children: [] }),
+    resolveComposerTarget: async () => null,
+    copyWithToast: async () => false,
+    call: async () => { throw new Error("no host"); },
+    toast: () => {},
     t: (key) => dict[key] ?? key,
     interpolate: (template, values) => template.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? ""),
+    ...extra,
   });
   vm.runInContext(
-    `${extractConst("LIST_PREVIEW_COUNT")}\n${extractConst("OUTPUT_TIP_DELAY_MS")}\n${extractFunction("fileHoverTipPlacement")}\n${extractFunction("previewListRows")}\n${extractFunction("listMoreButton")}\n${extractFunction("OutputsModule")}\nthis.OutputsModule = OutputsModule; this.previewListRows = previewListRows; this.fileHoverTipPlacement = fileHoverTipPlacement; this.OUTPUT_TIP_DELAY_MS = OUTPUT_TIP_DELAY_MS;`,
+    `${extractConst("LIST_PREVIEW_COUNT")}\n${extractConst("OUTPUT_TIP_DELAY_MS")}\n${extractFunction("fileHoverTipPlacement")}\n${extractFunction("previewListRows")}\n${extractFunction("listMoreButton")}\n${extractFunction("outputExtensionOf")}\n${extractFunction("outputFileMention")}\n${extractFunction("OutputsModule")}\nthis.OutputsModule = OutputsModule; this.outputExtensionOf = outputExtensionOf; this.outputFileMention = outputFileMention; this.previewListRows = previewListRows; this.fileHoverTipPlacement = fileHoverTipPlacement; this.OUTPUT_TIP_DELAY_MS = OUTPUT_TIP_DELAY_MS;`,
     context,
   );
   // 预置「已展开」的初始 state（组件内是 useState(false)，槽位 0 即展开态）。
@@ -292,6 +298,7 @@ function loadOutputsModule(dict, controls = {}) {
     render,
     fireTimers,
     timersByDelay,
+    context,
     rowsView: context.previewListRows,
     placement: context.fileHoverTipPlacement,
     delay: context.OUTPUT_TIP_DELAY_MS,
@@ -332,10 +339,14 @@ test("组件：计数、文件名与目录、截断提示；无产物时整个�
   assert.equal(typeof rows[0].props.onMouseLeave, "function");
   assert.equal(rows[0].props["aria-label"], "docs/a.md");
   assert.deepEqual(rows[0].children.map((child) => [child.type, child.children[0]]), [
+    ["span", "md"],
     ["span", "a.md"],
     ["span", "docs"],
   ]);
-  assert.equal(rows[1].children.filter((child) => child !== null).length, 1, "无目录时只渲染文件名");
+  assert.equal(rows[0].children[0].props.className, "hud-output-ext");
+  assert.equal(rows[0].children[0].props["data-len"], "2");
+  assert.equal(rows[1].children.filter((child) => child !== null).length, 2, "无目录时渲染后缀标签与文件名");
+  assert.equal(rows[1].children[0].children[0], "png");
   rows[0].props.onClick();
   assert.deepEqual(opened, ["docs/a.md"]);
   assert.match(textOf(tree), /仅展示最近改动的 10 个文件/, "截断时给出提示");
@@ -623,4 +634,86 @@ test('mergeOutputFiles：摘要与扫描合并去重，按修改时间倒序并�
   assert.equal(limited.files.length, 2);
   assert.equal(limited.truncated, true);
   assert.equal(limited.total, 13);
+});
+
+test("v0.21.0：产物右键菜单：五项、分割线、添加至聊天/定位/复制与禁用态", async () => {
+  const { zh } = hudClient().dictionaries[0];
+  const refs = [];
+  const copies = [];
+  const calls = [];
+  const runtime = loadOutputsModule(zh, {}, {
+    resolveComposerTarget: async (sessionId) => ({
+      sessionId,
+      input: {
+        addFiles: (items, ids) => { refs.push([items, ids]); return true; },
+        focus() {},
+      },
+    }),
+    copyWithToast: async (text, label) => { copies.push([text, label]); return true; },
+    call: async (method, body) => { calls.push([method, body]); return { opened: true }; },
+  });
+  const files = [{ path: "docs/a.md", name: "a.md", dir: "docs", display: "docs/a.md", absolutePath: "/abs/docs/a.md" }];
+  const props = { files, limit: 10, truncated: false, fold: false, sessionId: "s1", sendSessionId: "s1", onOpen() {}, onFoldChange() {} };
+  let tree = runtime.render(props);
+  const row = walk(tree).find((node) => node.type === "button" && node.props.className === "hud-output-row");
+  assert.ok(row, "应渲染产物行");
+  assert.equal(row.children[0].props.className, "hud-output-ext");
+  assert.equal(row.children[0].children[0], "md");
+  row.props.onContextMenu({ preventDefault() {}, stopPropagation() {}, clientX: 30, clientY: 40 });
+  tree = runtime.render(props);
+  const menu = walk(tree).find((node) => node.type === "HudMenu");
+  assert.ok(menu, "右键应打开菜单");
+  assert.equal(menu.props.x, 30);
+  assert.equal(menu.props.y, 40);
+  const items = JSON.parse(JSON.stringify(menu.props.items.map((item) => ({
+    key: item.key, label: item.label, disabled: item.disabled === true, separatorBefore: item.separatorBefore === true,
+    icon: item.icon,
+  }))));
+  assert.deepEqual(items.map((item) => item.key), ["add-to-chat", "reveal", "copy-name", "copy-relative", "copy-absolute"]);
+  assert.equal(items[0].icon.asset, "at");
+  assert.equal(items[1].icon.official, "IconFolderCloseMedium");
+  assert.equal(items[2].separatorBefore, true, "复制组前应有分割线");
+  assert.equal(items[2].icon.official, "IconCopyOutlineMedium");
+  assert.equal(items[4].disabled, false);
+
+  // 添加至聊天：生成官方 @ 引用并通过 input.addFiles 插入。
+  menu.props.items[0].run();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(refs.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(refs[0])), [[{
+    source: "reference", ref: "@docs/a.md", label: "a.md", appearance: "file", clipboardText: "@docs/a.md",
+  }], []]);
+
+  // 定位：调用 Host workspace/reveal-file，使用产物相对路径。
+  menu.props.items[1].run();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [["workspace/reveal-file", { sessionId: "s1", path: "docs/a.md" }]]);
+
+  // 三个复制项：名称 / 相对路径 / 绝对路径。
+  menu.props.items[2].run();
+  menu.props.items[3].run();
+  menu.props.items[4].run();
+  assert.deepEqual(copies, [
+    ["a.md", zh.copiedOutputName],
+    ["docs/a.md", zh.copiedOutputRelativePath],
+    ["/abs/docs/a.md", zh.copiedOutputAbsolutePath],
+  ]);
+});
+
+test("v0.21.0：无目标会话 / 旧宿主绝对路径 / 带空格路径的菜单边界", async () => {
+  const { zh } = hudClient().dictionaries[0];
+  const runtime = loadOutputsModule(zh, {}, { resolveComposerTarget: async () => null });
+  assert.equal(runtime.context.outputFileMention("a b/c.md"), '@"a b/c.md"');
+  assert.equal(runtime.context.outputFileMention('a"b.md'), null, '含引号不支持 @ 引用');
+  const files = [{ path: "a b/c.md", name: "c.md", dir: "a b", display: "a b/c.md" }];
+  const props = { files, limit: 10, truncated: false, fold: false, sessionId: "", sendSessionId: "", onOpen() {}, onFoldChange() {} };
+  let tree = runtime.render(props);
+  const row = walk(tree).find((node) => node.type === "button" && node.props.className === "hud-output-row");
+  row.props.onContextMenu({ preventDefault() {}, stopPropagation() {}, clientX: 10, clientY: 20 });
+  tree = runtime.render(props);
+  const menu = walk(tree).find((node) => node.type === "HudMenu");
+  const items = menu.props.items;
+  assert.equal(items[0].disabled, true, "无目标会话时添加至聊天置灰");
+  assert.equal(items[0].reason, zh.outputsAddNoTarget);
+  assert.equal(items[4].disabled, true, "旧宿主缺 absolutePath 时绝对路径复制置灰");
 });

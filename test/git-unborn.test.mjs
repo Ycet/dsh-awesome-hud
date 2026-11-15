@@ -133,7 +133,7 @@ test("尚无提交的仓库：暂存后取消暂存（全部 / 单个）都可�
 });
 
 test("取消暂存改用 reset（两种仓库通用），不再依赖 HEAD", () => {
-  assert.match(hostSource, /await runGit\(subprocess, cwd, \["reset", "-q", "--", path\]\);/);
+  assert.match(hostSource, /await runGit\(subprocess, cwd, \["reset", "-q", "--", \.\.\.batch\]\);/);
   assert.match(hostSource, /await runGit\(subprocess, cwd, \["reset", "-q", "--", \.\.\.targets\.slice\(i, i \+ 500\)\]\);/);
   assert.doesNotMatch(hostSource, /"restore", "--staged"/);
   // 空仓库的 graph 走空历史分支（先探测 HEAD 是否可解析）

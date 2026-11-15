@@ -219,7 +219,7 @@ test("粘贴图片写入 IndexedDB：按「工作区 → 便笺 id」分桶、�
   // 粘贴入口：图片按 20 张上限合并，写入当前便笺的桶
   assert.match(source, /const added = makeImages\(accepted\);/);
   assert.match(source, /const room = noteMergeImages\(imagesRef\.current\.length, added\.length\);/);
-  assert.match(source, /queueImageWrite\(openNote\.id, next\);/);
+  assert.match(source, /queueImageWrite\(activeNote\.id, next\);/);
   assert.match(source, /map\[noteId\] = dehydrateNoteImages\(nextImages\);/);
 });
 

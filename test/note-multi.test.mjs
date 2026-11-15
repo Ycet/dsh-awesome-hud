@@ -114,7 +114,7 @@ test("客户端接线：达到上限只 toast；上限调低后仍可保存", ()
   const confirmStart = source.indexOf("const confirmSettings = () => {");
   const body = source.slice(confirmStart, source.indexOf("};", confirmStart));
   assert.doesNotMatch(body, /noteCountViolations|noteCapRejected|violations/);
-  assert.match(body, /props\.onConfirm\(draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft\);/);
+  assert.match(body, /props\.onConfirm\(draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft, gitDraft\);/);
   assert.match(source, /noteLimitReached: "便笺数量已达上限 \{count\} 条，请在 HUD 设置中调整"/);
 });
 
@@ -126,7 +126,9 @@ test("列表视图：便笺条结构（拖动条/标题/悬停按钮）、空态
   // v0.20.1：编辑按钮移除，改为点击标题进入编辑视图。
   assert.doesNotMatch(source, /"aria-label": t\("noteEdit"\)/);
   assert.match(source, /className: "hud-note-bar-title",\n\t+role: "button",/);
-  assert.match(source, /onClick: \(\) => openEditor\(note\.id\),/);
+  // v0.21.0：点击便笺条进入编辑（弹窗开关决定弹窗或模块内编辑视图）。
+  assert.match(source, /onClick: \(event\) => \{ event\?\.stopPropagation\?\.\(\); openNoteEditor\(note\.id\); \},/);
+  assert.match(source, /const openNoteEditor = \(noteId\) => \{/);
   assert.match(source, /"aria-label": t\("noteDelete"\)/);
   assert.match(source, /className: "hud-note-empty"/);
   assert.match(source, /className: "hud-note-list-actions"/);
@@ -140,7 +142,9 @@ test("编辑视图：返回/标题输入/图片拖动/共用高度/删除全部�
   assert.match(source, /className: "hud-note-back"/);
   assert.match(source, /className: "hud-note-title-input"/);
   assert.match(source, /onChange: \(event\) => updateNote\(note\.id, \{ title: event\.target\.value \}\)/);
-  assert.match(source, /style: doc\.height === null \? undefined : \{ height: `\$\{doc\.height\}px` \}/);
+  // v0.21.0：共用高度只作用于内联编辑视图；弹窗固定高度（供 renderNoteTextarea 二选一）。
+  assert.match(source, /inDialog \? \{ height: `\$\{NOTE_DIALOG_AREA_HEIGHT\}px` \} : \(doc\.height === null \? undefined : \{ height: `\$\{doc\.height\}px` \}\)/);
+  assert.match(source, /inDialog \? null : react\.createElement\("div", \{ className: "hud-note-resize"/);
   assert.match(source, /const startResize = \(event\) => \{/);
   assert.match(source, /const startImageDrag = \(event, imageId\) => \{/);
   assert.match(source, /onPointerDown: \(event\) => startImageDrag\(event, image\.id\)/);

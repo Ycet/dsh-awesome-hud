@@ -238,7 +238,6 @@ test('revert 文案与提示：中英词条齐全，确认框渲染预登记/暂
     'gitRevertFileStagedPartial',
     'gitRevertAllDoneWithStaged',
     'gitRevertSkipped',
-    'gitStagedHint',
   ];
   for (const key of keys) {
     const matches = clientSource.match(new RegExp(`\\b${key}:`, 'g')) ?? [];
@@ -247,8 +246,8 @@ test('revert 文案与提示：中英词条齐全，确认框渲染预登记/暂
   // 确认框：预登记按「删除」语义渲染，并追加暂存区说明
   assert.match(clientSource, /confirm\.file\.intentToAdd === true\s*\n\s*\? interpolate\(t\("gitRevertFileIntentToAdd"\)/);
   assert.match(clientSource, /extraNotes\.map\(\(text\) => react\.createElement\("div", \{ className: "hud-confirm-note", key: text \}, text\)\)/);
-  // staged 组常驻说明：暂存区文件不会被 revert 撤销
-  assert.match(clientSource, /className: "hud-git-summary" \}, t\("gitStagedHint"\)\)/);
+  // v0.21.0：暂存区常驻说明已按需求移除。
+  assert.doesNotMatch(clientSource, /gitStagedHint/);
 });
 
 test('AI 生成提交信息：客户端只传 sessionId，不再读取当前会话模型', async () => {
@@ -326,7 +325,7 @@ test('v0.20.0：变更文件行改为「文件名 + 灰色相对目录」，保�
   assert.deepEqual(split(undefined), { name: '', dir: '' });
 
   // 2) 行结构：状态徽章 → 文件名 → 灰色目录 → 加减行数；目录为空时仍占位（flex:1），保证加减靠右。
-  const rowStart = clientSource.indexOf('const renderFileRow = (file, group) => {');
+  const rowStart = clientSource.indexOf('const renderFileRow = (file, group, depth = 0) => {');
   const rowEnd = clientSource.indexOf('// 文件行选项弹窗', rowStart);
   assert.ok(rowStart > 0 && rowEnd > rowStart, '定位不到变更文件行渲染');
   const row = clientSource.slice(rowStart, rowEnd);

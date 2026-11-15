@@ -56,12 +56,16 @@ function createRuntime() {
     normalizePanelSettings,
     NOTE_COUNT_MIN: 5,
     NOTE_COUNT_MAX: 20,
-    defaultNoteSettings: () => ({ maxCount: 5 }),
+    defaultNoteSettings: () => ({ maxCount: 5, popupEdit: false }),
     normalizeNoteMaxCount: value => {
       const number = Number(value);
       return Number.isFinite(number) ? Math.min(20, Math.max(5, Math.round(number))) : 5;
     },
-    normalizeNoteSettings: raw => ({ maxCount: raw?.maxCount === undefined ? 5 : Math.min(20, Math.max(5, Math.round(Number(raw.maxCount)))) }),
+    defaultGitSettings: () => ({ view: 'list' }),
+    normalizeGitView: value => value === 'tree' ? 'tree' : 'list',
+    normalizeGitSettings: raw => ({ view: raw?.view === 'tree' ? 'tree' : 'list' }),
+    GIT_VIEW_DEFAULT: 'list',
+    normalizeNoteSettings: raw => ({ maxCount: raw?.maxCount === undefined ? 5 : Math.min(20, Math.max(5, Math.round(Number(raw.maxCount)))), popupEdit: raw?.popupEdit === true }),
     noteCountViolations: () => [],
     toast: () => {},
     IME_INPUT_PROPS: {},
@@ -93,11 +97,34 @@ function createRuntime() {
   context.react_dom = { createPortal: node => node };
   vm.runInContext(
     [
+      `const HUD_MENU_WIDTH = 200;`,
+      `const HUD_MENU_ITEM_HEIGHT = 29;`,
+      `const HUD_MENU_DIVIDER_HEIGHT = 9;`,
+      `const HUD_MENU_PADDING = 12;`,
+      `const HUD_MENU_MARGIN = 8;`,
+      `const RESET_MENU_WIDTH = 248;`,
+      `const HUD_SELECT_WIDTH_MIN = 180;`,
+      `const HUD_SELECT_WIDTH_MAX = 320;`,
+      `const HUD_SELECT_ITEM_HEIGHT = 34;`,
+      `const HUD_SELECT_PADDING = 4;`,
+      `const CHANGELOG_MAX_VERSIONS = 20;`,
+      extractConst('HUD_CHEVRON_PATH'),
+      extractConst('HUD_CHECK_PATH'),
       extractFunction('guideActiveKey'),
       extractConst('GUIDE_SECTIONS'),
       extractConst('CHANGELOG_ENTRIES'),
+      extractFunction('changelogEntriesForPage'),
       extractFunction('changelogSectionId'),
+      extractFunction('officialIcon'),
       extractFunction('officialControl'),
+      extractFunction('viewportSize'),
+      extractFunction('clampMenuPosition'),
+      extractFunction('menuAnchorFrom'),
+      extractFunction('HudMenu'),
+      extractFunction('hudSelectMenuWidth'),
+      extractFunction('selectMenuPlacement'),
+      extractFunction('HudSelectGlyph'),
+      extractFunction('HudSelect'),
       extractFunction('HudSwitch'),
       extractFunction('HudSegmented'),
       extractFunction('HudNumberStepper'),
@@ -106,6 +133,8 @@ function createRuntime() {
       extractFunction('SettingsChangelog'),
       extractFunction('sameOrder'),
       extractFunction('sameSettingsDraft'),
+      extractFunction('isDefaultModulesSettings'),
+      extractFunction('isDefaultFeatureSettings'),
       extractFunction('isDefaultDraft'),
       extractFunction('contextPinState'),
       extractFunction('SettingsDialog'),
@@ -157,8 +186,25 @@ const findTab = (rootNode, key) => nodes(rootNode).find(node => node.type === 'b
 const clickTab = (rootNode, key) => findTab(rootNode, key).props.onClick();
 const footerButtons = rootNode => nodes(rootNode).filter(node => node.type === 'button' && node.props?.['data-kind']);
 
-test('版本数据：倒序、版本号格式、首条等于 package.json 版本、键唯一', () => {
+test('版本数据：每个版本带合法更新时间，目录与卡片都展示', () => {
+  for (const entry of entries) assert.match(entry.date, /^\d{4}-\d{2}-\d{2}$/, `${entry.version} 更新时间格式`);
+  const runtime = createRuntime();
+  let dialog = runtime.render(baseProps());
+  clickTab(dialog, 'changelog');
+  dialog = runtime.render();
+  assert.equal(byClass(dialog, 'hud-guide-toc-date').length, versions.length);
+  assert.equal(byClass(dialog, 'hud-changelog-date').length, versions.length);
+});
+
+test('版本数据：倒序、版本号格式、首条等于 package.json 版本、键唯一、最多 20 条', () => {
   assert.ok(entries.length >= 2, '至少覆盖 v0.20.1 与 v0.20.0');
+  // v0.21.0：数据源只保留最新 20 个版本（更旧记录删除，避免持续膨胀）。
+  assert.ok(entries.length <= 20, `版本条目不得超过 20 条，实际 ${entries.length}`);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(entries[0].groups.map(group => group.title))),
+    ['changelog021GroupNote', 'changelog021GroupReset', 'changelog021GroupChangelog', 'changelog021GroupUsage', 'changelog021GroupGit', 'changelog021GroupOutputs', 'changelog021GroupPanel'],
+    'v0.21.0 的七个分组',
+  );
   const pattern = /^v\d+\.\d+\.\d+$/;
   for (const version of versions) assert.match(version, pattern);
   // 倒序：逐个比较主/次/修订号三段。
@@ -182,6 +228,19 @@ test('版本数据：倒序、版本号格式、首条等于 package.json 版本
     assert.equal(seen.has(key), false, `键不能重复：${key}`);
     seen.add(key);
   }
+});
+
+test('页面最多展示最新 20 个版本：changelogEntriesForPage 截取前 20 条', () => {
+  const pageFn = vm.runInNewContext(`${extractConst('CHANGELOG_MAX_VERSIONS')}\n${extractFunction('changelogEntriesForPage')}\nchangelogEntriesForPage;`);
+  const synthetic = Array.from({ length: 25 }, (_, index) => ({ version: `v0.${25 - index}.0`, groups: [] }));
+  const capped = pageFn(synthetic);
+  assert.equal(capped.length, 20, '最多 20 条');
+  assert.equal(capped[0].version, 'v0.25.0', '保留最新的在前');
+  assert.equal(capped[19].version, 'v0.6.0');
+  assert.equal(synthetic.length, 25, '不修改入参');
+  assert.deepEqual(JSON.parse(JSON.stringify(pageFn(null))), [], '非数组安全返回空');
+  // 当前数据源不超过上限时原样返回。
+  assert.equal(pageFn(entries).length, entries.length);
 });
 
 test('版本数据：分组标题与要点在中英字典里成对存在', () => {
@@ -220,7 +279,9 @@ test('页面结构：第三个标签打开更新日志页，左栏版本号与�
 
   // 左栏：版本号目录（倒序），文案就是版本号本身。
   const toc = byClass(dialog, 'hud-guide-toc-item');
-  assert.deepEqual(toc.map(textOf), versions);
+  // v0.21.0：目录行追加更新时间，版本号本身在 label 内。
+  assert.deepEqual(byClass(dialog, 'hud-guide-toc-label').map(textOf), versions);
+  assert.equal(JSON.stringify(byClass(dialog, 'hud-guide-toc-date').map(textOf)), JSON.stringify(entries.map((entry) => entry.date)), '目录行展示日期');
   assert.equal(toc[0].props['data-active'], true, '默认高亮最新版本');
   assert.deepEqual(toc.slice(1).map(node => node.props['data-active']), versions.slice(1).map(() => false));
 
@@ -233,7 +294,8 @@ test('页面结构：第三个标签打开更新日志页，左栏版本号与�
     assert.equal(card.props['data-version'], entry.version);
     const title = byClass(card, 'hud-guide-section-title')[0];
     const badges = byClass(card, 'hud-changelog-badge');
-    assert.equal(textOf(title), index === 0 ? `${entry.version}changelogLatest` : entry.version);
+    assert.equal(textOf(title), `${entry.version}${index === 0 ? 'changelogLatest' : ''}${entry.date}`);
+    assert.equal(byClass(card, 'hud-changelog-date')[0].children[0], entry.date, '卡片标题展示更新时间');
     assert.equal(badges.length, index === 0 ? 1 : 0, '只有首条带「最新」徽标');
     const groups = byClass(card, 'hud-changelog-group');
     assert.equal(groups.length, entry.groups.length);

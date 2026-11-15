@@ -4,8 +4,8 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import {
   normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, sanitizeOrderPatch, sanitizeContextPatch, sanitizePanelPatch,
-  modulesOf, usageDisplayOf, contextSettingsOf, moduleOrderOf, panelSettingsOf, sanitizeNotePatch,
-  normalizeNoteSettings, noteSettingsOf, NOTE_COUNT_DEFAULT,
+  modulesOf, usageDisplayOf, contextSettingsOf, moduleOrderOf, panelSettingsOf, sanitizeNotePatch, sanitizeGitPatch,
+  normalizeNoteSettings, noteSettingsOf, normalizeGitSettings, gitSettingsOf, NOTE_COUNT_DEFAULT,
   normalizeModuleOrder, defaultModuleOrder,
   isDefaultSettings, DEFAULT_MODULE_ORDER, defaultContextSettings, normalizeContextSettings,
   defaultPanelSettings, normalizePanelSettings, defaultUsageDisplay,
@@ -67,12 +67,15 @@ function loadUseHudModules(options = {}) {
     NOTE_COUNT_MIN: 5,
     NOTE_COUNT_MAX: 20,
     NOTE_COUNT_DEFAULT,
-    defaultNoteSettings: () => ({ maxCount: NOTE_COUNT_DEFAULT }),
+    defaultNoteSettings: () => ({ maxCount: NOTE_COUNT_DEFAULT, popupEdit: false }),
     normalizeNoteMaxCount: (value) => {
       const number = Number(value);
       return Number.isFinite(number) ? Math.min(20, Math.max(5, Math.round(number))) : NOTE_COUNT_DEFAULT;
     },
     normalizeNoteSettings,
+    defaultGitSettings: () => ({ view: 'list' }),
+    normalizeGitSettings,
+    GIT_VIEW_DEFAULT: 'list',
     ensurePanelPrefs: () => Promise.resolve(defaultPanelSettings()),
     applyPanelPrefs: () => {},
     MODULE_KEYS: ["context", "git", "subagents", "tasks", "mcp", "balance", "plans", "note", "todo"],
@@ -101,7 +104,8 @@ test("一次确认只发送一个同时包含模块与用量的设置请求", as
       order: defaultModuleOrder(),
       // v0.18.2：面板设置随同一次请求落盘；v0.20.0 追加便笺上限
       panel: defaultPanelSettings(),
-      note: { maxCount: NOTE_COUNT_DEFAULT },
+      note: { maxCount: NOTE_COUNT_DEFAULT, popupEdit: false },
+      git: { view: "list" },
     },
   }]);
 });
@@ -111,12 +115,12 @@ test("settings 服务缺失时，进程内降级设置可被后续读取", async
   const start = hostSource.indexOf("const settingsHandler =");
   const end = hostSource.indexOf("\n\n\tctx.effect", start);
   const context = vm.createContext({
-    normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, sanitizeOrderPatch, sanitizeContextPatch, sanitizePanelPatch, sanitizeNotePatch,
-    modulesOf, usageDisplayOf, contextSettingsOf, moduleOrderOf, panelSettingsOf, noteSettingsOf, normalizeNoteSettings, NOTE_COUNT_DEFAULT,
+    normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, sanitizeOrderPatch, sanitizeContextPatch, sanitizePanelPatch, sanitizeNotePatch, sanitizeGitPatch,
+    modulesOf, usageDisplayOf, contextSettingsOf, moduleOrderOf, panelSettingsOf, noteSettingsOf, normalizeNoteSettings, normalizeGitSettings, gitSettingsOf, NOTE_COUNT_DEFAULT,
     normalizeModuleOrder, defaultModuleOrder,
     ctx: { get: () => undefined },
   });
-  vm.runInContext(`let settingsScope = null; let memoryModules = null; let memoryUsage = null; let memoryContext = null; let memoryOrder = null; let memoryPanel = null; let memoryNote = null;\n${hostSource.slice(start, end)}\nthis.handler = settingsHandler;`, context);
+  vm.runInContext(`let settingsScope = null; let memoryModules = null; let memoryUsage = null; let memoryContext = null; let memoryOrder = null; let memoryPanel = null; let memoryNote = null; let memoryGit = null;\n${hostSource.slice(start, end)}\nthis.handler = settingsHandler;`, context);
   await context.handler(false, { modules: { git: false }, usage: { codex: false }, context: { barStyle: "segmented", showStats: false }, panel: { side: "left", newSessionOpen: true }, note: { maxCount: 8 } });
   const restored = await context.handler(true, null);
   assert.equal(restored.modules.git, false);
@@ -125,7 +129,7 @@ test("settings 服务缺失时，进程内降级设置可被后续读取", async
   // v0.18.2：面板设置在进程内降级快照里同样可读回；v0.20.0 追加 style（未指定 → 默认 card）。
   assert.deepEqual(JSON.parse(JSON.stringify(restored.panel)), { style: "card", side: "left", newSessionOpen: true, chatOpen: true });
   // v0.20.0：便笺条数上限同样可读回。
-  assert.deepEqual(JSON.parse(JSON.stringify(restored.note)), { maxCount: 8 });
+  assert.deepEqual(JSON.parse(JSON.stringify(restored.note)), { maxCount: 8, popupEdit: false });
 });
 
 test("profile 运行时设置服务缺失不得伪装为保存成功", async () => {
@@ -134,11 +138,11 @@ test("profile 运行时设置服务缺失不得伪装为保存成功", async () 
   const end = hostSource.indexOf("\n\n\tctx.effect", start);
   const context = vm.createContext({
     normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, sanitizeOrderPatch, sanitizeContextPatch, sanitizePanelPatch, sanitizeNotePatch,
-    modulesOf, usageDisplayOf, contextSettingsOf, moduleOrderOf, panelSettingsOf, noteSettingsOf, normalizeNoteSettings,
+    modulesOf, usageDisplayOf, contextSettingsOf, moduleOrderOf, panelSettingsOf, noteSettingsOf, normalizeNoteSettings, normalizeGitSettings, gitSettingsOf, sanitizeGitPatch,
     normalizeModuleOrder, defaultModuleOrder,
     ctx: { get: () => ({ name: "test-profile" }) },
   });
-  vm.runInContext(`let settingsScope = null; let memoryModules = null; let memoryUsage = null; let memoryContext = null; let memoryOrder = null; let memoryPanel = null; let memoryNote = null;\n${hostSource.slice(start, end)}\nthis.handler = settingsHandler;`, context);
+  vm.runInContext(`let settingsScope = null; let memoryModules = null; let memoryUsage = null; let memoryContext = null; let memoryOrder = null; let memoryPanel = null; let memoryNote = null; let memoryGit = null;\n${hostSource.slice(start, end)}\nthis.handler = settingsHandler;`, context);
   await assert.rejects(context.handler(false, { modules: { git: false } }), /未保存偏好/);
 });
 
@@ -157,7 +161,28 @@ test("较晚返回的初始化读取不会覆盖用户刚确认的设置", async
 });
 
 test("普通会话与新建会话页共用同一个原子设置确认入口", () => {
-  assert.match(source, /props\.onSettingsChange\(draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft\)/);
+  assert.match(source, /props\.onSettingsChange\(draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft, gitDraft\)/);
   assert.doesNotMatch(source, /props\.onModulesChange\(draft\).*props\.onUsageChange/s);
   assert.match(source, /onSettingsChange: updateSettings/);
+});
+
+test("重新挂载时读取 git.view，不因 GET 回退为默认 list", async () => {
+  const initial = {
+    modules: { context: true, git: true },
+    usage: defaultUsageDisplay(),
+    context: defaultContextSettings(),
+    panel: defaultPanelSettings(),
+    note: { maxCount: NOTE_COUNT_DEFAULT, popupEdit: false },
+    git: { view: "tree" },
+    order: defaultModuleOrder(),
+  };
+  const harness = loadUseHudModules({ initial });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(JSON.parse(JSON.stringify(harness.states[6])).view, "tree", "GET 的 git.view=tree 必须写回客户端状态");
+  // 再保存一次 tree，确认请求携带 git，且本地状态仍为 tree。
+  harness.result[2]({}, {}, undefined, undefined, undefined, undefined, { view: "tree" });
+  await new Promise(resolve => setImmediate(resolve));
+  const saved = harness.calls.find((entry) => entry.method === "settings");
+  assert.equal(JSON.parse(JSON.stringify(saved.payload.git)).view, "tree");
+  assert.equal(JSON.parse(JSON.stringify(harness.states[6])).view, "tree");
 });

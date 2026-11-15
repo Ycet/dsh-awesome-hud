@@ -38,7 +38,8 @@ test("便笺不再有 / 与 @ 补全：实现、样式与文案都不残留", ()
 });
 
 test("便笺 textarea 只处理输入与粘贴，不挂补全键盘/光标监听", () => {
-  const noteStart = source.indexOf('className: "hud-note-area"');
+  // v0.21.0：textarea 的 className 改为内联视图 / 弹窗二选一，锚点仍取 hud-note-area。
+  const noteStart = source.indexOf('"hud-note-area"');
   assert.ok(noteStart > 0, "应存在便笺 textarea");
   const noteBlock = source.slice(noteStart, noteStart + 700);
   // v0.20.0：编辑视图写入当前便笺（多便笺：updateNote(note.id, { text })）。

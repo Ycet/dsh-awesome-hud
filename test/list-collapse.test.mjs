@@ -55,7 +55,7 @@ test("三个列表模块共用同一套折叠交互（默认 3 条 + 展开其�
   for (const name of ["OutputsModule", "PlansModule", "SubagentsModule"]) {
     const start = source.indexOf(`function ${name}(props) {`);
     assert.ok(start > 0, `找不到 ${name}`);
-    const slice = source.slice(start, start + 4000);
+    const slice = source.slice(start, start + 8000);
     assert.match(slice, /previewListRows\(/, `${name} 应使用 previewListRows`);
     assert.match(slice, /listMoreButton\(/, `${name} 应使用 listMoreButton`);
     assert.match(slice, /react\.useState\(false\)/, `${name} 应维护折叠状态`);

@@ -43,12 +43,16 @@ function createRuntime(primitives = null) {
     // v0.20.0：便笺条数上限
     NOTE_COUNT_MIN: 5,
     NOTE_COUNT_MAX: 20,
-    defaultNoteSettings: () => ({ maxCount: 5 }),
+    defaultNoteSettings: () => ({ maxCount: 5, popupEdit: false }),
     normalizeNoteMaxCount: (value) => {
       const number = Number(value);
       return Number.isFinite(number) ? Math.min(20, Math.max(5, Math.round(number))) : 5;
     },
-    normalizeNoteSettings: (raw) => ({ maxCount: raw !== null && raw !== undefined && Number.isFinite(Number(raw.maxCount)) ? Math.min(20, Math.max(5, Math.round(Number(raw.maxCount)))) : 5 }),
+    defaultGitSettings: () => ({ view: 'list' }),
+    normalizeGitView: value => value === 'tree' ? 'tree' : 'list',
+    normalizeGitSettings: raw => ({ view: raw?.view === 'tree' ? 'tree' : 'list' }),
+    GIT_VIEW_DEFAULT: 'list',
+    normalizeNoteSettings: (raw) => ({ maxCount: raw !== null && raw !== undefined && Number.isFinite(Number(raw.maxCount)) ? Math.min(20, Math.max(5, Math.round(Number(raw.maxCount)))) : 5, popupEdit: raw?.popupEdit === true }),
     noteCountViolations: () => [],
     toast: () => {},
     IME_INPUT_PROPS: {},
@@ -78,9 +82,30 @@ function createRuntime(primitives = null) {
   context.react_dom = { createPortal: node => node };
   vm.runInContext(
     [
+      `const HUD_MENU_WIDTH = 200;`,
+      `const HUD_MENU_ITEM_HEIGHT = 29;`,
+      `const HUD_MENU_DIVIDER_HEIGHT = 9;`,
+      `const HUD_MENU_PADDING = 12;`,
+      `const HUD_MENU_MARGIN = 8;`,
+      `const RESET_MENU_WIDTH = 248;`,
+      `const HUD_SELECT_WIDTH_MIN = 180;`,
+      `const HUD_SELECT_WIDTH_MAX = 320;`,
+      `const HUD_SELECT_ITEM_HEIGHT = 34;`,
+      `const HUD_SELECT_PADDING = 4;`,
+      extractConst('HUD_CHEVRON_PATH'),
+      extractConst('HUD_CHECK_PATH'),
       extractFunction('guideActiveKey'),
       extractConst('GUIDE_SECTIONS'),
+      extractFunction('officialIcon'),
       extractFunction('officialControl'),
+      extractFunction('viewportSize'),
+      extractFunction('clampMenuPosition'),
+      extractFunction('menuAnchorFrom'),
+      extractFunction('HudMenu'),
+      extractFunction('hudSelectMenuWidth'),
+      extractFunction('selectMenuPlacement'),
+      extractFunction('HudSelectGlyph'),
+      extractFunction('HudSelect'),
       extractFunction('HudSwitch'),
       extractFunction('HudSegmented'),
       extractFunction('HudNumberStepper'),
@@ -88,6 +113,8 @@ function createRuntime(primitives = null) {
       extractFunction('SettingsGuide'),
       extractFunction('sameOrder'),
       extractFunction('sameSettingsDraft'),
+      extractFunction('isDefaultModulesSettings'),
+      extractFunction('isDefaultFeatureSettings'),
       extractFunction('isDefaultDraft'),
       extractFunction('contextPinState'),
       extractFunction('SettingsDialog'),
@@ -125,6 +152,7 @@ function baseProps(overrides = {}) {
     context: defaultContextSettings(),
     order: normalizeModuleOrder(null),
     panel: defaultPanelSettings(),
+    note: { maxCount: 5, popupEdit: false },
     balanceAvailable: true,
     usageAvailability: { deepseek: true, opencode: true, codex: true },
     usageReasons: {},
@@ -237,8 +265,9 @@ test('说明页：11 个模块小节，按「展示 / 功能 / 设置」分组�
       total += items.length;
     }
     // v0.19.0：panel 一节同时讲「固定展示」与「悬停展示」，上限放宽到 16 条；
-    // v0.20.0：便笺一节新增多便笺能力，同样放宽到 16 条；其余仍按 12 条克制。
-    const limit = section.key === 'panel' || section.key === 'note' ? 16 : 12;
+    // v0.20.0：便笺一节新增多便笺能力，同样放宽到 16 条；
+    // v0.21.0：便笺「设置」组新增弹窗编辑要点（展示 3 + 功能 12 + 设置 2），上限放宽到 18 条；其余仍按 12 条克制。
+    const limit = section.key === 'panel' ? 16 : section.key === 'note' ? 18 : 12;
     assert.ok(total >= 3 && total <= limit, `${section.key} 整节要点总数应为 3–${limit} 条（保持简短）`);
   }
 });
@@ -337,7 +366,7 @@ test('底部栏常驻：未改动时「恢复默认」「保存设置」都置�
   assert.equal(footer()[1].props.disabled, false, '改动后「保存设置」可点');
   footer()[1].props.onClick();
   assert.equal(confirmations.length, 1);
-  assert.equal(confirmations[0].length, 6, '确认时同时提交六个草稿（含便笺）');
+  assert.equal(confirmations[0].length, 7, '确认时同时提交七个草稿（含便笺与 git 变更）');
 });
 
 test('guideActiveKey：首屏 / 阈值边界 / 末尾 / 负滚动位置 / 空大纲', () => {
