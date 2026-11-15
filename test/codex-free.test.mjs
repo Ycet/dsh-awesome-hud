@@ -147,7 +147,8 @@ test("免费额度行与 5h / 周额度行互斥渲染，且行结构与既有�
   // 从声明之后的渲染分支处截取（跳过声明本身，否则会命中 jumpBtn 等更早的 createElement）
   const declaration = source.indexOf("const codexFreeMode = ");
   assert.ok(declaration > 0, "codexFreeMode must be declared in lib/client.js");
-  const renderSite = source.indexOf("codexFreeMode", declaration + "const codexFreeMode".length);
+  // v0.20.1：折叠摘要里也用到 codexFreeMode，直接定位「codexFreeMode ? 免费额度行」这个三元分支。
+  const renderSite = source.search(/codexFreeMode\s*\n\s*\? react\.createElement\("div", \{ className: "hud-row hud-usage-row" \}/);
   assert.ok(renderSite > declaration, "codexFreeMode must be used in the render branch");
   const row = vm.runInNewContext(`(${extractBalancedCall(renderSite)})`, {
     react: { createElement: (type, props, ...children) => ({ type, props, children }) },

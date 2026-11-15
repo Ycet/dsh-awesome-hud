@@ -15,10 +15,18 @@ test('待办条目使用与 HUD 设置模块卡片一致的卡片样式', () => 
   assert.match(source, /\.hud-todo-item:not\(\[data-dragging=true\]\):hover\{border-color:color-mix\(in srgb,var\(--dsw-alias-label-primary\) 22%,transparent\);--hud-todo-bg:color-mix\(in srgb,var\(--dsw-alias-label-primary\) 6%,var\(--hud-surface-bg\)\)\}/);
 });
 
-test('待办编辑/删除按钮默认隐藏，悬浮或键盘聚焦该行时才显示', () => {
-  // 两个按钮包进同一个操作区。
+test('待办删除按钮默认隐藏；点击文字编辑；删除需行内二次确认', () => {
+  // 操作区只保留删除按钮；编辑按钮已移除。
   assert.match(source, /react\.createElement\("span", \{ className: "hud-todo-actions" \},/);
-  assert.match(source, /className: "hud-todo-actions"[\s\S]{0,700}"aria-label": t\("todoDelete"\)/);
+  assert.match(source, /className: "hud-todo-actions"[\s\S]{0,2200}"aria-label": t\("todoDelete"\)/);
+  assert.doesNotMatch(source, /"aria-label": t\("todoEdit"\)[\s\S]{0,80}Icon, \{ name: "edit"/);
+  // 点击文字进入编辑。
+  assert.match(source, /className: "hud-todo-text",\n\t+role: "button",\n\t+tabIndex: 0,/);
+  assert.match(source, /onClick: \(\) => startEdit\(item\),/);
+  // 删除二次确认：取消（close）+ 确认（check，红色）。
+  assert.match(source, /item\.id === deleteConfirmId/);
+  assert.match(source, /color: "var\(--dsw-alias-state-error-primary\)"/);
+  assert.match(source, /"aria-label": t\("todoDeleteConfirm"\)/);
   // v0.18.7：操作区改为绝对定位浮层（不再占用行内宽度），文字因此能铺满整行。
   // 浮层本体是行底色实底（按钮区绝不透字），左侧再挂 16px 伪元素渐隐，
   // 让文字在按钮之前淡出——只给容器一条 14px 渐变会让淡出区落在第一个图标下方。

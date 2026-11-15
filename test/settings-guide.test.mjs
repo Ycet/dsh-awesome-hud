@@ -11,7 +11,7 @@ import {
 import { extractFunction, extractConst, hudClient, nodes, clientSource } from './helpers/client-harness.mjs';
 import { assetFileFor } from '../lib/index.js';
 
-const USAGE_SETTING_KEYS = ['deepseek', 'opencode', 'codex', 'showJump'];
+const USAGE_SETTING_KEYS = ['deepseek', 'opencode', 'codex'];
 const MODULE_LABELS = Object.fromEntries(MODULE_KEYS.map(key => [key, () => `label:${key}`]));
 
 /**
@@ -32,6 +32,7 @@ function createRuntime(primitives = null) {
     MODULE_KEYS: [...MODULE_KEYS],
     MODULE_LABELS,
     USAGE_SETTING_KEYS,
+    normalizeUsageFolded: value => (['none', 'deepseek', 'oc-5h', 'oc-1w', 'oc-1m', 'codex-5h', 'codex-1w'].includes(value) ? value : 'none'),
     defaultModules,
     defaultUsageDisplay,
     defaultContextSettings,
@@ -144,29 +145,34 @@ const findTab = (root, key) => nodes(root).find(node => node.type === 'button' &
 const clickTab = (root, key) => findTab(root, key).props.onClick();
 const switchesOf = root => nodes(root).filter(node => node.type === 'button' && node.props?.role === 'switch');
 
-test('标签行：默认停在「HUD 设置」，两个 role=tab 且 aria 属性完整', () => {
+test('标签行：默认停在「HUD 设置」，三个 role=tab 且 aria 属性完整', () => {
   const runtime = createRuntime();
   const dialog = runtime.render(baseProps());
 
   const tabs = nodes(dialog).filter(node => node.type === 'button' && node.props?.role === 'tab');
-  assert.equal(tabs.length, 2);
-  assert.deepEqual(tabs.map(textOf), ['settingsTitle', 'settingsGuideTab'], '标签顺序固定：HUD 设置 → 使用说明');
-  assert.deepEqual(tabs.map(node => node.props['aria-selected']), [true, false]);
-  assert.deepEqual(tabs.map(node => node.props['data-active']), [true, false]);
-  assert.deepEqual(tabs.map(node => node.props.tabIndex), [0, -1]);
+  // v0.20.1：追加第三个标签「更新日志」。
+  assert.equal(tabs.length, 3);
+  assert.deepEqual(tabs.map(textOf), ['settingsTitle', 'settingsGuideTab', 'settingsChangelogTab'], '标签顺序固定：HUD 设置 → 使用说明 → 更新日志');
+  assert.deepEqual(tabs.map(node => node.props['aria-selected']), [true, false, false]);
+  assert.deepEqual(tabs.map(node => node.props['data-active']), [true, false, false]);
+  assert.deepEqual(tabs.map(node => node.props.tabIndex), [0, -1, -1]);
   assert.equal(tabs[0].props.id, 'hud-settings-tab-settings');
   assert.equal(tabs[1].props.id, 'hud-settings-tab-guide');
+  assert.equal(tabs[2].props.id, 'hud-settings-tab-changelog');
   assert.equal(tabs[0].props['aria-controls'], 'hud-settings-panel-settings');
   assert.equal(tabs[1].props['aria-controls'], 'hud-settings-panel-guide');
+  assert.equal(tabs[2].props['aria-controls'], 'hud-settings-panel-changelog');
   assert.equal(nodes(dialog).filter(node => node.props?.role === 'tablist').length, 1);
-  // 两个标签各带图标：设置页用官方 outline 齿轮（assets/icons/settings-outline.svg），说明页用「提示」图标（assets/icons/hint.svg）。
-  assert.deepEqual(tabs.map(tab => nodes(tab).find(node => node.type === 'Icon').props.name), ['settings-outline', 'hint']);
+  // 三个标签各带图标：设置页用官方 outline 齿轮（assets/icons/settings-outline.svg），
+  // 说明页用「提示」图标（assets/icons/hint.svg），更新日志用「更新记录」图标（assets/icons/changelog.svg）。
+  assert.deepEqual(tabs.map(tab => nodes(tab).find(node => node.type === 'Icon').props.name), ['settings-outline', 'hint', 'changelog']);
 
-  // 默认只渲染设置页；说明页不渲染。
+  // 默认只渲染设置页；说明页与更新日志页都不渲染。
   const body = byClass(dialog, 'hud-settings-body');
   assert.equal(body.length, 1, '头部与底部之间应有共享高度容器');
   assert.equal(byClass(body[0], 'hud-settings-panes').length, 1);
   assert.equal(byClass(body[0], 'hud-settings-guide').length, 0);
+  assert.equal(byClass(body[0], 'hud-settings-changelog').length, 0);
 });
 
 test('点「使用说明」切到说明页，再点「HUD 设置」切回（随时切换）', () => {
@@ -312,11 +318,12 @@ test('底部栏常驻：未改动时「恢复默认」「保存设置」都置�
   const runtime = createRuntime();
   let dialog = runtime.render(baseProps({ onConfirm: (...args) => confirmations.push(args) }));
   const footer = () => nodes(dialog).filter(node => node.type === 'button' && node.props?.['data-kind']);
-  assert.deepEqual(footer().map(node => node.props['data-kind']), ['reset', 'cancel', 'confirm']);
+  // v0.20.1：设置页移除「取消」按钮，底部只剩「恢复默认 / 保存设置」。
+  assert.deepEqual(footer().map(node => node.props['data-kind']), ['reset', 'confirm']);
   assert.equal(footer()[0].props.disabled, true, '没有改动时「恢复默认」置灰');
   // v0.20.0：本次打开设置页后没有改动时，「保存设置」同样置灰。
-  assert.equal(footer()[2].props.disabled, true, '没有改动时「保存设置」置灰');
-  footer()[2].props.onClick();
+  assert.equal(footer()[1].props.disabled, true, '没有改动时「保存设置」置灰');
+  footer()[1].props.onClick();
   assert.equal(confirmations.length, 0, '置灰时点击不提交');
 
   // 改一个开关后再切到说明页：底部栏仍常驻，且「保存设置」可提交。
@@ -326,9 +333,9 @@ test('底部栏常驻：未改动时「恢复默认」「保存设置」都置�
   dialog = runtime.render();
   clickTab(dialog, 'guide');
   dialog = runtime.render();
-  assert.deepEqual(footer().map(node => node.props['data-kind']), ['reset', 'cancel', 'confirm']);
-  assert.equal(footer()[2].props.disabled, false, '改动后「保存设置」可点');
-  footer()[2].props.onClick();
+  assert.deepEqual(footer().map(node => node.props['data-kind']), ['reset', 'confirm']);
+  assert.equal(footer()[1].props.disabled, false, '改动后「保存设置」可点');
+  footer()[1].props.onClick();
   assert.equal(confirmations.length, 1);
   assert.equal(confirmations[0].length, 6, '确认时同时提交六个草稿（含便笺）');
 });
@@ -387,8 +394,10 @@ test('接线：SettingsDialog 持有标签状态，说明页与设置页共享�
   assert.match(clientSource, /role: "tablist"/);
   assert.match(clientSource, /className: "hud-settings-body" \},/);
   assert.match(clientSource, /"data-hidden": tab !== "settings", "aria-hidden": tab !== "settings", className: "hud-settings-panes" \},/);
-  assert.match(clientSource, /tab === "guide" \? react\.createElement\(SettingsGuide, \{ panelId: "hud-settings-panel-guide", labelledBy: "hud-settings-tab-guide" \}\) : null\),/);
+  assert.match(clientSource, /tab === "guide" \? react\.createElement\(SettingsGuide, \{ panelId: "hud-settings-panel-guide", labelledBy: "hud-settings-tab-guide" \}\) : null, tab === "changelog" \? react\.createElement\(SettingsChangelog, \{ panelId: "hud-settings-panel-changelog", labelledBy: "hud-settings-tab-changelog" \}\) : null\),/);
   assert.match(clientSource, /function SettingsGuide\(props\) \{/);
+  assert.match(clientSource, /function SettingsChangelog\(props\) \{/);
+  assert.match(clientSource, /const CHANGELOG_ENTRIES = \[/);
   assert.match(clientSource, /function guideActiveKey\(keys, offsets, scrollTop, threshold = 16\) \{/);
   // 「使用说明」标签左侧用 assets/icons/hint.svg；大纲与页面内不再配图标。
   assert.match(clientSource, /react\.createElement\(Icon, \{ name: "hint", size: 14, color: "inherit" \}\)/);
@@ -397,8 +406,8 @@ test('接线：SettingsDialog 持有标签状态，说明页与设置页共享�
   assert.doesNotMatch(clientSource, /\{ key: "panel", icon:/);
 });
 
-test('宿主资产白名单已放行标签图标（hint.svg 与 settings-outline.svg）', () => {
-  for (const name of ['hint.svg', 'settings-outline.svg']) {
+test('宿主资产白名单已放行标签图标（hint.svg、settings-outline.svg 与 changelog.svg）', () => {
+  for (const name of ['hint.svg', 'settings-outline.svg', 'changelog.svg']) {
     const asset = assetFileFor(name);
     assert.ok(asset.path.endsWith(`/assets/icons/${name}`), asset.path);
     assert.equal(asset.contentType, 'image/svg+xml');

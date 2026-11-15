@@ -78,7 +78,12 @@ test("客户端接线：设置卡片、数字步进器、确认前校验与恢�
   // 面板设置菜单把草稿一并提交给 updateSettings。
   assert.match(source, /props\.onSettingsChange\(draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft\);/);
   // 说明页与 README 用同一套 5–20 文案依据。
-  assert.match(source, /guideNoteLimit: "在 HUD 设置 → 便笺 中可调整便笺条数上限。范围为 5–20，默认 5。"/);
+  assert.match(source, /guideNoteLimit: "在 HUD 设置 → 便笺 中可调整便笺条数上限，范围为 5–20，默认 5。上限调低后仍可保存。已有条数超过上限的工作区保持现状，但不能再新建便笺。"/);
+  // v0.20.1：保存时不再因工作区超限而拒绝（只保留新建时的上限检查）。
+  const confirmStart = source.indexOf("const confirmSettings = () => {");
+  const confirmBody = source.slice(confirmStart, source.indexOf("};", confirmStart));
+  assert.doesNotMatch(confirmBody, /noteCountViolations|noteCapRejected/, "保存不再做超限校验");
+  assert.match(source, /if \(current\.notes\.length >= maxCount\)/);
   assert.match(source, /settingsNoteMaxHint: "5–20，默认 5"/);
   assert.match(source, /settingsNoteMaxHint: "5–20, default 5"/);
 });

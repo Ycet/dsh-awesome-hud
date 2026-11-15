@@ -149,7 +149,7 @@ test('列表视图：空态文案 + 两个半宽按钮 + 删除全部（空时�
   assert.equal(deleteAll.props.disabled, true);
 });
 
-test('列表视图：已有便笺渲染便笺条（拖动条 / 标题 / 编辑与删除按钮）', () => {
+test('列表视图：便笺条（拖动条 / 可点击标题 / 仅删除按钮）', () => {
   const storage = {
     'dsh-awesome-hud:notes': JSON.stringify({
       '/tmp/w': { v: 4, height: 180, notes: [{ id: 'n1', title: '便笺1', text: '第一条', updatedAt: 1 }] },
@@ -160,12 +160,15 @@ test('列表视图：已有便笺渲染便笺条（拖动条 / 标题 / 编辑�
   const bar = byClass(tree, 'hud-note-bar')[0];
   assert.ok(bar, '应渲染便笺条');
   assert.equal(byClass(bar, 'hud-note-grip').length, 1);
-  assert.equal(textOf(byClass(bar, 'hud-note-bar-title')[0]), '便笺1');
+  const title = byClass(bar, 'hud-note-bar-title')[0];
+  assert.equal(textOf(title), '便笺1');
+  // v0.20.1：标题即可点击进入编辑视图；编辑按钮移除。
+  assert.equal(title.props.role, 'button');
+  assert.equal(typeof title.props.onClick, 'function');
   const actions = byClass(bar, 'hud-note-bar-actions')[0];
   const buttons = actions.children.filter((child) => child.type === 'button');
-  assert.equal(buttons.length, 2);
-  assert.equal(buttons[0].props['aria-label'], '编辑便笺');
-  assert.equal(buttons[1].props['aria-label'], '删除便笺');
+  assert.equal(buttons.length, 1, '操作区只剩删除按钮');
+  assert.equal(buttons[0].props['aria-label'], '删除便笺');
 });
 
 test('编辑视图：返回 + 可编辑标题 + 图片区 + 共用高度 + 三个动作按钮', () => {
@@ -202,26 +205,30 @@ test('编辑视图：标题与正文输入即保存（写回 localStorage 的对
   assert.equal(stored['/tmp/w'].notes[0].text, '新正文');
 });
 
-test('列表视图：删除单条走确认弹窗（danger 按钮），取消不删除', () => {
+test('列表视图：删除单条改为行内二次确认（取消 / 确认），不再弹窗', () => {
   const note = { id: 'n1', title: '便笺1', text: 'x', updatedAt: 1 };
   const storage = { 'dsh-awesome-hud:notes': JSON.stringify({ '/tmp/w': { v: 4, height: 180, notes: [note] } }) };
   const ui = loadNoteUi({ storage });
   let tree = ui.render({}, [{ notes: [note], height: 180, legacy: false }, null, []]);
-  const bar = byClass(tree, 'hud-note-bar')[0];
-  const deleteButton = byClass(bar, 'hud-note-bar-actions')[0].children.filter((child) => child.type === 'button')[1];
-  deleteButton.props.onClick();
+  const actionsOf = () => byClass(byClass(tree, 'hud-note-bar')[0], 'hud-note-bar-actions')[0];
+  actionsOf().children.filter((child) => child.type === 'button')[0].props.onClick();
   tree = ui.render();
-  // 弹窗：NoteConfirmDialog（danger 变体）+ 取消按钮
-  const dialog = nodes(tree).find((node) => node?.type?.name === 'NoteConfirmDialog');
-  assert.ok(dialog, '应弹出确认弹窗');
-  assert.equal(dialog.props.danger, true);
-  const dialogTree = dialog.type(dialog.props);
-  const cancel = nodes(dialogTree).find((node) => node.type === 'button' && node.props?.['data-kind'] === 'cancel');
-  assert.ok(cancel, '弹窗应有取消按钮');
-  cancel.props.onClick();
+  // 行内确认：取消（close）+ 确认（check，红色），没有弹窗。
+  const confirmButtons = nodes(actionsOf()).filter((child) => child.type === 'button');
+  assert.equal(confirmButtons.length, 2, '删除按钮换成取消 + 确认');
+  assert.ok(nodes(confirmButtons[0]).some((node) => node?.props?.name === 'close'), '取消按钮用叉号图标');
+  assert.ok(nodes(confirmButtons[1]).some((node) => node?.props?.name === 'check'), '确认按钮用对勾图标');
+  confirmButtons[0].props.onClick();
+  tree = ui.render();
+  assert.equal(nodes(actionsOf()).filter((child) => child.type === 'button').length, 1, '取消后回到删除按钮');
+  assert.equal(JSON.parse(ui.storage.get('dsh-awesome-hud:notes'))['/tmp/w'].notes.length, 1, '取消后便笺仍在');
+
+  // 再次删除并确认 → 真正删除。
+  actionsOf().children.filter((child) => child.type === 'button')[0].props.onClick();
+  tree = ui.render();
+  nodes(actionsOf()).filter((child) => child.type === 'button')[1].props.onClick();
   ui.flush();
-  const stored = JSON.parse(ui.storage.get('dsh-awesome-hud:notes'));
-  assert.equal(stored['/tmp/w'].notes.length, 1, '取消后便笺仍在');
+  assert.equal(JSON.parse(ui.storage.get('dsh-awesome-hud:notes'))['/tmp/w'].notes.length, 0, '确认后删除');
 });
 
 test('编辑视图：标题清空后失焦自动补「便笺n」，编号取现有最大编号 + 1', () => {
@@ -237,4 +244,54 @@ test('编辑视图：标题清空后失焦自动补「便笺n」，编号取现�
   ui.flush();
   const stored = JSON.parse(ui.storage.get('dsh-awesome-hud:notes'));
   assert.equal(stored['/tmp/w'].notes[0].title, '便笺5', '应取现有最大值 4 再加 1');
+});
+
+test('便笺模块标题：显示「当前条数/上限」，空列表不显示，增删后实时更新', () => {
+  const noteA = { id: 'n1', title: '便笺1', text: 'a', updatedAt: 1 };
+  const noteB = { id: 'n2', title: '便笺2', text: 'b', updatedAt: 2 };
+  const countOf = (tree) => {
+    const head = nodes(tree).find((node) => node?.type?.name === 'ModuleHead');
+    assert.ok(head, '应有模块标题');
+    const headTree = head.type(head.props);
+    return nodes(headTree).find((node) => typeof cls(node) === 'string' && cls(node).includes('hud-module-count'));
+  };
+  const ui = loadNoteUi({ storage: { 'dsh-awesome-hud:notes': JSON.stringify({ '/tmp/w': { v: 4, height: 180, notes: [noteA, noteB] } }) } });
+  assert.equal(textOf(countOf(ui.render({ noteMaxCount: 8 }))), '2/8', '计数为 当前条数/上限');
+  // 删除一条后（同一存储重载）计数变为 1/8。
+  const one = loadNoteUi({ storage: { 'dsh-awesome-hud:notes': JSON.stringify({ '/tmp/w': { v: 4, height: 180, notes: [noteA] } }) } });
+  assert.equal(textOf(countOf(one.render({ noteMaxCount: 8 }))), '1/8');
+  // 空列表不渲染计数。
+  const empty = loadNoteUi({ storage: { 'dsh-awesome-hud:notes': JSON.stringify({ '/tmp/w': { v: 4, height: 180, notes: [] } }) } });
+  assert.equal(countOf(empty.render({ noteMaxCount: 5 })), undefined);
+});
+
+test('新建便笺标题：按当前列表最大编号 + 1（删除最大编号后会复用）', () => {
+  const note2 = { id: 'n2', title: '便笺2', text: 'b', updatedAt: 2 };
+  const note8 = { id: 'n8', title: '便笺8', text: 'h', updatedAt: 8 };
+  const storage = { 'dsh-awesome-hud:notes': JSON.stringify({ '/tmp/w': { v: 4, height: 180, notes: [note2, note8] } }) };
+  const ui = loadNoteUi({ storage });
+  let tree = ui.render();
+  const addButton = () => nodes(tree).find((node) => node.type === 'button' && textOf(node) === '添加便笺');
+  assert.ok(addButton(), '空态/列表都应有「添加便笺」');
+  addButton().props.onClick();
+  ui.flush();
+  let stored = JSON.parse(ui.storage.get('dsh-awesome-hud:notes'))['/tmp/w'].notes;
+  assert.equal(stored.at(-1).title, '便笺9', '列表最大编号 8 → 新建 9');
+
+  // 删除「便笺8」后，列表最大编号回到 2 → 新建为便笺3（复用被删的编号）。
+  const storage2 = { 'dsh-awesome-hud:notes': JSON.stringify({ '/tmp/w': { v: 4, height: 180, notes: [note2, note8] } }) };
+  const ui2 = loadNoteUi({ storage: storage2 });
+  tree = ui2.render();
+  const actions = () => byClass(byClass(tree, 'hud-note-bar')[1], 'hud-note-bar-actions')[0];
+  nodes(actions()).filter((node) => node.type === 'button')[0].props.onClick();
+  tree = ui2.render();
+  nodes(actions()).filter((node) => node.type === 'button')[1].props.onClick();
+  ui2.flush();
+  stored = JSON.parse(ui2.storage.get('dsh-awesome-hud:notes'))['/tmp/w'].notes;
+  assert.deepEqual(stored.map((note) => note.title), ['便笺2'], '便笺8 已删除');
+  tree = ui2.render();
+  nodes(tree).find((node) => node.type === 'button' && textOf(node) === '添加便笺').props.onClick();
+  ui2.flush();
+  stored = JSON.parse(ui2.storage.get('dsh-awesome-hud:notes'))['/tmp/w'].notes;
+  assert.equal(stored.at(-1).title, '便笺3', '当前最大编号 2 → 新建 3');
 });

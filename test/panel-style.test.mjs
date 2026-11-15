@@ -161,8 +161,8 @@ test('边栏样式：通高贴边（bottom:0、无 maxHeight、右侧 0px）', (
   assert.equal(dom.body.style.peek('margin-right'), '300px');
   assert.equal(dom.scroll.style.peek('margin-right'), '');
   assert.equal(dom.scroll.style.peek('padding-right'), '');
-  // 轨迹/统计浮层座位的收窄与样式无关（绝对定位元素仍需单独让位）。
-  assert.equal(dom.seat.style.peek('margin-right'), '300px');
+  // v0.20.1：边栏样式下座位已随正文停在分隔线处，不再二次收窄（否则输入框偏窄）。
+  assert.equal(dom.seat.style.peek('margin-right'), '');
 });
 
 test('边栏样式左侧镜像：贴会话区左缘（不含 8px），正文收左', () => {
@@ -179,7 +179,7 @@ test('边栏样式左侧镜像：贴会话区左缘（不含 8px），正文收�
   assert.equal(dom.body.style.peek('margin-left'), '300px');
   assert.equal(dom.body.style.peek('margin-right'), '');
   assert.equal(dom.scroll.style.peek('margin-left'), '', '滚动条补偿在边栏样式下一并取消');
-  assert.equal(dom.seat.style.peek('margin-left'), '300px');
+  assert.equal(dom.seat.style.peek('margin-left'), '', '左侧面板同样不再二次收窄');
 });
 
 test('边栏样式卸载时还原写入；切回卡片样式会重新补回滚动容器', () => {

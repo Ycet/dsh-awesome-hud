@@ -5,10 +5,10 @@ import vm from "node:vm";
 
 const source = readFileSync(new URL("../lib/client.js", import.meta.url), "utf8");
 
-async function refreshQuota(call) {
+async function refreshQuota(call, options = {}) {
   let state;
   const context = vm.createContext({
-    ctx: { get: () => ({ rpc: { call } }) },
+    ctx: { get: options.get ?? (() => ({ rpc: { call } })) },
     react: { useEffect: fn => fn() },
     window: { setInterval() {}, clearInterval() {} },
     singleFlight: fn => fn,
@@ -87,4 +87,28 @@ test("authentication and server errors never retry through legacy transport", as
     assert.deepEqual(channels, ["/api"]);
     assert.equal(state.available, false);
   }
+});
+
+test('插件未启用与未登录分开标记：404 视为插件不可用，未登录不算', async () => {
+  // 路由 404（插件未安装/未启用）→ missing: true，HUD 设置据此提示「安装并启用」。
+  const missing = await refreshQuota(async () => {
+    throw new Error('transport failure for /codex-subscription/status: HTTP 404');
+  });
+  assert.equal(missing.available, false);
+  assert.equal(missing.missing, true);
+
+  // 已启用但未登录 → missing: false，HUD 设置据此提示「未登录」。
+  const signedOut = await refreshQuota(async () => ({ ok: true, value: { authenticated: false } }));
+  assert.equal(signedOut.available, false);
+  assert.equal(signedOut.missing, false);
+
+  // 连接服务本身不可用（没有 rpc）→ 也按插件不可用处理。
+  const noRpc = await refreshQuota(async () => { throw new Error('should not be called'); }, { get: () => undefined });
+  assert.equal(noRpc.available, false);
+  assert.equal(noRpc.missing, true);
+
+  // 网络/上游失败既不是「插件不可用」也不是「未登录」，只是暂时不可用。
+  const offline = await refreshQuota(async () => { throw new Error('network down'); });
+  assert.equal(offline.available, false);
+  assert.equal(offline.missing, false);
 });

@@ -214,7 +214,8 @@ test("HUD 设置弹窗：模块卡片列表、拖动排序、恢复默认均已�
   assert.match(source, /const \[settingsOpen, setSettingsOpen\] = react\.useState\(false\);/);
   assert.match(source, /"aria-haspopup": "dialog",/);
   assert.match(source, /"aria-expanded": settingsOpen,/);
-  assert.match(source, /onClick: \(\) => setSettingsOpen\(true\),/);
+  // v0.20.1 修复：齿轮先刷新用量可用性（等 60s 轮询会让停用的插件短暂显示为可用），再打开弹窗。
+  assert.match(source, /onClick: \(\) => \{ props\.onUsageRefresh\?\.\(\); setSettingsOpen\(true\); \},/);
   assert.match(source, /className: "hud-modal hud-settings-modal",/);
   assert.match(source, /role: "dialog",/);
   assert.match(source, /"aria-modal": "true",/);
@@ -291,7 +292,9 @@ test("HUD 设置弹窗：模块卡片列表、拖动排序、恢复默认均已�
   assert.match(source, /document\.addEventListener\("drop", onDrop, true\);/);
   assert.match(source, /document\.removeEventListener\("dragover", onOver, true\);/);
   assert.match(source, /document\.removeEventListener\("drop", onDrop, true\);/);
-  assert.match(source, /const endDrag = \(\) => \{\n\t+if \(!droppedRef\.current\) commitDragOrder\(\);/);
+  // v0.20.1：dragend 兜底提交；Esc / 系统取消（dropEffect=none）时不提交。
+  assert.match(source, /const endDrag = \(event\) => \{/);
+  assert.match(source, /if \(!droppedRef\.current && event\?\.dataTransfer\?\.dropEffect !== "none"\) commitDragOrder\(\);/);
   assert.match(source, /const cancelDrag = \(\) => \{/);
   // 「恢复默认」不提交拖动的半成品，只清理拖动状态。
   // v0.20.0：「恢复默认」同时复位便笺上限，再取消拖动。

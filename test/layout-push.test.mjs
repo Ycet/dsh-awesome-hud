@@ -150,7 +150,10 @@ test("输入框浮层视图（轨迹/统计）：座位单独收窄右缘，常�
   assert.match(source, /const COMPOSER_OVERLAY_SELECTOR = "\[data-conversation-composer-overlay\]";/);
   assert.match(source, /const COMPOSER_SEAT_SELECTOR = "\[data-composer-seat\]";/);
   assert.match(source, /const COMPOSER_SEAT_PUSH_PROPS = \["margin-left", "margin-right"\];/);
-  assert.match(source, /function pushComposerSeat\(scrollEl, side = "right"\) \{/);
+  // v0.20.1：边栏样式下座位本身已停在分隔线处，不再二次收窄。
+  assert.match(source, /function pushComposerSeat\(scrollEl, side = "right", style = "card"\) \{/);
+  assert.match(source, /if \(style === "sidebar"\) return writes;/);
+  assert.match(source, /pushComposerSeat\(target, side, pushStyle\)/);
   // 关键约束：只写 margin-right，不覆写宿主自己的 right（保留其滚动条补偿）。
   assert.match(source, /const prop = side === "left" \? "margin-left" : "margin-right";/);
   assert.match(source, /if \(seat\.style\.getPropertyValue\(prop\) !== margin\) seat\.style\.setProperty\(prop, margin\);/);
@@ -208,6 +211,15 @@ test("输入框浮层视图：座位收窄的写入、幂等与切回常规视�
   const stickyWrites = context.pushComposerSeat(stickyScroll);
   assert.equal(stickyWrites.size, 0, "常规对话视图不写座位 margin");
   assert.equal(stickyScroll.seat.style.peek("margin-right"), "", "常规对话视图座位保持原样");
+
+  // ②.5 边栏样式：滚动容器没有补偿，座位已随正文停在分隔线处 → 不再写 margin（左右一致）。
+  const sidebarOverlay = makeScroll({ overlay: true });
+  const sidebarWrites = context.pushComposerSeat(sidebarOverlay, "right", "sidebar");
+  assert.equal(sidebarWrites.size, 0, "边栏样式不再给座位写 300px margin");
+  assert.equal(sidebarOverlay.seat.style.peek("margin-right"), "", "座位保持宿主原样");
+  const sidebarLeft = makeScroll({ overlay: true });
+  assert.equal(context.pushComposerSeat(sidebarLeft, "left", "sidebar").size, 0, "左侧面板同样不写");
+  assert.equal(sidebarLeft.seat.style.peek("margin-left"), "");
 
   // ③ 重复写入幂等，且原值仍是我们改写前的空值。
   context.pushComposerSeat(overlayScroll);

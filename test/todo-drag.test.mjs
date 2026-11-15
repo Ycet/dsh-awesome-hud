@@ -9,7 +9,7 @@ const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8'
 function loadHelpers() {
   const context = vm.createContext({});
   vm.runInContext(
-    `${extractFunction('dropIndexAt')}\n${extractFunction('previewOffsets')}\nthis.dropIndexAt = dropIndexAt; this.previewOffsets = previewOffsets;`,
+    `${extractFunction('dropIndexAt')}\n${extractFunction('dragIndexForPointer')}\n${extractFunction('previewOffsets')}\nthis.dropIndexAt = dropIndexAt; this.dragIndexForPointer = dragIndexForPointer; this.previewOffsets = previewOffsets;`,
     context,
   );
   return context;
@@ -29,6 +29,22 @@ test('待办拖动落点：按每行上半/下半区判定（行高可变）', (
   assert.equal(dropIndexAt(tops, heights, 70), 2);
   assert.equal(dropIndexAt(tops, heights, 999), 2);
   assert.equal(dropIndexAt([], [], 0), -1);
+});
+
+test('待办拖动落点：指针在列表外时夹到首位 / 末位（v0.20.1）', () => {
+  const { dragIndexForPointer } = loadHelpers();
+  const tops = [0, 28, 76];
+  const heights = [26, 46, 20];
+  // 指针在列表上方 → 首位；在最后一行的下方 → 末位。
+  assert.equal(dragIndexForPointer(tops, heights, -40, 3), 0);
+  assert.equal(dragIndexForPointer(tops, heights, 0, 3), 0);
+  assert.equal(dragIndexForPointer(tops, heights, 200, 3), 2);
+  // 列表内仍按上半/下半区判定。
+  assert.equal(dragIndexForPointer(tops, heights, 10, 3), 0);
+  assert.equal(dragIndexForPointer(tops, heights, 70, 3), 2);
+  // 没有可放置条目 / 非数字时返回 -1。
+  assert.equal(dragIndexForPointer([], [], 10, 0), -1);
+  assert.equal(dragIndexForPointer(tops, heights, Number.NaN, 3), -1);
 });
 
 test('待办拖动预览位移：按预览顺序与真实行高重新堆叠', () => {
@@ -54,7 +70,7 @@ test('待办模块拖动排序：列表级落点 + transform 让位，松手才�
   assert.match(source, /dragRef\.current = \{ id: item\.id, baseOrder: order, order, tops, heights, gap \};/);
   assert.match(source, /dragRef\.current = \{ id: item\.id, baseOrder: order, order, tops, heights, gap \};[\s\S]{0,400}suppressNativeDragImage\(event\);/);
   assert.doesNotMatch(source, /setDragImage\?\.\(row/);
-  assert.match(source, /const overIndex = dropIndexAt\(state\.tops, state\.heights, event\.clientY - list\.getBoundingClientRect\(\)\.top\);/);
+  assert.match(source, /const overIndex = dragIndexForPointer\(state\.tops, state\.heights, relY, state\.order\.length\);/);
   assert.match(source, /const next = previewModuleOrder\(state\.order, state\.id, overIndex\);/);
 
   // 列表级 dragover/drop + 落盘当帧关闭过渡
@@ -69,8 +85,13 @@ test('待办模块拖动排序：列表级落点 + transform 让位，松手才�
   assert.doesNotMatch(source, /"data-over":/);
   assert.doesNotMatch(source, /\.hud-todo-item\[data-over=true\]/);
 
-  // 松手才 persist；拖到列表外不改变顺序
+  // v0.20.1：drop 与 dragend 都走 commitDrag；松手在列表外按最后预览提交，Esc 取消。
+  assert.match(source, /const commitDrag = \(\) => \{/);
   assert.match(source, /const order = state\?\.order \?\? dragPreview\?\.order \?\? null;/);
+  assert.match(source, /droppedRef\.current = true;\n\s*commitDrag\(\);/);
+  assert.match(source, /if \(event\?\.dataTransfer\?\.dropEffect === "none"\) cancelDrag\(\);/);
+  assert.match(source, /document\.addEventListener\("dragover", onOver, true\);/);
+  assert.match(source, /document\.addEventListener\("drop", onDropEvent, true\);/);
   // v0.19.2：拖动只重排未完成条目，落盘时把已完成整组接回末尾。
   assert.match(source, /const merged = next\.length === activeTodos\.length \? next\.concat\(doneTodos\) : \[\];/);
   assert.match(source, /setDragSettling\(true\);\n\s*persist\(merged\);/);

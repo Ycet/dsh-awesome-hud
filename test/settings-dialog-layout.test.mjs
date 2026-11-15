@@ -8,7 +8,7 @@ import {
 } from '../lib/settings.js';
 import { extractFunction, extractConst, nodes, clientSource as clientSource } from './helpers/client-harness.mjs';
 
-const USAGE_SETTING_KEYS = ['deepseek', 'opencode', 'codex', 'showJump'];
+const USAGE_SETTING_KEYS = ['deepseek', 'opencode', 'codex'];
 const MODULE_LABELS = Object.fromEntries(MODULE_KEYS.map(key => [key, () => `label:${key}`]));
 
 /**
@@ -34,6 +34,7 @@ function createRuntime(primitives, options = {}) {
     MODULE_KEYS: [...MODULE_KEYS],
     MODULE_LABELS,
     USAGE_SETTING_KEYS,
+    normalizeUsageFolded: value => (['none', 'deepseek', 'oc-5h', 'oc-1w', 'oc-1m', 'codex-5h', 'codex-1w'].includes(value) ? value : 'none'),
     defaultModules,
     defaultUsageDisplay,
     defaultContextSettings,
@@ -216,12 +217,12 @@ test('点击侧位分段 / 开关后，确认时把面板草稿一起提交', ()
   assert.deepEqual(JSON.parse(JSON.stringify(panelDraft)), { style: 'sidebar', side: 'left', newSessionOpen: true, chatOpen: true });
 });
 
-test('「恢复默认」把面板设置与「跳转」开关一并复位', () => {
+test('「恢复默认」把面板设置与折叠展示一并复位', () => {
   const confirmations = [];
   const runtime = createRuntime(null);
   const changed = {
     panel: { side: 'left', newSessionOpen: true, chatOpen: false },
-    usage: { ...defaultUsageDisplay(), showJump: false },
+    usage: { ...defaultUsageDisplay(), folded: 'oc-5h' },
   };
   runtime.render(baseProps({ ...changed, onConfirm: (...args) => confirmations.push(args) }));
 
@@ -238,7 +239,7 @@ test('「恢复默认」把面板设置与「跳转」开关一并复位', () =>
   confirm.props.onClick();
   const [draft, usageDraft, orderDraft, contextDraft, panelDraft] = confirmations[0];
   assert.deepEqual(JSON.parse(JSON.stringify(panelDraft)), defaultPanelSettings());
-  assert.equal(usageDraft.showJump, true);
+  assert.equal(usageDraft.folded, 'none');
   assert.deepEqual(JSON.parse(JSON.stringify(draft)), defaultModules());
   assert.deepEqual(JSON.parse(JSON.stringify(orderDraft)), normalizeModuleOrder(null));
   assert.deepEqual(JSON.parse(JSON.stringify(contextDraft)), defaultContextSettings());
@@ -263,8 +264,8 @@ test('primitives 可用时右栏直接使用官方 Switch / SegmentedControl', (
   const dialog = runtime.render(baseProps());
 
   const official = nodes(dialog).filter(node => node.type === OfficialSwitch);
-  // 面板 2 + 上下文 4（三项展示 + v0.18.7 位置固定）+ 用量 4（三行 + 跳转）= 10
-  assert.equal(official.length, 10, '所有启停项都应走官方 Switch');
+  // 面板 2 + 上下文 4（三项展示 + v0.18.7 位置固定）+ 用量 3（三行数据；折叠展示用下拉）= 9
+  assert.equal(official.length, 9, '所有启停项都应走官方 Switch');
   // v0.20.0：分段控件 2 个（样式 + 侧位；展示方式已移除）
   assert.equal(nodes(dialog).filter(node => node.type === OfficialSegmented).length, 2);
   // 官方组件必须收到受控 props。
@@ -286,6 +287,43 @@ test('primitives 可用时右栏直接使用官方 Switch / SegmentedControl', (
   assert.equal(styleSeg.props.value, 'card');
 });
 
+test('置灰设置项：原因文字走红字样式，未置灰行保持次要色', () => {
+  // v0.20.1：所有置灰设置行的说明小字改为错误色（红字），直接写明不可用原因。
+  assert.match(clientSource, /\.hud-setting-row\[data-disabled=true\] \.hud-setting-hint\{color:var\(--dsw-alias-state-error-primary\)\}/);
+  // 行名仍用次要色，保持「名称灰、原因红」的层次。
+  assert.match(clientSource, /\.hud-setting-row\[data-disabled=true\] \.hud-setting-name\{color:var\(--dsw-alias-label-secondary\)\}/);
+
+  const runtime = createRuntime(null);
+  // 把「git」排到首位，让「上下文模块位置固定」因排序原因置灰。
+  const order = ['git', ...MODULE_KEYS.filter(key => key !== 'git')];
+  const dialog = runtime.render(baseProps({
+    order,
+    usageAvailability: { deepseek: true, opencode: false, codex: false },
+    usageReasons: { opencode: 'settingsUsageOpencodeMissing', codex: 'settingsUsageCodexUnconfigured' },
+  }));
+  const cards = byClass(dialog, 'hud-settings-section hud-settings-section-card');
+  const contextRows = byClass(cards[1], 'hud-setting-row');
+  const pinRow = contextRows[contextRows.length - 1];
+  assert.equal(pinRow.props['data-disabled'], true, '排序不允许时「上下文模块位置固定」置灰');
+  assert.equal(textOf(byClass(pinRow, 'hud-setting-hint')[0]), 'settingsContextPinOrder', '置灰原因写在说明小字里');
+  const pinSwitch = nodes(pinRow).find(node => node.type === 'button' && node.props?.role === 'switch');
+  assert.equal(pinSwitch.props.disabled, true, '置灰行完全不可点击');
+
+  // 未置灰行仍显示常规说明（不是原因文案）。
+  assert.equal(contextRows[0].props['data-disabled'], false);
+  // 上下文卡片顺序：会话统计 → Token 用量 → 分段进度条 → 位置固定（v0.19.2）。
+  assert.equal(textOf(byClass(contextRows[0], 'hud-setting-hint')[0]), 'settingsContextStatsHint');
+
+  // 用量两行：原因同样落在说明小字里，codex 区分「插件不可用」与「已启用但未登录」。
+  const usageRows = byClass(cards[2], 'hud-setting-row');
+  assert.equal(textOf(byClass(usageRows[1], 'hud-setting-hint')[0]), 'settingsUsageOpencodeMissing');
+  assert.equal(textOf(byClass(usageRows[2], 'hud-setting-hint')[0]), 'settingsUsageCodexUnconfigured');
+  // 组件侧按 missing 标记挑选原因键。
+  assert.match(clientSource, /codex: t\(codexUsageReasonKey\(codex\)\)/);
+  assert.match(clientSource, /function codexUsageReasonKey\(state\) \{/);
+  assert.match(clientSource, /opencode: opencode\?\.missing === true \? t\("settingsUsageOpencodeMissing"\) : t\("settingsUsageOpencodeUnconfigured"\)/);
+});
+
 test('用量设置：三项恒列出，未安装/未配置置灰并给出行内原因', () => {
   const runtime = createRuntime(null);
   const dialog = runtime.render(baseProps({
@@ -295,25 +333,31 @@ test('用量设置：三项恒列出，未安装/未配置置灰并给出行内�
   const cards = byClass(dialog, 'hud-settings-section hud-settings-section-card');
   const usageCard = cards[2];
   const rows = byClass(usageCard, 'hud-setting-row');
-  assert.equal(rows.length, 4, '三行用量数据 + 「跳转」按钮');
+  assert.equal(rows.length, 4, '三行用量数据 + 折叠后展示信息');
 
   // 名称用图标区分数据源；置灰行带 data-disabled 与原因文案。
   assert.deepEqual(rows.map(row => textOf(byClass(row, 'hud-setting-name')[0])), [
-    'settingsUsageDeepseek', 'settingsUsageOpencode', 'settingsUsageCodex', 'settingsUsageJump',
+    'settingsUsageDeepseek', 'settingsUsageOpencode', 'settingsUsageCodex', 'settingsUsageFolded',
   ]);
   assert.equal(rows[0].props['data-disabled'], false, 'DeepSeek 走内置官方余额源，恒可切换');
   assert.equal(rows[1].props['data-disabled'], true);
   assert.equal(rows[2].props['data-disabled'], true);
-  assert.equal(rows[3].props['data-disabled'], false, '「跳转」按钮开关不受数据源影响');
+  assert.equal(rows[3].props['data-disabled'], false);
   assert.equal(textOf(byClass(rows[1], 'hud-setting-hint')[0]), 'settingsUsageOpencodeMissing');
   assert.equal(textOf(byClass(rows[2], 'hud-setting-hint')[0]), 'settingsUsageCodexMissing');
+  assert.equal(textOf(byClass(rows[3], 'hud-setting-hint')[0]), 'settingsUsageFoldedHint');
 
-  // 置灰开关必须是 disabled，且点击不会改草稿。
-  const switches = rows.map(row => nodes(row).find(node => node.type === 'button' && node.props?.role === 'switch'));
+  // 置灰开关必须是 disabled，且点击不会改草稿；折叠下拉里不可用选项同样置灰。
+  const switches = rows.slice(0, 3).map(row => nodes(row).find(node => node.type === 'button' && node.props?.role === 'switch'));
   assert.equal(switches[0].props.disabled, false);
   assert.equal(switches[1].props.disabled, true);
   assert.equal(switches[2].props.disabled, true);
-  assert.equal(switches[3].props.disabled, false);
+  const select = nodes(rows[3]).find(node => node.type === 'select');
+  assert.ok(select, '折叠展示用下拉菜单');
+  const options = select.props.children;
+  assert.equal(options.length, 7);
+  const disabledOptions = options.filter(option => option.props.disabled).map(option => option.props.value);
+  assert.deepEqual(JSON.parse(JSON.stringify(disabledOptions)), ['oc-5h', 'oc-1w', 'oc-1m', 'codex-5h', 'codex-1w']);
 });
 
 test('侧位控件关闭「新建会话页默认展示」时开关为关，且不误触禁用项', () => {
@@ -424,7 +468,7 @@ test('便笺设置卡片：数字步进器 5–20，确认时随设置一起提�
   assert.deepEqual(JSON.parse(JSON.stringify(calls[0][5])), { maxCount: 6 }, '确认时提交 note.maxCount');
 });
 
-test('便笺上限降低导致工作区超限：整次保存被拒绝并提示工作区与条数', () => {
+test('便笺上限降低导致工作区超限：仍然正常保存，不再拦截', () => {
   const toasts = [];
   const calls = [];
   const runtime = createRuntime(null, {
@@ -432,7 +476,6 @@ test('便笺上限降低导致工作区超限：整次保存被拒绝并提示�
     toasts,
   });
   const dialog = runtime.render(baseProps({ note: { maxCount: 5 }, onConfirm: (...args) => calls.push(args) }));
-  // 先改动便笺上限（5 → 6）才允许保存，并触发「上限低于现有条数」校验。
   const noteCard = byClass(dialog, 'hud-settings-section hud-settings-section-card').find(card => textOf(byClass(card, 'hud-settings-section-title')[0]) === 'settingsNoteTitle');
   const steps = nodes(noteCard).filter(node => node.type === 'button' && node.props?.className === 'hud-number-step');
   steps[1].props.onClick();
@@ -440,11 +483,9 @@ test('便笺上限降低导致工作区超限：整次保存被拒绝并提示�
   const confirmButton = nodes(dialog2).find(node => node.type === 'button' && node.props?.['data-kind'] === 'confirm');
   assert.equal(confirmButton.props.disabled, false, '改动后可点');
   confirmButton.props.onClick();
-  assert.equal(calls.length, 0, '超限时不调用 onConfirm');
-  assert.equal(toasts.length, 1);
-  assert.match(toasts[0], /cannot save/);
-  assert.match(toasts[0], /\/ws\/alpha/);
-  assert.match(toasts[0], /8/);
+  assert.equal(calls.length, 1, 'v0.20.1：上限低于现有条数也照常保存');
+  assert.equal(toasts.length, 0, '不再 toast 拦截');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[0][5])), { maxCount: 6 });
 });
 
 test('「保存设置」未改动时置灰；只改其它设置时便笺上限校验不再拦截保存', () => {
@@ -469,7 +510,7 @@ test('「保存设置」未改动时置灰；只改其它设置时便笺上限�
   assert.equal(calls[0].length, 6);
 });
 
-test('调整便笺上限且工作区超限时才拦截保存，并提示具体工作区', () => {
+test('调整便笺上限且工作区超限时同样保存成功', () => {
   const calls = [];
   const toasts = [];
   const runtime = createRuntime(null, {
@@ -478,16 +519,13 @@ test('调整便笺上限且工作区超限时才拦截保存，并提示具体�
   });
   let dialog = runtime.render(baseProps({ note: { maxCount: 5 }, onConfirm: (...args) => calls.push(args) }));
   const noteCard = () => byClass(dialog, 'hud-settings-section hud-settings-section-card').find(card => textOf(byClass(card, 'hud-settings-section-title')[0]) === 'settingsNoteTitle');
-  // 5 → 6：上限确实改了，且低于 /ws/alpha 的 8 条 → 拦截。
   nodes(noteCard()).filter(node => node.type === 'button' && node.props?.className === 'hud-number-step')[1].props.onClick();
   dialog = runtime.render();
   const confirm = nodes(dialog).find(node => node.type === 'button' && node.props?.['data-kind'] === 'confirm');
   assert.equal(confirm.props.disabled, false);
   confirm.props.onClick();
-  assert.equal(calls.length, 0, '超限时不保存');
-  assert.equal(toasts.length, 1);
-  assert.match(toasts[0], /\/ws\/alpha/);
-  assert.match(toasts[0], /8/);
+  assert.equal(calls.length, 1, '超限也保存');
+  assert.equal(toasts.length, 0);
 });
 
 test('上下文与用量设置行都带上简短说明文案', () => {
@@ -503,10 +541,7 @@ test('上下文与用量设置行都带上简短说明文案', () => {
     'settingsContextStatsHint', 'settingsContextUsageHint', 'settingsContextBarStyleHint', 'settingsContextPinHint',
   ]);
   const usageCard = cardOf('settingsUsageTitle');
-  assert.deepEqual([hintOf(usageCard, 0), hintOf(usageCard, 1), hintOf(usageCard, 2)], [
-    'settingsUsageDeepseekHint', 'settingsUsageOpencodeHint', 'settingsUsageCodexHint',
+  assert.deepEqual([hintOf(usageCard, 0), hintOf(usageCard, 1), hintOf(usageCard, 2), hintOf(usageCard, 3)], [
+    'settingsUsageDeepseekHint', 'settingsUsageOpencodeHint', 'settingsUsageCodexHint', 'settingsUsageFoldedHint',
   ]);
-  // 「展示跳转按钮」行也有说明。
-  const jumpRow = byClass(usageCard, 'hud-setting-row').at(-1);
-  assert.equal(textOf(byClass(jumpRow, 'hud-setting-hint')[0]), 'settingsUsageJumpHint');
 });

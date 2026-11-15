@@ -49,17 +49,23 @@ test("sanitizeModulesPatch", () => {
 
 test("defaultUsageDisplay 全键且默认展示", () => {
 	const usage = defaultUsageDisplay();
-	// v0.18.2：showJump（用量模块「跳转」按钮）与三行用量数据同属「用量设置」。
-	assert.deepEqual(Object.keys(usage).sort(), ["codex", "deepseek", "opencode", "showJump"]);
-	assert.ok(Object.values(usage).every(Boolean));
+	// v0.20.1：三行数据 + 折叠后展示信息（默认 none）；「跳转」字段已移除。
+	assert.deepEqual(Object.keys(usage).sort(), ["codex", "deepseek", "folded", "opencode"]);
+	assert.deepEqual([usage.deepseek, usage.opencode, usage.codex], [true, true, true]);
+	assert.equal(usage.folded, "none");
 });
 
-test("sanitizeUsagePatch：只接受 deepseek/opencode/codex 布尔", () => {
+test("sanitizeUsagePatch：只接受 deepseek/opencode/codex 布尔与 folded 枚举", () => {
 	assert.deepEqual(sanitizeUsagePatch({ deepseek: false }), { patch: { deepseek: false }, changed: false });
 	assert.deepEqual(sanitizeUsagePatch({ opencode: true }), { patch: { opencode: true }, changed: false });
 	assert.deepEqual(sanitizeUsagePatch({ codex: false }), { patch: { codex: false }, changed: false });
-	// v0.18.2：「跳转」按钮开关也走同一白名单。
-	assert.deepEqual(sanitizeUsagePatch({ showJump: false }), { patch: { showJump: false }, changed: false });
+	// v0.20.1：折叠后展示信息走同一白名单；非法枚举整体拒绝。
+	assert.deepEqual(sanitizeUsagePatch({ folded: "oc-5h" }), { patch: { folded: "oc-5h" }, changed: false });
+	assert.deepEqual(sanitizeUsagePatch({ folded: "none" }), { patch: { folded: "none" }, changed: false });
+	assert.equal(sanitizeUsagePatch({ folded: "oc-9h" }), null);
+	assert.equal(sanitizeUsagePatch({ folded: 1 }), null);
+	// showJump 已移除，不再被接受。
+	assert.equal(sanitizeUsagePatch({ showJump: false }), null);
 	assert.equal(sanitizeUsagePatch({ deepseek: "yes" }), null);
 	assert.equal(sanitizeUsagePatch({ other: true }), null); // 白名单外键
 	assert.equal(sanitizeUsagePatch({}), null);
@@ -68,7 +74,7 @@ test("sanitizeUsagePatch：只接受 deepseek/opencode/codex 布尔", () => {
 
 test("normalizeSettings：usage 缺失/损坏收敛为默认", () => {
 	assert.deepEqual(normalizeSettings(null).usage, defaultUsageDisplay());
-	assert.deepEqual(normalizeSettings({ usage: { deepseek: false } }).usage, { deepseek: false, opencode: true, codex: true, showJump: true });
+	assert.deepEqual(normalizeSettings({ usage: { deepseek: false } }).usage, { deepseek: false, opencode: true, codex: true, folded: "none" });
 	assert.deepEqual(normalizeSettings({ modules: {} }).usage, defaultUsageDisplay());
 	assert.deepEqual(normalizeSettings({ usage: { deepseek: "x" } }).usage, defaultUsageDisplay());
 	// 历史设置（无 usage 字段）仍可完整收敛

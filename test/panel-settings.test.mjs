@@ -1,9 +1,9 @@
-// dsh-awesome-hud — v0.18.2「HUD 面板设置」收敛与「用量跳转」开关（host + client 纯函数）
+// dsh-awesome-hud — v0.18.2「HUD 面板设置」收敛与用量折叠展示设置（host + client 纯函数）
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import {
-  PANEL_SIDES, PANEL_STYLES, PANEL_SETTING_KEYS, USAGE_DISPLAY_KEYS,
+  PANEL_SIDES, PANEL_STYLES, PANEL_SETTING_KEYS, USAGE_DISPLAY_KEYS, USAGE_FOLDED_VALUES,
   defaultPanelSettings, normalizePanelSettings, sanitizePanelPatch, panelSettingsOf,
   defaultUsageDisplay, defaultSettings, normalizeSettings, isDefaultSettings, sanitizeUsagePatch,
 } from "../lib/settings.js";
@@ -85,14 +85,15 @@ test("面板设置参与 isDefaultSettings 判定", () => {
   assert.equal(isDefaultSettings({ ...defaultSettings(), panel: { style: "card", side: "right", newSessionOpen: false, chatOpen: false } }), false);
 });
 
-test("「跳转」开关并入「用量设置」：默认启用且参与收敛/白名单/默认判定", () => {
-  assert.ok(USAGE_DISPLAY_KEYS.includes("showJump"));
-  assert.equal(defaultUsageDisplay().showJump, true);
-  assert.deepEqual(normalizeSettings({ usage: { showJump: false } }).usage, { deepseek: true, opencode: true, codex: true, showJump: false });
-  assert.deepEqual(normalizeSettings({ usage: { showJump: "no" } }).usage, defaultUsageDisplay());
-  assert.deepEqual(sanitizeUsagePatch({ showJump: false }), { patch: { showJump: false }, changed: false });
-  assert.equal(sanitizeUsagePatch({ showJump: "no" }), null);
-  assert.equal(isDefaultSettings({ ...defaultSettings(), usage: { ...defaultUsageDisplay(), showJump: false } }), false);
+test("折叠展示并入「用量设置」：默认 none 且参与收敛/白名单/默认判定", () => {
+  assert.equal(USAGE_DISPLAY_KEYS.includes("showJump"), false, "「跳转」字段已移除");
+  assert.ok(USAGE_FOLDED_VALUES.includes("oc-5h"));
+  assert.equal(defaultUsageDisplay().folded, "none");
+  assert.deepEqual(normalizeSettings({ usage: { folded: "oc-5h" } }).usage, { deepseek: true, opencode: true, codex: true, folded: "oc-5h" });
+  assert.deepEqual(normalizeSettings({ usage: { folded: "oc-9h" } }).usage, defaultUsageDisplay());
+  assert.deepEqual(sanitizeUsagePatch({ folded: "codex-1w" }), { patch: { folded: "codex-1w" }, changed: false });
+  assert.equal(sanitizeUsagePatch({ folded: "oc-9h" }), null);
+  assert.equal(isDefaultSettings({ ...defaultSettings(), usage: { ...defaultUsageDisplay(), folded: "oc-5h" } }), false);
 });
 
 test("客户端与 host 的面板默认值/收敛规则完全一致", () => {
@@ -114,8 +115,9 @@ test("客户端与 host 的面板默认值/收敛规则完全一致", () => {
   }
 });
 
-test("客户端「用量」默认值包含 showJump，与 host 保持一致", () => {
+test("客户端「用量」默认值包含 folded，与 host 保持一致", () => {
   const source = readSource;
-  assert.match(source, /const USAGE_SETTING_KEYS = \["deepseek", "opencode", "codex", "showJump"\];/);
-  assert.match(source, /return \{ deepseek: true, opencode: true, codex: true, showJump: true \};/);
+  assert.match(source, /const USAGE_SETTING_KEYS = \["deepseek", "opencode", "codex"\];/);
+  assert.match(source, /return \{ deepseek: true, opencode: true, codex: true, folded: USAGE_FOLDED_DEFAULT \};/);
+  assert.match(source, /const USAGE_FOLDED_VALUES = \["none", "deepseek", "oc-5h", "oc-1w", "oc-1m", "codex-5h", "codex-1w"\];/);
 });

@@ -60,6 +60,17 @@ test("宿主：提示词收敛——换行归一、去首尾空白、超长截�
   assert.equal(Config.dict.commitPrompt.meta.default, "");
 });
 
+test("默认提示词：提示词与暂存区优先，会话上下文按轮次且只作参考", () => {
+  assert.match(DEFAULT_COMMIT_PROMPT, /primary source of the message/);
+  assert.match(DEFAULT_COMMIT_PROMPT, /secondary and lower priority/);
+  assert.match(DEFAULT_COMMIT_PROMPT, /Never describe changes that are not present in the staged diff/);
+  assert.match(DEFAULT_COMMIT_PROMPT, /use that note as the 修改内容/);
+  assert.match(DEFAULT_COMMIT_PROMPT, /strictly follows the versioning rules above/);
+  // 宿主注入的会话上下文标注为 secondary reference，且按轮次提取。
+  assert.match(HOST_SOURCE, /Conversation context — recent turns of the current session\. This is a secondary reference only/);
+  assert.match(HOST_SOURCE, /extractSessionContext\(sessionEvents \?\? \[\]\)/);
+});
+
 test("宿主接线：generate 使用保存的提示词模板，git/prompt 读写并回传默认模板", () => {
   // 生成函数签名接收模板，并用 renderCommitPromptTemplate 注入动态值。
   assert.match(HOST_SOURCE, /export async function generateCommitMessage\(ctx, subprocess, cwd, sessionId, promptTemplate\) \{/);
@@ -72,7 +83,9 @@ test("宿主接线：generate 使用保存的提示词模板，git/prompt 读写
   // 用户消息只携带 diff；日期前缀与版本校验只在默认提示词下执行。
   assert.match(HOST_SOURCE, /const prompt = \["Staged changes \(git diff --staged\):", body\]\.join\("\\n"\);/);
   assert.match(HOST_SOURCE, /if \(!customPrompt\) \{[\s\S]{0,220}head\[1\] !== today/);
-  assert.match(HOST_SOURCE, /if \(!customPrompt && !exempt\(message\)\) \{/);
+  // v0.20.1：会话备注不再豁免版本校验；默认提示词下始终校验。
+  assert.match(HOST_SOURCE, /if \(!customPrompt\) \{/);
+  assert.doesNotMatch(HOST_SOURCE, /exempt\(message\)/);
   // commit-ai 读取已保存的自定义提示词（空字符串 = 默认模板）。
   assert.match(HOST_SOURCE, /return await generateCommitMessage\(ctx, subprocess, cwd, sessionId, currentCommitPrompt\(\)\);/);
   // git/prompt：无 prompt 字段读取，有则保存（""=恢复默认），返回 { default, custom, persistent }。

@@ -1,5 +1,5 @@
 // dsh-awesome-hud — v0.18.2 回归：面板重挂后必须读取最新设置，不能回退到页面加载时的旧快照
-// （用户报告：关掉「跳转」/把面板放到左侧后，切页面、关开面板、开合右侧栏都会回退）
+// （用户报告：把面板放到左侧/改折叠展示后，切页面、关开面板、开合右侧栏都会回退）
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -13,7 +13,7 @@ const start = clientSource.indexOf('function useHudModules()');
 const end = clientSource.indexOf('// —— 会话模块', start);
 assert.ok(start > 0 && end > start, '定位不到 useHudModules');
 
-/** 页面加载时的旧设置：面板右侧、跳转按钮展示。 */
+/** 页面加载时的旧设置：面板右侧、折叠展示无。 */
 const pageLoadBody = () => ({
   ok: true,
   modules: defaultModules(),
@@ -23,11 +23,11 @@ const pageLoadBody = () => ({
   panel: defaultPanelSettings(),
 });
 
-/** 用户确认后的设置：面板左侧、跳转按钮关闭（宿主回显）。 */
+/** 用户确认后的设置：面板左侧、折叠展示 OC 5h（宿主回显）。 */
 const writtenBody = () => ({
   ok: true,
   modules: defaultModules(),
-  usage: { ...defaultUsageDisplay(), showJump: false },
+  usage: { ...defaultUsageDisplay(), folded: 'oc-5h' },
   context: defaultContextSettings(),
   order: normalizeModuleOrder(null),
   panel: { side: 'left', newSessionOpen: false, chatOpen: true },
@@ -106,7 +106,8 @@ function createHarness(options = {}) {
     t: key => key,
   });
 
-  context.USAGE_SETTING_KEYS = ['deepseek', 'opencode', 'codex', 'showJump'];
+  context.USAGE_SETTING_KEYS = ['deepseek', 'opencode', 'codex'];
+  context.normalizeUsageFolded = value => (['none', 'deepseek', 'oc-5h', 'oc-1w', 'oc-1m', 'codex-5h', 'codex-1w'].includes(value) ? value : 'none');
   vm.runInContext(`
     let lastSettingsBody = null;
     function rememberSettingsBody(body) {
@@ -120,6 +121,7 @@ function createHarness(options = {}) {
       for (const key of USAGE_SETTING_KEYS) {
         if (typeof out[key] !== 'boolean') out[key] = (lastUsageDisplay !== null && lastUsageDisplay !== undefined ? lastUsageDisplay[key] : true) === true;
       }
+      out.folded = normalizeUsageFolded(raw.folded === undefined ? lastUsageDisplay?.folded : raw.folded);
       lastUsageDisplay = out;
       return out;
     }
@@ -162,17 +164,17 @@ test('写入后重挂面板：首帧即为新设置，且会重新读取宿主�
 
   const first = await harness.mount();
   assert.equal(first.panel().side, 'right', '首次挂载来自页面加载设置');
-  assert.equal(first.usage().showJump, true);
+  assert.equal(first.usage().folded, 'none');
   assert.equal(harness.settingsCalls, 1);
 
   // 用户在设置里确认：面板放左侧 + 关掉跳转按钮
   const update = first.result[2];
-  const operation = update({}, { showJump: false }, undefined, undefined, { side: 'left', newSessionOpen: false, chatOpen: true });
+  const operation = update({}, { folded: 'oc-5h' }, undefined, undefined, { side: 'left', newSessionOpen: false, chatOpen: true });
   await operation;
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(harness.calls.length, 1);
   assert.equal(harness.calls[0].payload.panel.side, 'left');
-  assert.equal(harness.calls[0].payload.usage.showJump, false);
+  assert.equal(harness.calls[0].payload.usage.folded, 'oc-5h');
   assert.equal(first.seed().panel.side, 'left', '写入成功即刷新「最近一次成功快照」');
   // v0.20.0：写侧同样带上 style（本次未改样式 → 保持 card）。
   assert.deepEqual(harness.panels, { style: 'card', side: 'left', newSessionOpen: false, chatOpen: true }, '面板缓存随写入更新');
@@ -180,13 +182,13 @@ test('写入后重挂面板：首帧即为新设置，且会重新读取宿主�
   // 关开面板 / 切页面 / 开合右侧栏 → 组件重新挂载
   const second = await harness.mount();
   assert.equal(harness.settingsCalls, 2, '重挂时必须再次 GET，而不是复用页面加载时的快照');
-  // 首帧就来自最近一次成功快照：不会先闪回「右侧 / 有跳转按钮」
+  // 首帧就来自最近一次成功快照：不会先闪回「右侧 / 无折叠展示」
   assert.equal(second.seed().panel.side, 'left');
   assert.equal(second.panel().side, 'left', '首帧即为左侧，不再回退右侧');
-  assert.equal(second.usage().showJump, false, '首帧即隐藏跳转按钮');
+  assert.equal(second.usage().folded, 'oc-5h', '首帧即为 OC 5h 折叠展示');
   // 紧随其后的 GET 也确认宿主已是新值
   assert.equal(second.panel().side, 'left');
-  assert.equal(second.usage().showJump, false);
+  assert.equal(second.usage().folded, 'oc-5h');
 });
 
 test('未写入时重挂也重新读取：宿主侧被其它窗口改回的值能覆盖本地首帧', async () => {
@@ -219,7 +221,7 @@ test('旧宿主（响应无 panel 段）不会把面板侧位冲回默认值', a
 
   const first = await harness.mount();
   assert.equal(first.panel().side, 'left', '旧宿主不提供 panel 时沿用本地缓存');
-  assert.equal(first.usage().showJump, true, '旧宿主也不返回 showJump，按默认展示');
+  assert.equal(first.usage().folded, 'none', '旧宿主也不返回 folded，按默认 none');
 });
 
 test('写入请求失败时不会污染「最近一次成功快照」', async () => {
@@ -229,34 +231,34 @@ test('写入请求失败时不会污染「最近一次成功快照」', async ()
 
   const update = first.result[2];
   await assert.rejects(
-    update({}, { showJump: false }, undefined, undefined, { side: 'left', newSessionOpen: false, chatOpen: true }),
+    update({}, { folded: 'oc-5h' }, undefined, undefined, { side: 'left', newSessionOpen: false, chatOpen: true }),
     /boom/,
   );
   assert.equal(first.seed().panel.side, 'right', '失败响应不得进入快照');
-  assert.equal(first.seed().usage.showJump, true);
+  assert.equal(first.seed().usage.folded, 'none');
   assert.ok(harness.toasts.some(row => row.message === 'settingsSaveFailed'), '保存失败仍按原逻辑提示');
 });
 
-test('旧宿主不返回 showJump：重挂后仍保留本次运行内关闭「跳转」按钮的选择', async () => {
+test('旧宿主不返回 folded：重挂后仍保留本次运行内的折叠展示选择', async () => {
   const legacyBody = () => {
     const body = pageLoadBody();
     delete body.panel;
-    // 旧宿主的 usage 只有三行数据，没有 v0.18.2 新增的 showJump
+    // 旧宿主的 usage 只有三行数据，没有 v0.20.1 新增的 folded
     const usage = { ...body.usage };
-    delete usage.showJump;
+    delete usage.folded;
     return { ...body, usage };
   };
   const harness = createHarness({ bodies: [legacyBody, legacyBody] });
   const first = await harness.mount();
-  assert.equal(first.usage().showJump, true, '缺键按默认展示');
+  assert.equal(first.usage().folded, 'none', '缺键按默认 none');
 
   const update = first.result[2];
-  await update({}, { showJump: false }, undefined, undefined, { side: 'right', newSessionOpen: false, chatOpen: true });
+  await update({}, { folded: 'deepseek' }, undefined, undefined, { side: 'right', newSessionOpen: false, chatOpen: true });
   await new Promise(resolve => setImmediate(resolve));
 
   // 关开面板 → 重挂：旧宿主响应仍没有 showJump，但本次运行内的选择要保留
   const second = await harness.mount();
-  assert.equal(second.usage().showJump, false, '旧宿主下也不会把跳转按钮「复活」');
+  assert.equal(second.usage().folded, 'deepseek', '旧宿主下也保留本次运行内的折叠展示');
   assert.equal(harness.settingsCalls, 2, '仍然重新读取宿主设置');
 });
 

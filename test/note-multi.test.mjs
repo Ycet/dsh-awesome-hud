@@ -104,57 +104,17 @@ test("条数上限：5–20 收敛（宿主与客户端同规则）", () => {
   assert.equal(normalizeNoteMaxCount(undefined), 5);
 });
 
-test("设置保存校验：扫描全部工作区，任一工作区超过新上限都算违规", () => {
-  const context = vm.createContext({
-    NOTES_STORAGE_KEY: "dsh-awesome-hud:notes",
-    loadJsonStorage: (key) => (key === "dsh-awesome-hud:notes" ? {
-      "/ws/a": { v: 4, notes: [{ id: "1" }, { id: "2" }, { id: "3" }] },
-      "/ws/b": { v: 4, notes: [{ id: "1" }, { id: "2" }] },
-      "/ws/c": { text: "旧便笺", v: 3 },
-    } : null),
-  });
-  vm.runInContext(`
-    ${extractFunction("noteCountOfEntry")}
-    ${extractFunction("scanNoteCounts")}
-    ${extractFunction("noteCountViolations")}
-    this.scanNoteCounts = scanNoteCounts;
-    this.noteCountViolations = noteCountViolations;
-    this.noteCountOfEntry = noteCountOfEntry;
-  `, context);
-  assert.equal(context.noteCountOfEntry({ v: 4, notes: [{ id: "1" }, null, "x"] }), 1, "坏条目不计入");
-  assert.equal(context.noteCountOfEntry({ text: "旧" }), 1, "v3 单便笺计 1");
-  assert.deepEqual(JSON.parse(JSON.stringify(context.scanNoteCounts())), [
-    { key: "/ws/a", count: 3 },
-    { key: "/ws/b", count: 2 },
-    { key: "/ws/c", count: 1 },
-  ], "按条数从多到少排序");
-  assert.deepEqual(JSON.parse(JSON.stringify(context.noteCountViolations(5))), []);
-  assert.deepEqual(JSON.parse(JSON.stringify(context.noteCountViolations(2))), [{ key: "/ws/a", count: 3 }]);
-  assert.deepEqual(JSON.parse(JSON.stringify(context.noteCountViolations(1))), [
-    { key: "/ws/a", count: 3 }, { key: "/ws/b", count: 2 },
-  ]);
-});
-
-test("客户端接线：达到上限只 toast；设置保存被拒时提示具体工作区", () => {
+test("客户端接线：达到上限只 toast；上限调低后仍可保存", () => {
   // 创建入口：达到上限先 toast 再返回，不创建
   assert.match(source, /if \(docRef\.current\.notes\.length >= maxCount\) \{/);
   assert.match(source, /toast\(interpolate\(t\("noteLimitReached"\), \{ count: String\(maxCount\) \}\), "warn"\);/);
   assert.match(source, /const note = createNote\(content\.text, incoming\);/);
   assert.match(source, /onClick: \(\) => \{ createNote\("", \[\]\); \}/);
-  // 设置保存：扫全部工作区 → toast 指出工作区与条数 → 不保存
+  // v0.20.1：保存不再扫描工作区、也不再因超限拒绝；只保留新建时的上限检查。
   const confirmStart = source.indexOf("const confirmSettings = () => {");
-  const body = source.slice(confirmStart, confirmStart + 1400);
-  // 只有本次真的改动了便笺上限才校验，避免其它设置被便笺条数卡住。
-  assert.match(body, /const nextMax = normalizeNoteSettings\(noteDraft\)\.maxCount;/);
-  assert.match(body, /const initialMax = normalizeNoteSettings\(initialRef\.current\.note\)\.maxCount;/);
-  assert.match(body, /if \(nextMax !== initialMax\) \{/);
-  assert.match(body, /violations = noteCountViolations\(nextMax\);/);
-  assert.match(body, /violations\.slice\(0, 3\)/);
-  assert.match(body, /interpolate\(t\("noteWorkspaceCount"\), \{ path: row\.key, count: String\(row\.count\) \}\)/);
-  assert.match(body, /toast\(interpolate\(t\("noteCapRejected"\), \{ workspaces: `\$\{list\}\$\{more\}`, count: String\(nextMax\) \}\), "warn"\);/);
-  assert.match(body, /if \(violations\.length > 0\) \{/);
+  const body = source.slice(confirmStart, source.indexOf("};", confirmStart));
+  assert.doesNotMatch(body, /noteCountViolations|noteCapRejected|violations/);
   assert.match(body, /props\.onConfirm\(draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft\);/);
-  assert.match(source, /noteCapRejected: "无法保存：工作区「\{workspaces\}」的便笺数量超过上限 \{count\}"/);
   assert.match(source, /noteLimitReached: "便笺数量已达上限 \{count\} 条，请在 HUD 设置中调整"/);
 });
 
@@ -163,7 +123,10 @@ test("列表视图：便笺条结构（拖动条/标题/悬停按钮）、空态
   assert.match(source, /className: "hud-note-grip",/);
   assert.match(source, /className: "hud-note-bar-title"/);
   assert.match(source, /className: "hud-note-bar-actions"/);
-  assert.match(source, /className: "hud-ic-btn",\n\t+\s*"aria-label": t\("noteEdit"\)/);
+  // v0.20.1：编辑按钮移除，改为点击标题进入编辑视图。
+  assert.doesNotMatch(source, /"aria-label": t\("noteEdit"\)/);
+  assert.match(source, /className: "hud-note-bar-title",\n\t+role: "button",/);
+  assert.match(source, /onClick: \(\) => openEditor\(note\.id\),/);
   assert.match(source, /"aria-label": t\("noteDelete"\)/);
   assert.match(source, /className: "hud-note-empty"/);
   assert.match(source, /className: "hud-note-list-actions"/);
@@ -185,11 +148,15 @@ test("编辑视图：返回/标题输入/图片拖动/共用高度/删除全部�
   assert.match(source, /style: offset === 0 \? undefined : \{ transform: `translateX\(\$\{offset\}px\)` \}/);
   assert.match(source, /style: offset === 0 \? undefined : \{ transform: `translateY\(\$\{offset\}px\)` \}/);
   assert.match(source, /className: "hud-btn-small hud-note-delete-all"/);
-  // 删除单条/全部都走确认弹窗（danger 按钮）
-  assert.match(source, /kind: "delete", noteId: note\.id/);
+  // v0.20.1：删除单条走行内二次确认；删除全部仍走确认弹窗（danger 按钮）。
+  assert.match(source, /note\.id === deleteConfirmId/);
+  assert.match(source, /color: "var\(--dsw-alias-state-error-primary\)"/);
   assert.match(source, /kind: "deleteAll"/);
   // 所有便笺确认弹窗（删除 / 删除全部 / 添加至聊天 / 从聊天导入）都用红色危险按钮。
   assert.match(source, /danger: true,/);
-  assert.match(source, /noteDeleteTitle: "删除便笺"/);
+  assert.match(source, /todoDeleteConfirm: "确认删除"/);
   assert.match(source, /noteDeleteAllNote: "将删除全部 \{count\} 条便笺及其图片，此操作不可撤销。"/);
+  // v0.20.1：便笺条拖动与待办一致——松手在列表外兜底提交，Esc 取消。
+  assert.match(source, /const endBarDrag = \(event\) => \{/);
+  assert.match(source, /if \(!barDropRef\.current && event\?\.dataTransfer\?\.dropEffect !== "none"\) commitBarDrag\(\);/);
 });

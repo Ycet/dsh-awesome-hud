@@ -27,6 +27,7 @@ function render(overrides = {}) {
     fmtBalanceMoney: (value, currency) => `${value}${currency ?? ''}`,
     fmtOcPercent: value => `${value}%`,
     fmtCodexPercent: value => `${value}%`,
+    normalizeUsageFolded: value => (typeof value === 'string' ? value : 'none'),
     selectCodexReserveLimits: () => [],
     DEEPSEEK_PLATFORM_URL: 'https://platform.example',
     OPENCODE_GO_PAGE_URL: 'https://oc.example',
@@ -109,6 +110,27 @@ test('折叠或手动隐藏 DeepSeek 行时结构正确', () => {
   assert.equal(hints[0].children[0], 'usageEmptyHint');
 });
 
+test('插件未启用时不展示对应额度行：missing 与 available 对照', () => {
+  // v0.20.1：没有启用 dsh-account-usage / dsh-codex-subscription 时，对应额度行整组不渲染。
+  const missing = render({
+    opencode: { available: false, missing: true, usage: null },
+    codex: { available: false, missing: true, usage: null },
+  });
+  assert.equal(rowsOf(missing.body).filter(row => row.children[0]?.props?.name === 'icon-opencode').length, 0, 'OpenCode Go 行不渲染');
+  assert.equal(rowsOf(missing.body).filter(row => row.children[0]?.props?.name === 'ChatGPT').length, 0, 'Codex 行不渲染');
+  // DeepSeek 余额行与模块本体仍在（官方账户兜底）。
+  assert.equal(rowsOf(missing.body).length, 1);
+  assert.equal(rowsOf(missing.body)[0].children[0].props.name, 'deepseek');
+
+  // 两个插件都可用时照常渲染。
+  const both = render({
+    opencode: { available: true, usage: { rolling: 1, weekly: 2, monthly: 3 } },
+    codex: { available: true, usage: { mode: 'subscription', fiveHour: 10, weekly: 20 } },
+  });
+  assert.equal(rowsOf(both.body).filter(row => row.children[0]?.props?.name === 'icon-opencode').length, 3);
+  assert.equal(rowsOf(both.body).filter(row => row.children[0]?.props?.name === 'ChatGPT').length, 2);
+});
+
 test('模块渲染不再以数据可用性为前提，余额可通过 host 路由兜底', () => {
   assert.match(source, /activeModules\.balance === false\s*\n\s*\? null\s*\n\s*: react\.createElement\(BalanceModule/);
   assert.doesNotMatch(source, /activeModules\.balance === false \|\| !usageAvailable/);
@@ -154,7 +176,7 @@ async function pollBalance({ summary, hostBalance }) {
   vm.runInContext(pollSnippet, context);
   await settled();
   await settled();
-  return { balance: balanceValue, hostCalls };
+  return { balance: balanceValue, opencode: opencodeValue, hostCalls };
 }
 
 test('account-usage 路由 404 时回退 host 官方账户：余额仍展示且带客户端元信息', async () => {
@@ -163,6 +185,8 @@ test('account-usage 路由 404 时回退 host 官方账户：余额仍展示且�
     hostBalance: { available: true, currency: 'CNY', toppedUp: 2.31, granted: 0.01, total: 2.32 },
   });
   assert.deepEqual(JSON.parse(JSON.stringify(result.balance)), { available: true, data: { toppedUp: 2.31, granted: 0.01, currency: 'CNY' }, error: null });
+  // v0.20.1：路由 404 即「插件不可用」——opencode 快照要带 missing 标记，供设置页写红字原因。
+  assert.deepEqual(JSON.parse(JSON.stringify(result.opencode)), { available: false, missing: true, usage: null });
   assert.equal(result.hostCalls.length, 1);
   assert.equal(result.hostCalls[0].method, 'usage/account');
   assert.deepEqual(
