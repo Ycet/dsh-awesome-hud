@@ -255,6 +255,8 @@ test('AI 生成提交信息：客户端只传 sessionId，不再读取当前会�
     response: { message: '  [261113] demo v0.1.0：修复  ', warn: null },
     globals: {
       ctx: { get: () => { throw new Error('不得读取当前会话模型'); } },
+      // v0.21.1：无暂存变更时动作函数会提前返回，这里模拟「有暂存文件」的正常路径
+      stagedCount: 1,
       setCommitMessage: (value) => calls.push({ method: '__message', payload: value }),
       setAiBusy: (value) => calls.push({ method: '__busy', payload: value }),
     },
@@ -329,7 +331,8 @@ test('v0.20.0：变更文件行改为「文件名 + 灰色相对目录」，保�
   const rowEnd = clientSource.indexOf('// 文件行选项弹窗', rowStart);
   assert.ok(rowStart > 0 && rowEnd > rowStart, '定位不到变更文件行渲染');
   const row = clientSource.slice(rowStart, rowEnd);
-  assert.match(row, /className: "hud-file-status", "data-kind": file\.status/);
+  // v0.21.1：未跟踪文件的状态徽章显示「U」而非裸「?」，data-kind 同步换成合法值
+  assert.match(row, /className: "hud-file-status", "data-kind": fileStatusBadge\(file\.status\)\.kind \}, fileStatusBadge\(file\.status\)\.label/);
   assert.match(row, /className: "hud-change-name" \}, parts\.name/);
   assert.match(row, /className: "hud-change-dir" \}, parts\.dir/);
   assert.match(row, /className: "hud-file-diff"/);

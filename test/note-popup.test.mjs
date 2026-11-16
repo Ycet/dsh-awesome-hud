@@ -151,6 +151,7 @@ function loadNoteUi(options = {}) {
     ${extractFunction('previewOffsets')}
     ${extractFunction('suppressNativeDragImage')}
     ${extractFunction('ModuleHead')}
+    ${extractFunction('useOverlayDismiss')}
     ${extractFunction('NoteConfirmDialog')}
     ${extractFunction('NoteImageLightbox')}
     ${extractFunction('NoteEditorDialog')}
@@ -251,11 +252,14 @@ test('关闭按钮与点击弹窗外侧都能关闭；关闭后仍停在列表�
   assert.equal(byClass(tree, 'hud-note-editor-modal').length, 0);
   assert.equal(byClass(tree, 'hud-note-list').length, 1);
 
-  // 点击遮罩（弹窗外侧）。
+  // 点击遮罩（弹窗外侧）。v0.21.1：必须在遮罩上按下并在遮罩上松开才关闭。
   clickTitle(tree);
   tree = ui.render({ notePopupEdit: true });
   const modal = byClass(tree, 'hud-note-editor-modal')[0];
-  modal.props.onClick();
+  const overlay = {};
+  modal.props.onPointerDown({ target: overlay, currentTarget: overlay });
+  modal.props.onPointerUp({ target: overlay, currentTarget: overlay });
+  modal.props.onClick({ target: overlay, currentTarget: overlay });
   tree = ui.render({ notePopupEdit: true });
   assert.equal(byClass(tree, 'hud-note-editor-modal').length, 0);
   assert.equal(byClass(tree, 'hud-note-list').length, 1);

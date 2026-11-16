@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { formatStyledDate, findPackageMeta, extractSessionContext, parseVersion, versionIsGreater, validateGeneratedVersion, bumpVersion, fixVersionInMessage } from "../lib/index.js";
+import { formatStyledDate, findPackageMeta, extractSessionContext, pinVersionInMessage } from "../lib/index.js";
 
 test("formatStyledDate：YYMMDD 固定格式", () => {
 	assert.equal(formatStyledDate(new Date(2026, 7, 30)), "260830");
@@ -111,85 +111,35 @@ test("extractSessionContext：非文本块、孤立助手消息与空输入", ()
 	assert.equal(extractSessionContext([]), "");
 });
 
-test("parseVersion / versionIsGreater：提取与逐段数值比较边界", () => {
-	assert.deepEqual(parseVersion("v0.6.2"), [0, 6, 2]);
-	assert.deepEqual(parseVersion("0.6.2"), [0, 6, 2]); // package.json 无 v 前缀
-	assert.deepEqual(parseVersion("version 0.6.2"), [0, 6, 2]); // 宽松接受人类措辞
-	assert.deepEqual(parseVersion("[260830] dsh-awesome-hud v1.2.3：修复"), [1, 2, 3]);
-	assert.equal(parseVersion("v0.6"), null); // 不足三段
-	assert.equal(parseVersion("修复了页面样式"), null);
-	assert.equal(parseVersion(""), null);
-	assert.equal(parseVersion(null), null);
-	// 逐段数值比较（非字符串比较）
-	assert.equal(versionIsGreater([0, 6, 10], [0, 6, 2]), true);
-	assert.equal(versionIsGreater([0, 7, 0], [0, 6, 99]), true);
-	assert.equal(versionIsGreater([1, 0, 0], [0, 99, 99]), true);
-	assert.equal(versionIsGreater([0, 6, 2], [0, 6, 2]), false);
-	assert.equal(versionIsGreater([0, 6, 1], [0, 6, 2]), false);
-	assert.equal(versionIsGreater([1, 5, 0], [2, 0, 0]), false);
-	assert.equal(versionIsGreater("bad", [0, 6, 2]), false);
-});
-
-test("validateGeneratedVersion：递增通过 / 相等与回退拦截 / 格式异常", () => {
-	const current = "0.6.2";
-	// 递增通过（修复→修订、新功能→次、破坏性→主）
-	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v0.6.3：修复了登录页面的样式问题", current), { ok: true });
-	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v0.7.0：新增 git 模块", current), { ok: true });
-	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v1.0.0：破坏性重构", current), { ok: true });
-	// 相等/回退拦截
-	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v0.6.2：修复了登录页面的样式问题", current), { ok: false, reason: "not-incremented" });
-	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v0.6.0：修复了登录页面的样式问题", current), { ok: false, reason: "not-incremented" });
-	// 格式异常（无 vX.Y.Z / 空消息）
-	const malformed = validateGeneratedVersion("[260830] dsh-awesome-hud 修复了登录页面的样式问题", current);
-	assert.equal(malformed.ok, false);
-	assert.equal(malformed.reason, "malformed");
-	assert.equal(validateGeneratedVersion("", current).ok, false);
-});
-
-test("validateGeneratedVersion：无当前版本/当前版本不可解析时跳过校验", () => {
-	// 无 package.json（current 为 null/空）
-	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v0.6.2：修复", null), { ok: true });
-	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v0.6.2：修复", ""), { ok: true });
-	assert.deepEqual(validateGeneratedVersion("随便写点内容", null), { ok: true });
-	// 当前版本格式异常 → 跳过校验
-	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v0.6.2：修复", "not-semver"), { ok: true });
-	assert.deepEqual(validateGeneratedVersion("[260830] dsh-awesome-hud v99.99.99：修复", "not-semver"), { ok: true });
-});
-
-test("bumpVersion：按变更类型计算目标版本（修复→修订、新增→次、破坏→主、缺省→修订）", () => {
-	// 修复/文档/性能 → 修订号 +1
-	assert.equal(bumpVersion("0.6.4", "修复了登录页面的样式问题"), "0.6.5");
-	assert.equal(bumpVersion("0.6.4", "更新 README 文档"), "0.6.5");
-	assert.equal(bumpVersion("0.6.4", ""), "0.6.5");
-	assert.equal(bumpVersion("0.6.4", "性能优化"), "0.6.5");
-	// 新增功能 → 次版本 +1，修订归零
-	assert.equal(bumpVersion("0.6.4", "新增 git 模块"), "0.7.0");
-	assert.equal(bumpVersion("0.6.4", "新增了一个新接口"), "0.7.0");
-	assert.equal(bumpVersion("0.6.4", "feat: add feature"), "0.7.0");
-	// 破坏/重大重构 → 主版本 +1，次修归零
-	assert.equal(bumpVersion("0.6.4", "破坏性变更，无法兼容旧版本"), "1.0.0");
-	assert.equal(bumpVersion("0.6.4", "breaking change"), "1.0.0");
-	// 当前版本不可解析 → null
-	assert.equal(bumpVersion("not-semver", "修复"), null);
-	assert.equal(bumpVersion(null, "修复"), null);
-});
-
-test("fixVersionInMessage：强制替换/补充版本号", () => {
-	const pkg = { name: "dsh-awesome-hud", version: "0.6.4" };
-	// 模型未递增（仍为当前版本）→ 按修复类内容强制 0.6.5
+test("pinVersionInMessage：把版本号校正为项目当前版本（不递增）", () => {
+	const pkg = { name: "dsh-awesome-hud", version: "0.21.1" };
+	// 模型自作主张升版 → 拉回当前版本
 	assert.equal(
-		fixVersionInMessage("[260831] dsh-awesome-hud v0.6.4：修复了登录页面的样式问题", pkg, "0.6.4"),
-		"[260831] dsh-awesome-hud v0.6.5：修复了登录页面的样式问题");
-	// 新增功能内容 → 次版本
+		pinVersionInMessage("[261116] dsh-awesome-hud v0.22.0：新增 git 模块", pkg),
+		"[261116] dsh-awesome-hud v0.21.1：新增 git 模块");
+	// 模型回退版本同样拉回
 	assert.equal(
-		fixVersionInMessage("[260831] dsh-awesome-hud v0.6.4：新增 git 模块", pkg, "0.6.4"),
-		"[260831] dsh-awesome-hud v0.7.0：新增 git 模块");
-	// 无版本号但已知项目名 → 在日期后补「项目名 v目标：」
+		pinVersionInMessage("[261116] dsh-awesome-hud v0.20.0：修复了登录页面的样式问题", pkg),
+		"[261116] dsh-awesome-hud v0.21.1：修复了登录页面的样式问题");
+	// 已经是当前版本 → 原样（只替换第一处）
 	assert.equal(
-		fixVersionInMessage("[260831] 修复了登录页面的样式问题", pkg, "0.6.4"),
-		"[260831] dsh-awesome-hud v0.6.5：修复了登录页面的样式问题");
-	// 无版本号且项目名未知 → 原样返回
-	assert.equal(fixVersionInMessage("[260831] 修复了登录页面的样式问题", null, "0.6.4"), "[260831] 修复了登录页面的样式问题");
-	// 当前版本不可解析 → 原样返回
-	assert.equal(fixVersionInMessage("[260831] dsh-awesome-hud v0.6.4：修复", pkg, "bad"), "[260831] dsh-awesome-hud v0.6.4：修复");
+		pinVersionInMessage("[261116] dsh-awesome-hud v0.21.1：修复", pkg),
+		"[261116] dsh-awesome-hud v0.21.1：修复");
+	// 无版本号但已知项目名 → 在日期前缀后补「项目名 v当前版本：」
+	assert.equal(
+		pinVersionInMessage("[261116] 修复了登录页面的样式问题", pkg),
+		"[261116] dsh-awesome-hud v0.21.1：修复了登录页面的样式问题");
+	// 无 package.json → 原样返回（不猜版本）
+	assert.equal(pinVersionInMessage("[261116] 修复了登录页面的样式问题", null), "[261116] 修复了登录页面的样式问题");
+	// 版本号不可用/为空 → 原样返回
+	assert.equal(pinVersionInMessage("[261116] dsh-awesome-hud v1.0.0：修复", { name: "x", version: "" }), "[261116] dsh-awesome-hud v1.0.0：修复");
+	assert.equal(pinVersionInMessage("", pkg), "");
+	assert.equal(pinVersionInMessage(null, pkg), "");
+});
+
+test("内置规范：版本号沿用当前版本，不再要求递增", async () => {
+	const { LOCAL_COMMIT_SPEC } = await import("../lib/index.js");
+	assert.match(LOCAL_COMMIT_SPEC, /当前.*版本号/);
+	assert.match(LOCAL_COMMIT_SPEC, /不要递增/);
+	assert.doesNotMatch(LOCAL_COMMIT_SPEC, /递增规则|主版本号（x\.y\.z）增加|次版本号（x\.y\.z）增加|修订号（x\.y\.z）增加/);
 });

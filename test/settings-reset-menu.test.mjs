@@ -109,6 +109,7 @@ function createRuntime(options = {}) {
      ${extractFunction('isDefaultModulesSettings')}
      ${extractFunction('isDefaultFeatureSettings')}
      ${extractFunction('isDefaultDraft')}
+     ${extractFunction('useOverlayDismiss')}
      ${extractFunction('contextPinState')}
      ${extractFunction('SettingsDialog')}`,
     context,

@@ -419,9 +419,9 @@ test('AI 生成提交信息：固定官方 Flash 模型并使用暂存差异生�
     // 即使调用方伪造 provider/model，host 也必须固定走 DeepSeek 官方 Flash（effort low）。
     const result = await call('git/commit-ai', { provider: 'fixture', model: 'fixture-model' });
     assert.equal(result.status, 200, JSON.stringify(result));
-    assert.equal(result.warn, null, '版本号已递增时不应有告警');
-    // 日期以宿主真实日期覆盖（模型可能给出旧日期），版本沿用模型输出
-    assert.equal(result.message, `[${today}] hud-regression v0.0.2：修复回归测试夹具`);
+    // v0.21.1：不再有「版本未递增」告警；版本号校正为项目当前版本（0.0.1），日期取宿主真实日期
+    assert.equal('warn' in result, false, '不再返回版本告警字段');
+    assert.equal(result.message, `[${today}] hud-regression v0.0.1：修复回归测试夹具`);
     assert.equal(prompts.length, 1);
     assert.equal(prompts[0].provider, 'deepseek-account');
     assert.equal(prompts[0].model, 'deepseek-flash');

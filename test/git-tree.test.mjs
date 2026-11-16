@@ -64,10 +64,14 @@ test("Git 模块接线：gitView、悬浮操作、文件夹批量、右键图标
   assert.match(source, /openRevertPathsConfirm\(files\)/);
   assert.match(source, /runWrite\("git\/stage", \{ paths \}/);
   assert.match(source, /runWrite\("git\/revert-file", \{ paths: current\.files\.map\(\(file\) => file\.path\) \}/);
-  // 右键菜单图标：暂存区 minus、变更区 plus、撤销保持 revert。
-  assert.match(source, /doUnstage\(menu\.file\)[\s\S]{0,160}name: "minus"/);
-  assert.match(source, /doStage\(menu\.file\)[\s\S]{0,160}name: "plus"/);
-  assert.match(source, /openRevertFileConfirm\(menu\.file\)[\s\S]{0,160}name: "revert"/);
+  // 右键菜单图标：暂存区 minus、变更区 plus、撤销保持 revert；v0.21.1 追加忽略项并复用批量接口。
+  assert.match(source, /menuItem\("unstage", "minus", t\("gitRemoveFromStage"\)/);
+  assert.match(source, /menuItem\("stage", "plus", t\("gitAddToStage"\)/);
+  assert.match(source, /menuItem\("revert", "revert", t\("gitRevertOption"\)/);
+  assert.match(source, /menuItem\("ignore", "ignore", t\("gitAddToGitignore"\)/);
+  assert.match(source, /doUnstagePaths\(dirFiles\.map\(\(file\) => file\.path\)\)/);
+  assert.match(source, /doStagePaths\(dirFiles\.map\(\(file\) => file\.path\)\)/);
+  assert.match(source, /openRevertPathsConfirm\(dirFiles\)/);
   // 文件夹撤销确认卡片与按钮。
   assert.match(source, /const isPaths = confirm\.kind === "revert-paths";/);
   assert.match(source, /gitRevertFolderTitle/);

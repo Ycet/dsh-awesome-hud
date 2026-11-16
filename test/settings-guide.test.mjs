@@ -116,6 +116,7 @@ function createRuntime(primitives = null) {
       extractFunction('isDefaultModulesSettings'),
       extractFunction('isDefaultFeatureSettings'),
       extractFunction('isDefaultDraft'),
+      extractFunction('useOverlayDismiss'),
       extractFunction('contextPinState'),
       extractFunction('SettingsDialog'),
     ].join('\n'),

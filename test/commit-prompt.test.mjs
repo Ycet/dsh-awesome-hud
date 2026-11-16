@@ -9,7 +9,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  DEFAULT_COMMIT_PROMPT, COMMIT_PROMPT_PLACEHOLDERS, renderCommitPromptTemplate, Config,
+  DEFAULT_COMMIT_PROMPT, LOCAL_COMMIT_SPEC, COMMIT_PROMPT_PLACEHOLDERS, COMMIT_PROMPT_PRECEDENCE,
+  commitPromptProjectFacts, defaultProjectInstruction, customSessionContextInstruction, renderCommitPromptTemplate, Config,
   generateCommitMessage, formatStyledDate,
 } from "../lib/index.js";
 import {
@@ -19,13 +20,39 @@ import { clientSource, extractFunction, hudClient } from "./helpers/client-harne
 
 const HOST_SOURCE = readFileSync(new URL("../lib/index.js", import.meta.url), "utf8");
 
-test("宿主：默认模板包含全部占位符，且作为空模板的回退值", () => {
-  for (const key of COMMIT_PROMPT_PLACEHOLDERS) {
+test("宿主：默认模板把日期与版本规范写进正文，且仍作为空模板的回退值（v0.21.1）", () => {
+  // v0.21.1：日期/版本规范不再只靠 {{spec}} 注入，规则原文直接写进默认模板，用户可改写。
+  assert.doesNotMatch(DEFAULT_COMMIT_PROMPT, /\{\{spec\}\}/, "默认模板不再引用 {{spec}}（规则已内联）");
+  for (const key of ["today", "project", "sessionContext"]) {
     assert.match(DEFAULT_COMMIT_PROMPT, new RegExp(`\\{\\{${key}\\}\\}`), `默认模板缺少 {{${key}}}`);
   }
+  // 显性化的关键规则：时间格式、项目名与版本号格式、三条版本递增规则。
+  assert.match(DEFAULT_COMMIT_PROMPT, /备注格式为 \[时间\] 修改内容/);
+  assert.match(DEFAULT_COMMIT_PROMPT, /时间格式：取系统当前时间，固定格式为 YYMMDD/);
+  // v0.21.1：版本号沿用项目当前版本，不再要求递增
+  assert.match(DEFAULT_COMMIT_PROMPT, /版本号取项目版本文件（如 package\.json）里记录的\*\*当前\*\*版本号/);
+  assert.match(DEFAULT_COMMIT_PROMPT, /不要递增、不要推断、不要改写/);
+  assert.doesNotMatch(DEFAULT_COMMIT_PROMPT, /版本号递增规则/);
+  assert.doesNotMatch(DEFAULT_COMMIT_PROMPT, /主版本号（x\.y\.z）增加/);
+  // {{spec}} 仍是受支持的占位符（旧自定义提示词兼容），并继续由宿主注入。
+  assert.ok(COMMIT_PROMPT_PLACEHOLDERS.includes("spec"), "spec 占位符仍需保留");
+  assert.match(HOST_SOURCE, /spec: LOCAL_COMMIT_SPEC,/, "宿主仍注入 spec（旧自定义提示词兼容）");
   assert.equal(renderCommitPromptTemplate("", {}), DEFAULT_COMMIT_PROMPT, "空模板回退默认");
   assert.equal(renderCommitPromptTemplate(null, {}), DEFAULT_COMMIT_PROMPT);
   assert.equal(renderCommitPromptTemplate("   ", {}), DEFAULT_COMMIT_PROMPT, "纯空白同样回退");
+});
+
+test("宿主：默认模板内联规则后的渲染结果与旧 {{spec}} 注入逐字符一致", () => {
+  // 未手动编辑提示词时，生成行为必须与 v0.21.0 完全相同：把内联的规则换回 {{spec}} 再渲染，
+  // 结果应与当前默认模板的渲染结果一致（说明只是把同一段文本搬进了模板）。
+  const legacyTemplate = DEFAULT_COMMIT_PROMPT.replace(LOCAL_COMMIT_SPEC, "{{spec}}");
+  assert.notEqual(legacyTemplate, DEFAULT_COMMIT_PROMPT, "替换必须真的发生，否则断言无意义");
+  const values = { spec: LOCAL_COMMIT_SPEC, today: "261116", project: "P v1.0.0", sessionContext: "" };
+  assert.equal(
+    renderCommitPromptTemplate(DEFAULT_COMMIT_PROMPT, values),
+    renderCommitPromptTemplate(legacyTemplate, values),
+    "内联规则不得改变未编辑时的 system 文本",
+  );
 });
 
 test("宿主：renderCommitPromptTemplate 注入动态值、保留未知占位符、压缩空行", () => {
@@ -65,7 +92,7 @@ test("默认提示词：提示词与暂存区优先，会话上下文按轮次�
   assert.match(DEFAULT_COMMIT_PROMPT, /secondary and lower priority/);
   assert.match(DEFAULT_COMMIT_PROMPT, /Never describe changes that are not present in the staged diff/);
   assert.match(DEFAULT_COMMIT_PROMPT, /use that note as the 修改内容/);
-  assert.match(DEFAULT_COMMIT_PROMPT, /strictly follows the versioning rules above/);
+  assert.match(DEFAULT_COMMIT_PROMPT, /CURRENT version exactly as recorded/);
   // 宿主注入的会话上下文标注为 secondary reference，且按轮次提取。
   assert.match(HOST_SOURCE, /Conversation context — recent turns of the current session\. This is a secondary reference only/);
   assert.match(HOST_SOURCE, /extractSessionContext\(sessionEvents \?\? \[\]\)/);
@@ -75,10 +102,11 @@ test("宿主接线：generate 使用保存的提示词模板，git/prompt 读写
   // 生成函数签名接收模板，并用 renderCommitPromptTemplate 注入动态值。
   assert.match(HOST_SOURCE, /export async function generateCommitMessage\(ctx, subprocess, cwd, sessionId, promptTemplate\) \{/);
   assert.match(HOST_SOURCE, /const customPrompt = typeof promptTemplate === "string" && promptTemplate\.trim\(\) !== "";/);
-  assert.match(HOST_SOURCE, /const system = renderCommitPromptTemplate\(customPrompt \? promptTemplate : DEFAULT_COMMIT_PROMPT, \{/);
+  assert.match(HOST_SOURCE, /const rendered = renderCommitPromptTemplate\(customPrompt \? promptTemplate : DEFAULT_COMMIT_PROMPT, \{/);
   assert.match(HOST_SOURCE, /spec: LOCAL_COMMIT_SPEC,/);
   assert.match(HOST_SOURCE, /today,/);
-  assert.match(HOST_SOURCE, /project: pkg === null/);
+  // v0.21.1：自定义提示词只注入项目事实，默认路径才注入「沿用当前版本」的规则文本
+  assert.match(HOST_SOURCE, /project: customPrompt \? commitPromptProjectFacts\(pkg\) : defaultProjectInstruction\(pkg\),/);
   assert.match(HOST_SOURCE, /sessionContext: sessionContext === ""/);
   // 用户消息只携带 diff；日期前缀与版本校验只在默认提示词下执行。
   assert.match(HOST_SOURCE, /const prompt = \["Staged changes \(git diff --staged\):", body\]\.join\("\\n"\);/);
@@ -164,10 +192,16 @@ const plain = (value) => JSON.parse(JSON.stringify(value));
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
 /** 生成链路的桩环境：临时工作区（package.json）+ git 输出 + 捕获 system/messages 的 llm。 */
-async function withGenerateStub(run) {
+/**
+ * 生成链路的桩环境：临时工作区（默认带 package.json）+ git 输出 + 捕获 system/messages 的 llm。
+ * options.sessionEvents 提供后，ctx.get("sessions") 返回带该事件的会话（用于会话上下文注入测试）；
+ * options.packageJson 传 null 表示工作区里没有可解析的 package.json。
+ */
+async function withGenerateStub(run, options = {}) {
   const dir = await mkdtemp(join(tmpdir(), "hud-commit-prompt-"));
   try {
-    await writeFile(join(dir, "package.json"), JSON.stringify({ name: "probe-app", version: "1.2.3" }));
+    const pkg = options.packageJson === undefined ? { name: "probe-app", version: "1.2.3" } : options.packageJson;
+    if (pkg !== null) await writeFile(join(dir, "package.json"), JSON.stringify(pkg));
     const diff = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new\n";
     const subprocess = {
       spawn({ argv }) {
@@ -184,11 +218,14 @@ async function withGenerateStub(run) {
     const captured = [];
     const ctx = {
       get(name) {
+        if (name === "sessions" && options.sessionEvents !== undefined) {
+          return { get: () => ({ snapshotEvents: () => options.sessionEvents }) };
+        }
         if (name !== "llm") return undefined;
         return {
           stream: async function* (request) {
             captured.push(request);
-            yield { type: "text-delta", text: "CUSTOM OUTPUT ONLY" };
+            yield { type: "text-delta", text: options.output ?? "CUSTOM OUTPUT ONLY" };
             yield { type: "finish", reason: { kind: "stop" } };
           },
         };
@@ -205,21 +242,39 @@ test("宿主：自定义提示词完整接管生成——原样返回，不再�
     const custom = "请只输出一行：CUSTOM OUTPUT ONLY。不要日期前缀，不要版本号。";
     const result = await generateCommitMessage(ctx, subprocess, dir, "", custom);
     assert.equal(result.message, "CUSTOM OUTPUT ONLY", "自定义提示词下不得改写模型输出");
-    assert.equal(captured[0].system, custom, "system 必须换成自定义提示词");
+    // v0.21.1：自定义提示词后面追加「提示词是唯一规则来源 + 内部冲突时后者优先」的声明
+    assert.equal(captured[0].system, `${custom}\n\n${COMMIT_PROMPT_PRECEDENCE}`, "system 必须换成自定义提示词");
+    assert.equal(captured[0].system.startsWith(custom), true);
     // 用户消息只携带 diff，不再重复写死的默认指令（避免与自定义提示词冲突）。
     assert.equal(captured[0].messages[0].content[0].text, `Staged changes (git diff --staged):\n${diff}`);
   });
 });
 
-test("宿主：未自定义提示词时保留默认保障——补日期前缀并强制版本号", async () => {
+test("宿主：未自定义提示词时保留默认保障——补日期前缀并按项目当前版本号校正", async () => {
   await withGenerateStub(async ({ dir, subprocess, ctx, captured }) => {
     const result = await generateCommitMessage(ctx, subprocess, dir, "");
     const today = formatStyledDate(new Date());
-    assert.match(result.message, new RegExp(`^\\[${today}\\] probe-app v1\\.2\\.4：CUSTOM OUTPUT ONLY`), "默认路径仍补日期前缀并强制版本号");
+    // v0.21.1：版本号不再递增，消息沿用项目当前版本（1.2.3）
+    assert.equal(result.message, `[${today}] probe-app v1.2.3：CUSTOM OUTPUT ONLY`, "默认路径补日期前缀并沿用当前版本号");
+    assert.equal("warn" in result, false, "不再返回版本未递增告警字段");
     assert.match(captured[0].system, /Follow this local commit convention EXACTLY:/);
     assert.match(captured[0].system, /Today's date in YYMMDD is \d{6}/);
     assert.match(captured[0].system, /The project name is probe-app and its CURRENT version is 1\.2\.3/);
+    // 默认路径注入的是「规则」：明确沿用当前版本、禁止递增
+    assert.match(captured[0].system, /do NOT increment it, do NOT invent another version/);
+    assert.doesNotMatch(captured[0].system, /GREATER THAN the current version/);
+    // 自定义路径专用的事实文本与优先级声明不得出现在默认路径
+    assert.doesNotMatch(captured[0].system, /Project facts for reference/);
+    assert.doesNotMatch(captured[0].system, /Prompt precedence:/);
   });
+});
+
+test("宿主：模型自作主张升版时，默认路径把它拉回项目当前版本号", async () => {
+  const today = formatStyledDate(new Date());
+  await withGenerateStub(async ({ dir, subprocess, ctx }) => {
+    const result = await generateCommitMessage(ctx, subprocess, dir, "");
+    assert.equal(result.message, `[${today}] probe-app v1.2.3：修复了回归用例`, "日期与版本号都会被校正为宿主值");
+  }, { output: "[000000] probe-app v9.9.9：修复了回归用例" });
 });
 
 test("客户端：默认折叠，展开后回填默认提示词；无自定义时不显示「已自定义」", async () => {

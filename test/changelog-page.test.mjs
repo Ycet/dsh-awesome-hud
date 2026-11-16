@@ -136,6 +136,7 @@ function createRuntime() {
       extractFunction('isDefaultModulesSettings'),
       extractFunction('isDefaultFeatureSettings'),
       extractFunction('isDefaultDraft'),
+      extractFunction('useOverlayDismiss'),
       extractFunction('contextPinState'),
       extractFunction('SettingsDialog'),
     ].join('\n'),
@@ -200,8 +201,14 @@ test('版本数据：倒序、版本号格式、首条等于 package.json 版本
   assert.ok(entries.length >= 2, '至少覆盖 v0.20.1 与 v0.20.0');
   // v0.21.0：数据源只保留最新 20 个版本（更旧记录删除，避免持续膨胀）。
   assert.ok(entries.length <= 20, `版本条目不得超过 20 条，实际 ${entries.length}`);
+  // v0.21.1：最新一条是「便笺 / Git」两组；v0.21.0 的七组整体后移一位。
   assert.deepEqual(
     JSON.parse(JSON.stringify(entries[0].groups.map(group => group.title))),
+    ['changelog0211GroupNote', 'changelog0211GroupGit'],
+    'v0.21.1 的两个分组',
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(entries[1].groups.map(group => group.title))),
     ['changelog021GroupNote', 'changelog021GroupReset', 'changelog021GroupChangelog', 'changelog021GroupUsage', 'changelog021GroupGit', 'changelog021GroupOutputs', 'changelog021GroupPanel'],
     'v0.21.0 的七个分组',
   );

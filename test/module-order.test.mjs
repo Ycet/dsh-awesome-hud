@@ -373,8 +373,9 @@ test("设置弹窗的关闭与焦点：Esc / 遮罩点击 / 取消确认，Tab �
   assert.doesNotMatch(source, /hud-settings-pop/);
   assert.doesNotMatch(source, /doc\?\.addEventListener\?\.\("pointerdown", onPointerDown, true\)/);
 
-  // 遮罩点击：只认遮罩本身，卡片内部点击不关闭。
-  assert.match(source, /onClick: \(event\) => \{ if \(event\.target === event\.currentTarget\) props\.onClose\(\); \},/);
+  // 遮罩点击（v0.21.1）：只认「在遮罩上按下并在遮罩上松开」，卡片内部点击不关闭。
+  assert.match(source, /const overlayDismiss = useOverlayDismiss\(props\.onClose\);/);
+  assert.match(source, /\.\.\.overlayDismiss,/);
   assert.match(source, /onClick: \(event\) => event\.stopPropagation\(\),/);
   // Esc 在捕获阶段关闭；Tab 在弹窗内首尾循环。
   assert.match(source, /doc\?\.addEventListener\?\.\("keydown", onKeyDown, true\);/);
