@@ -1,10 +1,11 @@
-// dsh-awesome-hud — AI 提交信息规范辅助单测（formatStyledDate / findPackageMeta / extractSessionContext / 版本校验）
+// dsh-awesome-hud — AI 提交信息规范辅助单测（formatStyledDate / findPackageMeta / 版本校验）
+//  v0.21.2：生成不再读取会话上下文，extractSessionContext 及其用例已移除。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, writeFile, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { formatStyledDate, findPackageMeta, extractSessionContext, pinVersionInMessage } from "../lib/index.js";
+import { formatStyledDate, findPackageMeta, pinVersionInMessage } from "../lib/index.js";
 
 test("formatStyledDate：YYMMDD 固定格式", () => {
 	assert.equal(formatStyledDate(new Date(2026, 7, 30)), "260830");
@@ -64,53 +65,6 @@ test("findPackageMeta：monorepo 根无 package.json 时按 extraDirs 定位子�
 		await rm(root, { recursive: true, force: true });
 	}
 });
-test("extractSessionContext：按轮次组织，只保留最近 N 轮", () => {
-	const events = [
-		{ type: "user/message", seq: 1, data: { role: "user", content: [{ type: "text", text: "修复一下 git 模块的 bug" }], source: { kind: "user" } } },
-		{ type: "user/message", seq: 2, data: { role: "user", content: [{ type: "text", text: "工作区文件变更通知" }], source: { kind: "plugin" } } },
-		{ type: "assistant/message", seq: 3, data: { turn: 1, step: 1, message: { role: "assistant", content: [{ type: "text", text: "好的，我来修复" }] } } },
-		{ type: "user/message", seq: 4, data: { role: "user", content: [{ type: "text", text: "再补一个测试" }], source: { kind: "user" } } },
-		{ type: "assistant/message", seq: 5, data: { turn: 2, step: 1, message: { role: "assistant", content: [{ type: "text", text: "已补测试" }] } } },
-	];
-	const out = extractSessionContext(events);
-	assert.ok(out.includes("第 1 轮"));
-	assert.ok(out.includes("第 2 轮"));
-	assert.ok(out.includes("用户：修复一下 git 模块的 bug"));
-	assert.ok(out.includes("助手：好的，我来修复"));
-	assert.ok(!out.includes("工作区文件变更通知"), "插件注入消息应被忽略");
-	// 只保留最近 1 轮：轮次编号仍是原始的「第 2 轮」，不包含第 1 轮。
-	const onlyLatest = extractSessionContext(events, 1);
-	assert.ok(onlyLatest.includes("第 2 轮"));
-	assert.ok(!onlyLatest.includes("第 1 轮"));
-	assert.ok(onlyLatest.includes("用户：再补一个测试"));
-});
-
-test("extractSessionContext：多块文本拼接、超长按最新轮优先截断", () => {
-	const events = [];
-	for (let i = 1; i <= 6; i++) {
-		events.push({ type: "user/message", seq: i * 2, data: { role: "user", source: { kind: "user" }, message: { role: "user", content: [{ type: "text", text: `消息${i}` }, { type: "text", text: `补充${i}` }] } } });
-		events.push({ type: "assistant/message", seq: i * 2 + 1, data: { turn: i, step: 1, message: { role: "assistant", content: [{ type: "text", text: `回复${i}` }] } } });
-	}
-	const out = extractSessionContext(events, 2);
-	assert.ok(out.includes("消息6补充6"));
-	assert.ok(out.includes("消息5"), "最近 2 轮包含第 5、6 轮");
-	assert.ok(!out.includes("消息4"));
-	const tiny = extractSessionContext(events, 3, 30);
-	assert.ok(tiny.length <= 30);
-	assert.ok(tiny.includes("第 6 轮"), "截断时优先保留最新轮次");
-});
-
-test("extractSessionContext：非文本块、孤立助手消息与空输入", () => {
-	const events = [
-		{ type: "assistant/message", seq: 1, data: { message: { content: [{ type: "text", text: "没有用户轮次" }] } } },
-		{ type: "user/message", seq: 2, data: { role: "user", content: [{ type: "image", image: "x" }], source: { kind: "user" } } },
-		{ type: "turn/start", seq: 3, data: { turn: 1 } },
-	];
-	assert.equal(extractSessionContext(events), "");
-	assert.equal(extractSessionContext(null), "");
-	assert.equal(extractSessionContext([]), "");
-});
-
 test("pinVersionInMessage：把版本号校正为项目当前版本（不递增）", () => {
 	const pkg = { name: "dsh-awesome-hud", version: "0.21.1" };
 	// 模型自作主张升版 → 拉回当前版本

@@ -9,6 +9,9 @@ export function hudClient({ state = { byId: {} }, workspaces = [], pinnedSession
   storage = {}, workspaceApi = {}, extraServices = {}, primitives = null, querySelector = () => null,
   // v0.19.0：便笺图片走 IndexedDB / URL.createObjectURL，测试可按需注入这两个平台对象。
   globals = {},
+  // v0.21.2：默认只执行样式/词典两类 effect；传 () => true 可按 DSH 真实语义执行 apply 期间的全部副作用，
+  // 用来抓「apply 里某处抛错 → 后续 slot 注册全部丢失 → HUD 入口按钮消失」这类回归。
+  effectFilter = (label) => /styles|dictionaries/.test(label ?? ''),
   respond = () => ({ ok: true, servers: [], total: 0, enabled: 0, isRepo: true }) } = {}) {
   const effects = [], styles = [], calls = [], slots = new Map(), intervals = new Map(), domListeners = new Set();
   // v0.19.0：同一 slot 可能有多个注册（如会话头部的 HUD 按钮 + 展示方式按钮），
@@ -38,7 +41,7 @@ export function hudClient({ state = { byId: {} }, workspaces = [], pinnedSession
     get: key => services[key], uiSession: services.uiSession,
     locale: { register: (ns, dicts) => { dictionaries.push(dicts); }, bind: () => key => key },
     effect: (fn, label) => {
-      if (/styles|dictionaries/.test(label)) fn();
+      if (effectFilter(label)) fn();
       if (label?.includes('sidebar watcher')) sidebarEffect = fn;
     },
     slots: {

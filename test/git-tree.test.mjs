@@ -83,7 +83,9 @@ test("Git 模块接线：gitView、悬浮操作、文件夹批量、右键图标
 test("Git 悬浮操作蒙层与文件树样式", () => {
   assert.match(source, /\.hud-git-file-row\{position:relative;min-width:0\}/);
   assert.match(source, /\.hud-git-file-actions\{position:absolute;top:0;bottom:0;right:3px;z-index:1;display:flex;align-items:center;gap:2px;padding-left:18px;background:linear-gradient\(90deg,transparent 0,var\(--hud-surface-bg\) 18px\)/);
-  assert.match(source, /\.hud-git-file-row:hover \.hud-git-file-actions,\.hud-git-file-row:focus-within \.hud-git-file-actions,\.hud-git-dir-row:hover \.hud-git-file-actions,\.hud-git-dir-row:focus-within \.hud-git-file-actions\{opacity:1;visibility:visible\}/);
+  // v0.21.2：改为 hover + 键盘可见焦点（鼠标点击后按钮不再黏住）。
+  assert.match(source, /\.hud-git-file-row:hover \.hud-git-file-actions,\.hud-git-dir-row:hover \.hud-git-file-actions,\.hud-git-file-row:has\(:focus-visible\) \.hud-git-file-actions,\.hud-git-dir-row:has\(:focus-visible\) \.hud-git-file-actions,\.hud-git-file-actions:focus-within\{opacity:1;visibility:visible\}/);
+  assert.doesNotMatch(source, /:focus-within \.hud-git-file-actions/);
   assert.match(source, /\.hud-git-dir-row\{position:relative;display:flex;align-items:center;/);
   assert.match(source, /\.hud-git-tree-caret\[data-collapsed=true\]\{transform:rotate\(-90deg\)\}/);
   assert.match(source, /@media\(hover:none\)\{\.hud-git-file-actions\{opacity:1;visibility:visible\}\}/);
@@ -99,14 +101,15 @@ test("Host 批量接口：paths 白名单、去重上限与单路径兼容", () 
   assert.match(hostSource, /return \{ skippedRevert: skipped\.map\(\(item\) => item\.path\) \};/);
 });
 
-test("HUD 模块标题吸附：只作用于滚动区、不透明底色、限制在 section 内", () => {
-  assert.match(source, /\.hud-panel-body>\.hud-section>\.hud-module-head\{position:sticky;top:0;z-index:1\}/);
-  assert.match(source, /\.hud-panel-body>\.hud-section>\.hud-module-head\[data-stuck=true\]\{background:var\(--hud-surface-bg\)\}/);
+test("HUD 模块标题吸附：滚动区与固定区都生效、不透明底色、限制在 section 内", () => {
+  // v0.21.2：置顶模块在固定区里，标题同样吸附，因此两个容器共用同一套规则。
+  assert.match(source, /\.hud-panel-body>\.hud-section>\.hud-module-head,\.hud-panel-pin>\.hud-section>\.hud-module-head\{position:sticky;top:0;z-index:1\}/);
+  assert.match(source, /\.hud-panel-body>\.hud-section>\.hud-module-head\[data-stuck=true\],\.hud-panel-pin>\.hud-section>\.hud-module-head\[data-stuck=true\]\{background:var\(--hud-surface-bg\)\}/);
   assert.match(source, /const stuck = scrolled && headTop <= bodyTop \+ 1 && sectionBottom > bodyTop \+ 2;/);
-  assert.match(source, /\.hud-panel-body>\.hud-section:not\(:first-child\)>\.hud-module-head\[data-stuck=true\]::before\{content:'';position:absolute;left:0;right:0;top:0;height:1px;/);
+  assert.match(source, /\.hud-panel-body>\.hud-section:not\(:first-child\)>\.hud-module-head\[data-stuck=true\]::before,\.hud-panel-pin>\.hud-section:not\(:first-child\)>\.hud-module-head\[data-stuck=true\]::before\{content:'';position:absolute;left:0;right:0;top:0;height:1px;/);
   // 边栏样式：固定区（会话 + 可选置顶上下文）与第一个滚动区模块都要有分割线。
   assert.match(source, /\.hud-panel\[data-style=sidebar\] \.hud-panel-body,\.hud-panel\[data-style=sidebar\] \.hud-panel-pin,\.hud-panel\[data-style=sidebar\] \.hud-panel-body>\.hud-section\{border-top:0;background-image:linear-gradient/);
-  assert.match(source, /\.hud-panel\[data-style=sidebar\] \.hud-panel-body>\.hud-section>\.hud-module-head::before\{background:linear-gradient\(to right,transparent 14px/);
+  assert.match(source, /\.hud-panel\[data-style=sidebar\] \.hud-panel-body>\.hud-section>\.hud-module-head::before,\.hud-panel\[data-style=sidebar\] \.hud-panel-pin>\.hud-section>\.hud-module-head::before\{background:linear-gradient\(to right,transparent 14px/);
   // 会话模块与固定上下文模块在 body 外，基础规则仍是 position:relative，不受吸附影响。
   assert.match(source, /\.hud-module-head\{display:flex;align-items:center;gap:8px;padding:10px 14px;min-height:20px;cursor:default;position:relative\}/);
 });

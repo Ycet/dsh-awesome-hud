@@ -45,17 +45,21 @@ test("npm files 清单包含图标，中英文 README 均引用该图标", () =>
   }
 });
 
-test("版本号与 README 版本/升级标题保持同步", () => {
+test("版本号与 README 升级标题保持同步", () => {
   const version = String(manifest.version);
   assert.match(version, /^\d+\.\d+\.\d+$/u);
   const zh = readFileSync(resolve(root, "README.md"), "utf8");
   const en = readFileSync(resolve(root, "README_en.md"), "utf8");
-  const zhVersion = new RegExp(`当前版本：\\*\\*${version.replaceAll(".", "\\.")}\\*\\*`, "u");
-  const enVersion = new RegExp(`Current version: \\*\\*${version.replaceAll(".", "\\.")}\\*\\*`, "u");
+  // v0.21.2：README 头部只留「图标 + 两行徽章」，不再单列「当前版本」一行；
+  // 版本号由升级说明标题与 npm 动态徽章体现，这里校验升级标题与 package.json 一致。
   const zhNotes = new RegExp(`## ⬆️ 升级说明（v0\\.11\\.x → v${version.replaceAll(".", "\\.")}）`, "u");
   const enNotes = new RegExp(`## ⬆️ Upgrade Notes \\(v0\\.11\\.x → v${version.replaceAll(".", "\\.")}\\)`, "u");
-  assert.match(zh, zhVersion);
-  assert.match(en, enVersion);
   assert.match(zh, zhNotes);
   assert.match(en, enNotes);
+  // 安装命令里的版本 tag / npm 版本同样必须与 package.json 一致。
+  for (const text of [zh, en]) {
+    assert.ok(text.includes(`dsh-awesome-hud@${version}`), `安装命令必须使用 ${version}`);
+    assert.ok(text.includes(`#v${version}`), `GitHub 安装命令的 tag 必须是 v${version}`);
+    assert.ok(text.includes(`v${version}/dsh-awesome-hud-${version}.tgz`), `Release 资产名必须带 ${version}`);
+  }
 });

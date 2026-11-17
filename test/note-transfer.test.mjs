@@ -232,7 +232,7 @@ test("便笺列表视图：空态、两行功能按钮与编辑视图按钮禁�
   });
   const panel = harness.panel();
   const element = nodes(panel).find((node) => node?.type?.name === "NoteModule");
-  const rendered = element.type({ ...element.props, sendSessionId: "", noteMaxCount: 5 });
+  const rendered = element.type({ ...element.props, fold: false, sendSessionId: "", noteMaxCount: 5 });
   // 空列表：空文案 + 「删除全部便笺」置灰
   assert.equal(byClass(rendered, "hud-note-empty").length, 1, "空列表显示空文案");
   const deleteAll = nodes(rendered).find((node) => typeof cls(node) === "string" && cls(node).includes("hud-note-delete-all"));
@@ -294,7 +294,7 @@ test("从聊天创建/导入按钮：输入框无文字/图片时置灰，有内
   });
   for (const [draft, expected] of [["", true], ["hello", false]]) {
     const element = nodes(makeClient(draft).panel()).find((node) => node?.type?.name === "NoteModule");
-    const rendered = element.type({ ...element.props, sendSessionId: "s1" });
+    const rendered = element.type({ ...element.props, fold: false, sendSessionId: "s1" });
     const create = byClass(rendered, "hud-note-list-actions")[0].children.filter((child) => child?.type === "button")[0];
     assert.equal(create.props.disabled, expected, draft === "" ? "输入框为空时「从聊天创建」置灰" : "输入框有文字时「从聊天创建」可点");
   }

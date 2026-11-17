@@ -1,81 +1,233 @@
-# dsh-awesome-hud
-
-[![简体中文](https://img.shields.io/badge/简体中文-red?style=for-the-badge)](README.md)
-[![English](https://img.shields.io/badge/English-blue?style=for-the-badge)](README_en.md)
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
-[![npm](https://img.shields.io/npm/v/dsh-awesome-hud?style=for-the-badge&logo=npm)](https://www.npmjs.com/package/dsh-awesome-hud)
-
 <p align="center">
-  <img src="icon.png" width="96" height="96" alt="dsh-awesome-hud icon">
+  <img src="icon.png" width="96" height="96" alt="dsh-awesome-hud plugin icon">
 </p>
 
-A floating HUD for DeepSeek Harness Web and desktop: session state, context, git, subagents, tasks, and MCP controls.
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License: MIT"></a>
+  <a href="https://www.npmjs.com/package/dsh-awesome-hud"><img src="https://img.shields.io/npm/v/dsh-awesome-hud?style=for-the-badge&amp;logo=npm" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/dsh-awesome-hud"><img src="https://img.shields.io/badge/DSH-%E2%89%A5%200.2.1--rc.2-4d6bfe?style=for-the-badge" alt="DeepSeek Harness"></a>
+</p>
 
-HUD in DSH (light theme)
+<p align="center">
+  <a href="README.md"><img src="https://img.shields.io/badge/简体中文-red?style=for-the-badge" alt="简体中文"></a>
+  <a href="README_en.md"><img src="https://img.shields.io/badge/English-blue?style=for-the-badge" alt="English"></a>
+</p>
 
-![alt text](docs/hud-light.png)
+# dsh-awesome-hud
 
-HUD in DSH (dark theme)
+A floating HUD panel for DeepSeek Harness Web and desktop chat pages: session state, context usage with one-click compaction, Git changes, subagents, tasks and MCP switches in one place.
 
-![alt text](docs/hud-dark.png)
+> Click “HUD panel” at the top right of a chat page to open the panel. It shares space with the official right sidebar and [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar): while a sidebar is open the panel steps aside, so nothing is covered and the chat body is not squeezed twice.
 
 ---
 
-> [!NOTE]
-> A DSH Web plugin installed through the `dsh.bundle.patch` channel. A new "HUD panel" button appears at the top-right of the chat page; the floating panel cooperates with the official right sidebar and the [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) right sidebar so they never overlap and the body is never padded with extra blank space.
-
 ## 📑 Table of Contents
 
-- [✨ Features](#-features)
+Click to jump to a section.
+
+- [🖼️ Panel preview](#️-panel-preview)
+- [✨ Feature overview](#-feature-overview)
+- [🧩 Modules and pages](#-modules-and-pages)
+- [⚙️ HUD settings and panel behaviour](#️-hud-settings-and-panel-behaviour)
 - [🚀 Quick Start](#-quick-start)
-- [🧭 Usage](#-usage)
-- [🖼️ Screenshots](#️-screenshots)
 - [⚙️ Compatibility](#️-compatibility)
 - [🔧 Tech Stack](#-tech-stack)
-- [⬆️ Upgrade Notes (v0.11.x → v0.21.1)](#️-upgrade-notes-v011x--v0211)
+- [🧪 Development and tests](#-development-and-tests)
+- [🔗 Related plugins](#-related-plugins)
+- [⬆️ Upgrade Notes (v0.11.x → v0.21.2)](#️-upgrade-notes-v011x--v0212)
 - [📄 License](#-license)
 
 ---
 
-## ✨ Features
+## 🖼️ Panel preview
 
-| Module         | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Session        | Current workspace name, session name, session state (Running / Awaiting approval / Idle / Awaiting answer / Waiting for subagents), model provider, model, reasoning effort; both the workspace name and the session name are hover-highlighted buttons that open a menu at the pointer (workspace: rename / show in Finder·File Explorer / copy path; session: pin or unpin / rename / fork session / copy session ID / copy session name / archive session, with one divider before the copy actions and one before “Archive session”). Choosing Rename turns the name into an inline input that commits on blur (Enter commits, Esc cancels, no cancel/confirm buttons), and a pinned session shows a small pin to the right of its name; the blank session page no longer shows the session title or state; the gear at the top-right opens a two-pane HUD settings dialog (left: module toggles and drag order; right: "HUD panel general settings" (HUD panel style: Card/Sidebar, default Card; HUD panel side; the two default open states), "Context module settings", "Usage module settings" and "Notes module settings" (note count limit, 5–20, default 5) cards), plus top "Usage guide" and "Changelog" tabs with an in-app getting-started guide and a version-grouped change log                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Context        | Context occupancy bar (single color by default: 0–40% green / 40–90% yellow / >90% red; on hover it switches to the segmented style and shows a breakdown tooltip for System prompt / Tool definitions / Messages in slate/purple/blue). The header shows "current / maximum (percentage)" such as `199K / 1M (19.9%)`; two lines below show session stats (turns/steps · tok/s) and token usage (total · cache hit), each opening a detailed tooltip on hover. One-click "Compact" for the current session; whether the segmented bar is always shown and whether the two lines are visible can be changed in the HUD settings; **clicking the header or its arrow folds the module** (only the title and the occupancy stay visible, the folded state is persisted, and it also works while the module is pinned)                                                                                                                                                                                                                                                                                                                                                                      |
-| Usage          | DeepSeek balance, OpenCode Go percentage usage for the 5h/1w/1m windows, and Codex remaining-quota percentages (subscribed accounts get the 5-hour/weekly rows; accounts without a subscription get a single `Codex free quota` row, mutually exclusive with those two; plus a `Codex gpt-reserve quota` row in the same style whenever `dsh-codex-subscription` reports a gpt-reserve quota), led by matching icons and indented; the Usage module is always rendered (it can be hidden in the HUD settings); when folded it can show one selected figure next to the title (DeepSeek balance / OpenCode Go 5h·1w·1m / Codex 5h·weekly, with Codex falling back to the free quota; options are disabled while their data source is unavailable and the parenthesized value is bolded; the dropdown uses the official DSH menu look — a 36px trigger, the official material surface, 34px items and a check on the selected item, rendered by the plugin itself so it always stacks above the settings dialog), the DeepSeek balance row is always shown (`—` and still clickable when no data is available), and the OpenCode Go / Codex rows render independently according to installation/sign-in state (the whole group is hidden with no data, and figures open the matching settings page when clickable)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| git            | Always shown (on both the blank session page and session pages; when the workspace is not a git repository the title bar offers "init repo" at the right, which runs `git init` in that workspace and then swaps itself for the branch button); current branch (branch button at the right of the git title bar: a dropdown to switch existing branches — current branch highlighted with a check — or type a new name and click "Add" to create and auto-switch), changed-file counts; changed files grouped into staged / changes (group names with gray counts, empty groups hidden) and shown as a list or a folder tree (the tree groups files by folder and supports collapse, and the choice is saved in the profile and kept across panel remounts and restarts); hovering a file row replaces the +/− counts with buttons (staged files show “remove from stage”, changed files show “revert” and “add to stage”, with a gradient mask so the name and folder stay readable), and hovering a folder row applies the same actions to every file inside; a left-click on a file row opens its diff in the right sidebar (the official turn-changes review first, the better-sidebar diff tab as fallback), while right-click opens a stage / unstage / revert / add-to-.gitignore menu on files and on folder rows in the tree (a folder applies the batch actions to its changed files and writes a `/folder/` rule to ignore the folder; hovering for 0.5s shows the full path); an untracked file carries a "U" pill badge like the other statuses, the three action buttons (git graph / commit / revert) share the full module width in equal thirds, and the branch button is a fixed 88px that truncates long branch names; the "commit" button opens the commit dialog even with nothing staged (AI generate and commit are then greyed out, and the default prompt stays editable) and commits the staged area (manual input or an AI-generated message that follows the built-in local git convention [YYMMDD] project vX.Y.Z: summary) and "revert" discards all unstaged changes (tracked files are restored; untracked new files and intent-to-add files are deleted; staged files are NOT discarded and the UI says so; directory entries that cannot be deleted, such as nested repositories/submodules, are reported explicitly; destructive actions all require a confirmation dialog listing affected files); the "git graph" popup (commits across all refs shown in pages of up to 80 each, with a "Load more" button at the bottom of the list appending the next page until the full history is loaded; the current branch uses a blue-filled white label and other branches use gray-filled black labels; hovering a commit row for 0.5s shows the full commit info with that commit's branch/tag labels below the subject); right-clicking a commit row opens a menu — copy short hash (7 chars) / full hash (40 chars) / commit subject, create a branch here, merge into the current branch, or soft / mixed / hard reset, with an inline input plus icon buttons for branch creation and an inline second confirmation for merge and reset |
-| Outputs        | Lists the files this session changed **across all its turns** in the given formats (`html` / `md` / `pdf` / `docx` / `csv` / `xlsx` / `pptx` / `cd` / `clark` / `jpg` / `jpeg` / `png` / `gif` / `webp` / `svg` — 16 extensions, case-insensitive): workspace files that **still exist**, ordered by last change and **capped at 10** (a footer hint appears once the cap applies). **Three files show first**; with more than three, a “Show n more files” link appears under the third row and a “Collapse” link after the last row (no link at three files or fewer). File rows are indented to align with the module title; each row shows a blue extension tag on the left (fixed size, smaller font for longer extensions), the file name and the directory; right-click a row to add it to chat, show it in the file manager, or copy the file name / relative path / absolute path (a divider separates the copy group), hovering a row for 0.5 seconds shows the file's full relative path at the pointer in the same tooltip style as git changed-file rows, and a click opens the file content in the **official right sidebar** (the same file never opens twice). The data merges DSH's per-turn `workspaceChanges` summaries with a **workspace scan** filtered by last-modified time, so **terminal-command changes are included**; the filter is based on the session's creation time and needs no in-process cache, so the list **survives a DSH restart**. The module sits **above `git`** by default, can be turned off or reordered in HUD settings, and **stays hidden while there are no matching files** (like Subagents, Tasks and Plan list); it appears once files exist and is not shown on the new-session page (its settings card is read-only there); existing profiles automatically place the new module before `git` |
-| Subagents      | All descendant subagents of the session (indented by depth) with running (yellow) / done (green) states; clicking an entry opens the subagent conversation in the official right sidebar while keeping the main conversation; shown only when subagents exist; with more than three, three show first, a “Show n more subagents” link appears under the third row, and a “Collapse” link closes the list again                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| Tasks          | To-do list of the current session with done/pending states and a counter (e.g.`1/3`), refreshing live; in-progress tasks show a spinning animated icon and the bottom row shows the completed / in progress / pending counts (all three shown even at zero); shown only when tasks exist; **completed tasks move to the bottom of the list and stay collapsed** (earliest completion first), with a “Show completed tasks” link and a “Collapse” link at the end once expanded                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Plan list      | Every plan produced by plan mode (`exit_plan_mode`) in the current session, with three-state badges — pending review (yellow) / approved (green) / discarded (gray, struck-through dimmed text) — the header shows the total count, clicking a row opens the full plan, and the bottom row shows the approved / pending review / discarded counts (all three shown even at zero); shown only when plans exist; with more than three, three show first, a “Show n more plans” link appears under the third row, and a “Collapse” link closes the list again                                                                                                                                                                                                                                                                                                                                                                            |
-| MCP            | All connected MCP servers with their DSH-global enabled state; the switch toggles DSH-global MCP servers through the DSH plugin manager (row-level edits in the profile `cordis.patch.yml` plus a hot reload: effective immediately, no page refresh, and no effect on other servers)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+**Light theme**
 
-| Notes         | **Multiple notes per workspace** (all sessions under the same workspace directory share one set of notes, persisted locally and kept across DSH restarts; an old single note migrates to “Note 1”). **Note list**: each note is a rounded row with a drag handle on the left (hold to reorder), and only the delete button appears on hover (also on keyboard focus; always visible on touch); click a note bar to edit it (the editor opens inside the module by default; with “Edit note content in a dialog” on, it opens in a dialog and the module stays a list), with an empty-state line when there are no notes. **Action buttons**: two rows — “Create from chat” and “Add note” share the first row at half width each, “Delete all notes” fills the second row; the note limit can be changed in HUD settings → Notes (5–20, default 5) and creating at the limit only shows a toast. “Create from chat” builds a note from the chat input text and images (copies only, never clears the composer, and opens the editor right away; disabled while the input is empty); “Add note” opens a blank note in the editor; a single delete turns the delete button into cancel and confirm buttons inline (red check icon) and removes the note after you confirm; delete-all still asks in a dialog. **Editor view**: by default it opens inside the module and a back button returns to the list; with “Edit note content in a dialog” on it opens in a dialog instead — close it with the top-right button or an outside click on the backdrop (the press and the release must both land on the backdrop, so dragging a text selection out of the dialog never closes it), changes save as you type, the layout matches the inline editor (title, image strip, fixed-height text area, Clear / Import from chat / Add to chat), and “Add note” and “Create from chat” open the dialog as well. the title is editable (an empty title becomes “Note n”, numbered from the largest “Note n” number in the current list plus one, so deleting the largest reuses its number), the image strip holds up to 20 images (paste, click for the full size, hover to remove, drag a thumbnail left or right to reorder, and the strip settles in place on release without left-right jitter), the text area has **no length limit** and keeps the bottom drag handle with **one height shared by all notes**, “Clear” asks for confirmation and removes text and images together, “Import from chat” clears the current note first and then writes the composer content (asking first when the note is not empty, skipping non-image attachments), and “Add to chat” clears the composer first and then writes the note with its images in order (asking first when the composer is not empty); the folded state persists. A lower limit than the note count of some workspaces is saved normally; those workspaces keep their notes but cannot create more |
-| Todo          | **Workspace-shared** to-do list (all sessions under the same workspace directory share one list and its order, persisted locally); check/uncheck complete, add/delete items, drag-to-reorder whole rows (drag handle at the far left before the checkbox; while dragging, the other items slide out of the way to preview the final order), one-click clear completed (confirmation dialog, button disabled when no completed items); bottom shows completion count; **completed items move to the bottom and stay collapsed** (their relative order is kept), with a “Show completed items” link and a “Collapse” link, and dragging only reorders the open items; collapsible/expandable (state persisted)                                                                                                                                                                                                                                                                                                              |
+![HUD panel in the light theme](docs/hud-light.png)
 
-**Mutual exclusion**: the HUD panel cooperates with the official right sidebar and the [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) right sidebar. While a right sidebar is expanded the HUD is **derived hidden** — it is only temporarily invisible, its per-session open memory is **not rewritten**, and the body is never padded with extra blank space; closing the sidebar restores the panel automatically (unless the user had explicitly collapsed the HUD). Clicking the "HUD panel" button while the sidebar is open collapses the sidebar first, then shows the HUD (if auto-close fails due to version compatibility the panel stays hidden until the sidebar is closed, then appears); the blank session page does not show its floating entry while a right sidebar is expanded. When the panel is configured to the **left** side (see "HUD panel general settings"), it is also hidden temporarily while the left session-list drawer is open in narrow windows and comes back when the drawer closes (the remembered open state is still untouched). The panel look is selected in "HUD panel general settings → HUD panel style": **Card** (the default) keeps the floating rounded card; **Sidebar** makes the panel full height and flush with the window edges, transparent and square, with one divider between it and the content area, 14px-inset dividers between modules, and the page scrollbar sitting at the content edge.
+**Dark theme**
+
+![HUD panel in the dark theme](docs/hud-dark.png)
+
+---
+
+## ✨ Feature overview
+
+| Module | What you see and what you can do |
+| --- | --- |
+| Session | Workspace and session names, run state, one chip for model and reasoning level; menus for rename, pin, branch, archive and copy. |
+| Context | Fill ratio and bar, session stats and token usage; one-click compaction, or a subagent that writes a handoff document. |
+| Usage | DeepSeek balance, OpenCode Go quota and Codex quota; one of them can show in the title while folded. |
+| Outputs | Documents, sheets, slides and images this session changed; click to preview, right click to add to chat or copy a path. |
+| Git | Branch and change count, staged and unstaged groups, diff, commit with AI message, git graph. |
+| Tasks | The session task list and states, refreshed as the tasks change. |
+| Subagent tasks | Subagents of the current session with their states; open one in the right sidebar. |
+| Plan list | Plans from plan mode with three states; click a row to read the full plan. |
+| Notes | Notes shared by workspace, with images, drag ordering, and import or send to the chat input. |
+| To-do | To-do list shared by workspace: check, edit, drag and clear completed items. |
+| MCP | Connected MCP servers with global on and off switches. |
+
+The panel also offers **module folding and pinning**, **card and sidebar panel styles**, **left and right panel sides**, and a **built-in usage guide page and changelog page**.
+
+---
+
+## 🧩 Modules and pages
+
+### Session module
+
+Shows the workspace name, the session name, the session state, and one chip with the model name and reasoning level (the chip color follows the level). Both names are clickable and open a menu at the pointer:
+
+- **Workspace menu**: rename, show in the file manager, copy path;
+- **Session menu**: pin or unpin, rename, branch session, copy session ID, copy session name, archive session;
+- **Rename**: the name turns into an input in place; Enter saves, Esc cancels and a click elsewhere also saves.
+
+![Session module](docs/module-session.png)
+
+### Context module
+
+The title shows the current fill, the limit and the ratio; the bar color shows the fill ratio. The two lines below hold the session stats (turns, steps, tok/s) and the token usage (total, cache hits). A hover on the bar switches it to segments for System prompt, Tool definitions and Messages; a hover on the lines shows the full details.
+
+- **Compact**: available while the session is idle, greyed while a task runs;
+- **Handoff**: the menu to the right of “Compact” starts a subagent that writes a handoff document into `docs/handoff/` of the workspace; progress shows in the Subagent tasks module.
+
+![Context module](docs/module-context.png)
+
+### Usage module
+
+- **DeepSeek balance**: always shown, a dash when there is no data;
+- **OpenCode usage**: the usage percents of the three OpenCode Go windows;
+- **Codex quota**: the 5-hour and weekly quota for a subscription, the free quota otherwise;
+- **Jump**: a click on the balance or a percent opens the matching settings page;
+- **Folded info**: while folded, the title can show the balance or one quota, chosen in settings.
+
+The first three lines come from two related plugins: [dsh-account-usage](https://github.com/Ycet/dsh-account-usage) (balance and OpenCode usage) and [dsh-codex-subscription](https://github.com/WSL043/dsh-codex-subscription) (Codex quota). Without them the matching line is hidden and the setting is greyed with a reason.
+
+![Usage module](docs/module-usage.png)
+
+### Outputs module
+
+Lists the documents, sheets, slides and images this session changed (changes from terminal commands appear too), newest first, up to 10 files. Three files show first and the rest open on click; the module stays hidden while there are no outputs.
+
+- **Hover path**: a 0.5-second hover on a file row shows the full relative path;
+- **Open**: a click opens the file content in the right sidebar;
+- **Context menu**: add to chat (an `@` reference in the chat input), show in folder, copy the file name, the relative path or the absolute path.
+
+![Outputs module](docs/module-outputs.png)
+
+### Git module
+
+The title shows the current branch and the number of changed files. Files come in a staged group and an unstaged group with counts, in list or file-tree view: the state letter, the file name, the grey relative directory and the `+added / -removed` counts.
+
+- **Branch button**: switch to an existing branch or create a new one;
+- **Init repository**: outside a repository the button reads this; a click makes the repository and writes a `.gitignore`;
+- **Hover actions**: staged files can leave the index; unstaged files can be reverted or staged (a folder row applies this to its whole subtree);
+- **Context menu**: stage, revert, or add to the `.gitignore` in the repository root;
+- **Diff**: a left click opens the diff in the right sidebar;
+- **Revert**: reverts every unstaged change (untracked files are deleted too) and asks for confirmation first.
+
+![Git module](docs/module-git.png)
+
+#### Graph page
+
+The “git graph” button opens the commit list, loaded page by page (80 commits per page, more when you reach the bottom). The current branch is a blue chip and other branches are grey. A right click on a commit copies the short or full hash or the subject, creates a branch from it, merges it into the current branch, or runs a soft, mixed or hard reset.
+
+![Git graph page](docs/git-graph.png)
+
+#### Commit page
+
+“commit” commits the staged files; “AI generate” writes a commit message from the prompt plus the staged changes. The default prompt holds the date and version rules and can be edited and saved from the top of the dialog. With nothing staged the button still opens the dialog, where commit and AI generate stay disabled.
+
+![Commit page](docs/git-commit.png)
+
+### Tasks module
+
+Shows the task list and states: a running task has a rotating icon, completed tasks stay at the bottom and open on click. The bottom line gives the done, running and pending counts, and the list refreshes as the tasks change. The module stays hidden without tasks.
+
+![Tasks module](docs/module-tasks.png)
+
+### Subagent tasks module
+
+Shows every subagent of the current session, indented by level: a running one is yellow and a finished one is green, and three show first when there are more. A click opens that subagent session in the right sidebar while the main session stays open. The module stays hidden without subagents.
+
+![Subagent tasks module](docs/module-subagents.png)
+
+### Plan list module
+
+Shows the plans from plan mode: yellow for pending approval, green for executed and grey with a strikethrough for discarded, with the counts of the three states below and three rows first when there are more. A click on any row shows the full plan, rendered as Markdown.
+
+![Plan list module](docs/module-plan-list.png)
+
+![Full plan page](docs/plan-content.png)
+
+### Notes module
+
+Notes are shared per workspace (all sessions in one workspace directory use one set), and each note saves its own title and text: no text limit and up to 20 images.
+
+- **List**: the note list shows every note; a click opens the editor and a hover shows the delete button;
+- **Order**: drag the handle at the left of a note bar to change the order;
+- **New note**: “Add note” starts an empty note in the editor; “Create from chat” starts a note from the input text and images;
+- **Delete**: the button turns into cancel and confirm, and a confirm deletes; “Delete all” asks for a confirmation too;
+- **Editor**: opens inside the module by default and the back button returns to the list; the title can change (an empty title is numbered), images paste in and reorder by drag, and the bottom handle sets the height shared by all notes;
+- **With the chat**: “Import” clears the note first and writes the input content; “Send to chat” clears the input first and writes the note, adding images in note order; “Clear” asks for a confirmation;
+- **Dialog editing**: turn it on in settings and a click on a note bar edits it in a dialog while the module stays a list.
+
+![Notes module](docs/module-notes_01.png)
+
+![Note editor](docs/module-notes_02.png)
+
+### To-do module
+
+A to-do list shared per workspace: a check marks an item done and a second click restores it; type in the input and press Enter to add an item; a click on the item text edits it and a delete asks first; drag the handle at the left of a row to change the order; “Clear completed” asks for a confirmation. The title shows the done count and completed items stay below, ready to open.
+
+![To-do module](docs/module-todo.png)
+
+### MCP module
+
+Lists the connected MCP servers and their global on and off state. A click starts or stops a server without a page refresh, and only the target server changes; some setups need a DSH restart.
+
+![MCP module](docs/module-mcp.png)
+
+---
+
+## ⚙️ HUD settings and panel behaviour
+
+Click the gear at the top right of the Session module to open the settings dialog. The dialog has three tabs: **“HUD settings”**, **“Usage guide”** and **“Changelog”** (the guide is the built-in manual with a heading and one-line entries per topic; the changelog groups the changes by version).
+
+- **Left pane**: tick modules to show or hide them, drag a handle to set the panel order, and a pin on each card pins that module (one at a time);
+- **Right pane**: five cards — HUD panel general settings (panel style: card or sidebar, card by default; panel side: left or right; the two default open states), Context, Usage, Git changes and Notes;
+- **Save**: “Save settings” turns active after a change; closing the dialog or Esc discards; “Reset to defaults” opens its menu at the pointer;
+- **Disabled rows**: an unavailable setting is greyed and its hint turns red to give the reason.
+
+![HUD settings dialog](docs/hud-settings.png)
+
+Panel behaviour:
+
+- **Open state**: saved per session; the blank session page starts collapsed and the default can be changed in settings;
+- **Fold**: a click on a module title folds or unfolds it; Session and Context never fold and the folded state is saved per session;
+- **Pin**: a pinned module stays right below Session, up to 40vh, scrolls inside that zone and keeps its sticky title;
+- **Sidebar**: the panel hides while the right sidebar is open and returns when the sidebar closes.
+
+---
 
 ## 🚀 Quick Start
 
-**Option 1: install from npm (recommended — updates from the Plugins page)**
+**Option 1: install from npm (recommended; the plugin page can update it)**
 
 ```bash
 # 1. Install (no git required; pnpm must be on PATH for `dsh plugin`)
-dsh plugin --profile web add dsh-awesome-hud@0.21.1
+dsh plugin --profile web add dsh-awesome-hud@0.21.2
 
 # 2. Restart the DSH Web service and refresh the page
 ```
 
 > [!NOTE]
-> A copy installed from npm can be upgraded in place: open **Plugins → Installed**, a card with a newer release shows **Update available**, and the detail page offers **Update to**. Copies installed from a GitHub tag or a Release tarball have no in-page update; uninstall and reinstall them instead.
+> A copy installed from npm can be updated from the plugin page: open “Plugins → Installed”, a new version shows “Update available” and the detail page offers “Update to”. Copies installed from a GitHub tag or a Release tarball cannot update in place; uninstall and install again.
 
-**Option 2: install from GitHub remotely (tag-pinned; works without an npm account, no in-page update)**
+**Option 2: install from GitHub (pinned tag; useful without an npm account, no in-place update)**
 
 ```bash
 # 1. Install (pinned to a release tag; requires git access to GitHub)
-dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.1"
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.2"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -89,177 +241,104 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 # 2. Restart the DSH Web service and refresh the page
 ```
 
-**Option 4: install from a Release asset (tarball; no git, no npm account)**
+**Option 4: install from the Release asset (tarball; no git and no npm account needed)**
 
 ```bash
 # 1. Install (use the Release asset URL directly, or pass a downloaded .tgz path)
-dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.1/dsh-awesome-hud-0.21.1.tgz"
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.2/dsh-awesome-hud-0.21.2.tgz"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
 
-After installation, a "HUD panel" button appears at the top-right of the chat page (left of the "Open workspace" button); click it to toggle the panel.
+After the install a “HUD panel” button appears at the top right of a chat page (left of the workspace button). **Each session remembers its own open state**; the blank session page is the exception — it starts collapsed every time and offers its own floating button at the top right.
 
-> [!NOTE]
-> The HUD panel is expanded by default, and **each session remembers its own open/closed state** (stored per session id in localStorage): collapsing it in session A never affects session B. **The blank/new-session page is the exception**: it always starts collapsed (in-memory only — nothing is written to localStorage, so no session's memory is touched) and offers its own floating "HUD panel" button in the top-right for opening it on that page (that button is hidden while an image is opened in the **full-screen preview**, so it never floats above the image or the preview's close button; it also keeps the chat page's order and spacing — always to the left of the top-right utility cluster, so with better-sidebar installed its bottom-panel toggle follows the HUD entry). The panel style, its side and module visibility are stored in the DSH profile settings and sync across browsers/devices with the profile.
+### Desktop install (macOS)
 
-### Desktop installation (macOS)
-
-Current version: **0.21.1**. Fully quit DeepSeek Harness, then install with the CLI bundled with the desktop app. Use that CLI when managing the `desktop` profile. Prefer the npm install (in-page updates); use the source directory only for development:
+Quit DeepSeek Harness completely, then use the CLI that ships with the desktop app; do not manage the `desktop` profile with an older Web CLI:
 
 ```bash
 # From npm (recommended)
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.1
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.2
 
 # From local source (development)
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 ```
 
-Reopen the app and click the HUD button in the conversation header. Codex quotas require an installed, signed-in `dsh-codex-subscription` version compatible with your DSH runtime. The DeepSeek balance prefers `dsh-account-usage` and falls back to the DSH official account service (requires a DeepSeek sign-in) when that plugin is missing or disabled; OpenCode Go usage and the settings tabs come from `dsh-account-usage`.
+### Where the data lives
 
-> [!NOTE]
-> Note text, todos, folds, panel settings and panel visibility live in the current browser or desktop app's `localStorage`; **note images** are stored as originals in the same origin's **IndexedDB** (also kept across restarts and shared per workspace). Installing the plugin does not copy these records from your Web browser. DSH manages model settings and credentials.
+Note text, to-dos, folds, panel settings and the open state live in the `localStorage` of the current browser or desktop app; **note images** are stored as originals in the **IndexedDB** of the same origin. Installing the plugin does not carry this data over from a Web browser, and the model and login credentials stay with DSH.
 
-## 🧭 Usage
-
-- **HUD panel**: 300px wide, it scrolls internally when content overflows (**no scrollbar is shown**), and it is always the **resident fixed panel** (the body and composer make room for it). Its look comes from "HUD panel general settings → HUD panel style": **Card** (the default) is the floating rounded card — its height is capped at the composer's bottom edge (with an 8px bottom margin) and it keeps an 8px gap to the window edge; **Sidebar** is full height and flush (top at the conversation header's bottom edge — on the new-session page, which has no header, it starts at the bottom of the top-right button row with no gap above; bottom at the window bottom, no outer margin), transparent and square, with a single 1px divider against the content area and 14px-inset dividers between modules (module content and interactions are unchanged). Its side comes from "HUD panel general settings → HUD panel side": **right** (the default) anchors to the window's right edge and shifts the chat content and composer left; **left** anchors to the conversation area's left edge (right of the session list, with an 8px gap in Card style) and shifts the body and composer right. In Card style the page scrollbar stays at the window's right edge; in Sidebar style it sits at the content edge, right next to the divider. The turn-navigation indicator stays at the body's right edge either way, and nothing overlaps; while a right sidebar is expanded the panel is hidden and the body is not padded, and it returns once the sidebar closes.
-- **Settings dialog**: the gear at the top-right of the Session module opens a settings dialog. Its header now holds **three tabs**, "HUD settings", "Usage guide" and "Changelog" (the active one gets the brand underline; switch at any time). The settings page is split into **two panes** with a 1px divider: the left pane holds module toggles and ordering, the right pane holds each module's own settings.
-  - **Left pane**: checkboxes turn "Context / Usage / git / Subagents / Tasks / Plan list / MCP / Notes / To-do" on or off (the Session module is always shown). Every card starts with a **drag handle**: drag it to reorder how that module appears in the HUD panel (applies globally; the other cards slide out of the way to preview the result and the order is only committed on drop). The left pane never scrolls with the right one; the dialog height follows the window and compacts card spacing so all nine module cards stay visible. **Modules the new-session page does not render (Context / Subagents / Tasks / Plan list) are shown with their real state but greyed out and non-clickable there** (the tooltip explains why); change those switches from a chat session.
-  - **Right pane**: five **card sections** (only this pane scrolls when its content is long). ① **HUD panel general settings**: **HUD panel style** (Card / Sidebar, Card by default; Sidebar separates the panel from the content area with one divider), HUD panel side (left / right), show by default on the new-session page, and show by default in chat sessions (the latter two only affect pages/sessions that have no remembered open state yet). ② **Context module settings**: always show the segmented progress bar (off by default; when off, segments appear only while hovering the bar), show "Session stats", show "Token usage", and **pin the context module in place** (off by default; when on, the module stays put while the HUD panel scrolls, just like the Session module — available only while Context is first in the module order, otherwise greyed out with a reason). ③ **Usage module settings**: the DeepSeek balance, OpenCode Go usage and Codex quota rows are always listed; a row whose source is not installed, configured or signed in is disabled with an inline reason (the DeepSeek row uses the built-in official balance source and stays switchable), plus a **folded usage display** dropdown (None / DeepSeek balance / OpenCode Go 5-hour·weekly·monthly / Codex 5-hour·weekly; options are disabled while their source is unavailable and Codex falls back to the free quota). ④ **Git changes module settings**: **changed-file view** (List / Tree, List by default, using the same segmented control as **HUD panel style**). ⑤ **Notes module settings**: the note count limit (5–20, default 5, number stepper) and **“Edit note content in a dialog”** (off by default; when on, clicking a note bar edits it in a dialog while the module stays a list). Any unavailable setting is **greyed out and cannot be clicked**, and the hint under its name turns **red** and states the reason (for example "Install and enable dsh-account-usage" or "Context is not first in the module order").
-  - **Controls and footer**: the right-pane toggles use the official DSH `Switch` style (from `@deepseek-ai/dsh-client-ui-primitives`, with an equivalent local fallback) while the style and side controls both use the official segmented control. **“Reset to defaults”** at the bottom left becomes enabled when the current settings differ from the defaults; clicking it opens a three-item menu **at the pointer**: **reset all settings**, **reset module switches and order** (the left pane only), and **reset module feature settings** (the right pane only: HUD panel general settings plus the context, usage, Git changes and notes module settings). An item whose scope is already at its defaults is greyed out; a reset only changes the draft and still needs “Save settings”. The dialog closes via the backdrop, the top-right "Close" button, or `Esc` (all equivalent to discarding changes); "Save settings" writes and closes. Focus moves into the dialog when it opens, Tab cycles inside it, and focus returns to the gear when it closes.
-  - **Usage guide page**: the second tab is an in-app guide (the "HUD settings" tab shows the outline gear from `assets/icons/settings-outline.svg`, the "Usage guide" tab the hint icon from `assets/icons/hint.svg`, and the "Changelog" tab the record icon from `assets/icons/changelog.svg`). Its left column is a 240px table of contents (same width as the settings pane, so the divider never jumps between tabs; click an entry to jump to that section and the entry highlights as the right side scrolls), and the right side holds 12 section cards (the contents entries and section titles are text-only, without icons): HUD panel, Session, Context, Usage, Git, Outputs, Subagents, Tasks, Plan list, MCP, Notes and To-do. Each section is grouped into "Shows / Features" with short bullets — what the module displays and which actions it offers (one bullet per feature); the HUD panel section adds **panel style** bullets (Card / Sidebar, Card by default) and a "Settings" group for the settings dialog, while the notes section covers the **note list, editor view, images, drag reordering, import from chat** and a "Settings" group for the **note count limit** and **“Edit note content in a dialog” (off by default)**. The "Reset to defaults" / "Save settings" footer stays available on the guide page too (Save is greyed out until something changes in this dialog and its disabled style differs from the enabled one; Reset is greyed out when nothing changed), and switching tabs never discards unconfirmed settings edits or **changes the dialog height** — the settings page stays mounted underneath as the height reference and the guide overlays the same area.
-  - **Changelog page**: the third tab is a version log laid out like the guide — a 240px version list on the left (newest first, click an entry to jump, the entry highlights as the right side scrolls) and one card per version on the right, each grouped by topic (for example "Usage: folding and plugin dependencies" or "Notes and To-do: drag and delete"), with a "Current" badge on the newest version. It currently covers v0.21.1, v0.21.0, v0.20.1 and v0.20.0; **the page shows the newest 20 versions at most and older records are removed**, and **every release adds one entry at the top and deletes the 21st and older entries** (the entry must match `package.json` `version`; tests fail on a missing entry or a count above the cap). The "Reset to defaults" / "Save settings" footer stays, switching tabs never changes the dialog height, and the page is display-only: it sends no requests and writes no settings.
-- **Session module**: the workspace name and the session name are both hover-highlighted buttons (both hot areas span the **whole row**, giving up only the state chip and the gear on the right); clicking one opens a menu **at the pointer** (200px wide, clamped to stay inside the viewport; it keeps its position while the panel scrolls or the window resizes and closes on an outside click, `Esc`, or a second click on the title).
-  - **Workspace menu** (top-left workspace name): **rename workspace** (inline input written to the DSH workspace registry, so the official sidebar and picker update too; a duplicate name reports a clear conflict and restores the previous title), **show in Finder** (macOS "Show in Finder", Windows "Show in File Explorer", other platforms "Show in folder"; the native open runs on the Host, and the item is disabled with a reason when the Host cannot do it), and **copy workspace path**.
-  - **Session menu** (session name): **pin/unpin session** (label and icon follow the current state; a pinned session shows a small pin to the right of its name, matching the official sidebar), **rename**, **fork session** (matching the official behavior: the current page is not switched, success is reported with a toast, and a source session that needs migration is reported as "open it first"), **copy session ID** and **copy session name**.
-  - **Inline renaming**: choosing Rename turns the name into a focused, fully selected input that **commits when you click anywhere else** (Enter commits, Esc cancels); blank or unchanged input sends no request, and a failure restores the previous name with an error toast. The blank session page hides the session title and state chip, while the workspace menu still works there (against the resolved target workspace).
-- **Context**: the header shows "current / maximum (percentage)" such as `199K / 1M (19.9%)`. The bar is single-colored by default (0–40% green / 40–90% yellow / >90% red); on hover it switches to three segments and shows a breakdown tooltip (System prompt in slate, Tool definitions in purple, Messages in blue; estimated token values). The two lines below show session stats (turns/steps · tok/s) and token usage (total · cache hit); hovering them shows the complete stats (model time, tool time, TTFT average, output speed) and complete usage (cache hit, uncached input, cache read, cache write, output) respectively. "Compact" is available while the session is idle and disabled with a reason while it runs; always-on segments and the visibility of both information lines are controlled by the "Context" card in the HUD settings.
-- **Usage module**: sits below the Context module and is **always rendered** (it can still be hidden in the HUD settings). The DeepSeek balance prefers the dsh-account-usage routes and falls back to the DSH official account service when that plugin is missing or disabled; Codex uses the dsh-codex-subscription browser RPC; loads immediately when the panel opens and polls every 60 seconds; rows are indented and led by their matching icons; the module is collapsible and expanded by default (fold state persists in localStorage).
-  - **DeepSeek balance**: shows the total (top-up + granted); **clicking the balance figure** opens the settings dialog on the official Account & balance page (it falls back to the plugin's Account section when the official page is unavailable, e.g. signed out or an older DSH) with the deepseek tab selected when dsh-account-usage has injected it, and silently stays on the official account page otherwise. This row is **always shown**: it prefers dsh-account-usage (requires `DEEPSEEK_PLATFORM_TOKEN`) and falls back to the DSH official account service (requires a DeepSeek sign-in) when that plugin is missing or disabled; without data the figure reads `—` and the click behavior is unchanged.
-  - **OpenCode Go usage**: three rows showing the **percentage** of the oc-go 5h / 1w / 1m windows; **clicking a percentage** opens the settings dialog on the official Account & balance page with the opencode go tab selected; shown only with a configured OpenCode Go Key and an active subscription (the `/api/account-usage/opencode` route returns `ok + keySource`) — the whole group is hidden (and not clickable) when there is no data.
-  - **Codex quota**: subscribed accounts get two rows, `Codex 5h quota` and `Codex weekly quota`, showing **integer remaining percentages**; an account without a subscription receives only a single ~30-day monthly window, so a `Codex free quota` row (that window's remaining percentage) is shown instead and the 5h/weekly rows are **not rendered** — the two forms are mutually exclusive. The subscription state is inferred from the **shape of the quota windows** (a 5h or weekly window means subscribed), because the subscription plugin's RPC exposes no plan field; if the monthly window's duration differs from the expected one, the limit's first usable window is used as a fallback so that `—` only appears when there is no data at all. All rows use the ChatGPT icon and **clicking a percentage** opens the "Codex subscription" settings page. Rows appear only when `dsh-codex-subscription` is installed and signed in; after a confirmed sign-in, temporary quota failures keep the rows visible as `—` **in the mode shown before the failure** (a subscribed account never flips to the free-quota row), while an unavailable sign-in state hides them.
-  - **gpt-reserve quota**: when `dsh-codex-subscription` reports a gpt-reserve quota (the `additional_rate_limits` entry of `/wham/usage` whose `id` is `base_model_inference` and whose `limit_name`/`name` is `gpt-reserve`; the plugin matches **either id or name**, normalized across case, underscores, hyphens and spaces), a `Codex gpt-reserve quota` row is appended below the 5h/weekly rows (below the free-quota row when not subscribed) with the **exact same style, icon and interaction** as the existing quota rows (its primary window's remaining percentage; a named quota renders as `Codex gpt-reserve quota (name)`). When the quota is absent the row is **not rendered**; when it exists but its window data is malformed the row stays with `—`.
-  - **Module visibility & configurability**: the module is always rendered. The DeepSeek balance row is always shown (data comes from dsh-account-usage or the official-account fallback, `—` when unavailable); OpenCode Go and Codex rows render only when their data source is available — **without `dsh-account-usage` there is no OpenCode Go quota row, and without `dsh-codex-subscription` there is no Codex quota row**; the matching switches in the settings dialog are greyed out and cannot be clicked, with the reason in red under the name (it distinguishes "install and enable the plugin" from "enabled but not configured or not signed in"). A one-line setup hint appears inside the module when no data source is available. The displayed content and the folded display can be configured in the "Usage module settings" card (persisted in host settings, synced with the profile).
-- **git module**: always shown — on both the blank session page and session pages, including workspaces that are not a git repository (the title bar then offers an "init repo" button in the same spot as the branch button; clicking it runs `git init` in that workspace and the module switches to repository mode — the button becomes the branch button and the body gains the action row and change summary, kept fresh by the regular polling; the button never appears once a repository exists). Refreshes every 5 seconds while the panel is open (immediately after write operations); the branch button at the right of the title bar opens a dropdown — switch existing branches (current branch highlighted with a check; clicking the current branch reports "Already on branch" instead of closing silently) or type a new name and click "Add" to create and auto-switch; the "git graph" popup shows commits across all refs in pages of up to 80 per page — scrolling to the bottom reveals a "Load more" button that appends the next page, until the full history is loaded (an "All commits loaded" hint then appears at the end of the list); the current-branch label is blue with white text and other branch labels are gray with black text; the HEAD commit is marked with an enlarged white-filled, blue-stroked dot. Right-clicking a commit row opens a menu to copy the short hash (7 chars) / full hash (40 chars) / commit subject, plus these protected operations:
-  - **Create branch here**: the menu item is replaced in place with a text input plus "Cancel" / "Confirm" icon buttons (the confirm button is disabled while the input is empty). Confirming runs `git checkout -b <name> <commit>`, creating the branch at that commit and switching to it; on success the menu closes, the git snapshot and the commit graph refresh, and the new branch label immediately shows as the blue current branch. A duplicate branch name, or local changes that block the switch (affected files are listed), shows a toast and **keeps the typed name** so it can be corrected and retried — nothing is stashed and no forced checkout is performed. Pressing Enter never submits, Escape cancels the input and restores the plain menu item (a second Escape closes the menu), and the item stays disabled while another Git operation (merge / rebase / cherry-pick / revert) is in progress.
-  - **Merge into current branch**: the menu item is first replaced in place with inline “Confirm? / Cancel” controls; confirmation runs `git merge --no-edit`. Already-up-to-date, local-changes block, and conflict auto-abort with a file list are all handled with friendly toasts.
-  - **reset (soft) — keep staged**: available only for a commit before HEAD in the currently checked-out local branch history. After secondary confirmation, `git reset --soft` rolls back to it and keeps the contents of later commits staged.
-  - **reset (mixed) — unstage changes**: under the same branch-history restriction, secondary confirmation runs `git reset --mixed`, keeping the contents of later commits in the working tree but unstaged.
-  - **reset (hard) — discard changes**: after secondary confirmation, `git reset --hard` rolls back to the selected commit and discards the contents of later commits plus uncommitted changes to tracked files; untracked files are retained.
-  - Reset is unavailable with no checked-out local branch, while another Git operation is in progress, when the selected commit is outside the current branch history, or when it is already HEAD. Changed files are grouped and shown with status letters colored by type — modified `M` yellow, added `A` blue, deleted `D` red, untracked `U` gray (renamed `R` / copied `C` blue). An untracked file uses U and the same outlined pill badge as the other statuses. Each changed-file row matches the Outputs module: the status letter stays at the far left, the **file name** comes first with the gray **relative folder** right after it, and the `+added / -deleted` counts stay at the far right (an empty folder still keeps a flexible spacer so the counts remain right-aligned):
-  - **Groups**: `staged` and `changes` (includes untracked) with a gray per-file count next to each group name plus one-click buttons: "+" on changes stages every unstaged file, "-" on staged unstages every staged file; a group hides when it has no files
-  - **File row actions**: a **left-click** on any file row opens that file's diff in the right sidebar (the official "turn N changes" review first; when the file is absent from the latest turn, the official review is unavailable or the right sidebar is missing, it falls back to better-sidebar's worktree diff tab). **Right-click** (or Shift+F10 / the context-menu key) opens the action menu — staged files offer "remove from stage"; changes files offer "add to stage", "revert" (reverting an untracked new file or an intent-to-add file deletes it; every destructive action requires a confirmation dialog listing affected files) and "add to .gitignore" (adds the file to the repository-root `.gitignore`). Hovering a file row for 0.5s shows a tooltip with the full path at the pointer; hovering also replaces the +/− counts with icon buttons — staged files show “remove from stage” (minus), changed files show “revert” and “add to stage” (plus), with a gradient mask behind; in the folder tree, right-clicking a folder row (or Shift+F10) opens the same menu and applies add-to-stage / revert / remove-from-stage to every changed file under that folder in the current group, plus "add to .gitignore" (writes a `/folder/` rule that ignores the whole folder) them; the tree view groups files by folder, and a folder row applies the same actions to all files inside
-  - **commit**: always clickable — with nothing staged it still opens the dialog so you can read or edit the AI prompt, while the staged-file count line becomes "Nothing is staged for commit" and both AI generate and commit are greyed out; opens a dialog with the number of staged files to commit, a multi-line input, AI generate and commit buttons; commit is disabled while the input is empty; Enter inserts a newline, and only the commit button submits; only the staged area is committed
-  - **AI generate**: always uses DeepSeek's official DeepSeek Flash model (`deepseek-flash` on the `deepseek-account` route, `reasoningEffort: low`), not the model selected in the current session; the first click only enters the "Confirm?" state and shows an explanation to the left of the button, and the second click generates (it resets after 3 seconds, cancels on a click outside the button or Escape, and the button is disabled while generating). It combines the full staged diff (truncated over 16 KB) with the recent conversation context of the current session (direct user messages and assistant replies — a commit note explicitly specified by the user in the conversation is used verbatim), generating the message per the built-in local git commit convention — `[YYMMDD] project-name vX.Y.Z: summary` (date = current system time; the version is the project's CURRENT version from the version file and is never bumped; project name and current version come from the nearest package.json above the workspace); afterwards the host pins the date prefix to today and corrects the version to the project's current version, so a self-invented bump is pulled back
-  - **AI prompt**: the commit dialog has a collapsible **AI prompt** section above the staged-file count (collapsed by default). Expand it to see the default prompt, whose text now contains the date and version rules themselves, so you can rewrite them: leaving it untouched keeps the built-in behaviour (the `[YYMMDD]` prefix is enforced and the version is validated), while a saved edit fully replaces the instructions (no date prefix, no version check) until you restore the default; edits are saved with **Save** and the next **generate** uses the saved prompt, while **Restore default** removes the custom prompt. Placeholders `{{spec}}`, `{{today}}`, `{{project}}` and `{{sessionContext}}` are filled by the host. Generation uses three sources — this prompt, the staged changes and the recent turns of the current session — weighted as “prompt = staged changes > session context”; the context is extracted by turn (the latest 3 turns) and only helps to read intent, while a note the user explicitly specified must still follow the date, project and version rules. A custom prompt **replaces the built-in instructions** and **disables the automatic date-prefix and version checks**; the staged diff is still appended automatically. The prompt is stored in the profile settings (`commitPrompt`) and survives restarts; an older host keeps it for the current run only.
-  - **revert**: disabled when there are no unstaged changes (including untracked); the confirmation dialog lists every affected file (untracked files prefixed with `?`); after confirmation, unstaged changes of tracked files are reverted and untracked new files plus intent-to-add files are deleted; directory entries that cannot be deleted (nested repositories/submodules) are skipped with an explicit warning instead of being reported as successfully reverted
-- **Subagents module**: lists every descendant subagent indented by depth; running entries show a **yellow** badge and done entries green; clicking an entry opens the corresponding subagent conversation in the official right sidebar while keeping the main conversation. Nested entries carry their direct parent and session mode. A missing sidebar API produces a visible failure message.
-- **Tasks module**: lists the current session's pending tasks; in-progress tasks show the official DSH spinning ring icon (1s/rev, brand blue), while completed/pending keep the check and to-do icons; the bottom of the module shows "x completed · x in progress · x pending" counts (all three always shown, including zeros), and the header keeps the "completed/total" counter.
-- **Plan list module**: sits below the Tasks module and lists every plan produced by plan mode in the current session (newest first); it appears only when plans exist and refreshes every 5 seconds while the panel is open. States are derived automatically from the session log:
-  - **Pending review** (yellow badge): the plan was just produced and the user has not approved it yet;
-  - **Approved** (green badge): the user approved it in the plan review (an approving `exit_plan_mode` result), entering the execution stage. A later plan-mode exit does not discard it; this badge does not mean every step has finished;
-  - **Discarded** (gray badge, struck-through dimmed text): the review did not pass — a failing result (rejection / requested changes / aborted review), the user clicking "Request changes" on the plan review card (which closes the review and returns to the composer; since DSH 0.2.1-rc.5 that path returns a **successful** `{ approved: false }` result while plan mode stays active, so the HUD reports it as discarded right away), or the plan receiving no approval outcome while plan mode was later exited (e.g. `/plan off`). Message-level error flags, legacy result blocks, result wording and plan-mode exit signals are all supported;
-  - The row label is the plan's first Markdown heading, falling back to an excerpt of the body; clicking any row opens a modal with the plan's title, state, creation time and body (lightweight Markdown rendering: headings, lists, code blocks, links, quotes and GFM tables). The bottom of the module shows "x approved · x pending review · x discarded" counts (all three always shown, including zeros). The module is collapsible and expanded by default.
-- **MCP module**: toggles DSH-global MCP server state through the official DSH plugin manager (`pluginManager.setPluginEnabled`), which edits the profile `cordis.patch.yml` row by row and waits for the hot reload to finish, so the switch takes effect immediately without a page refresh, touches only the target server and never rewrites other plugins' configuration; profiles without HMR report "takes effect after a restart"; the module is expanded by default and stays visible with an empty state when no MCP server exists.
-- **Notes module**: a **workspace-shared** notepad — keyed by the session's workspace directory, so every session under that directory shares one note and its images (plus the input height), with the text in `localStorage` and the images stored as originals in IndexedDB, both kept across DSH restarts; deleting or archiving any/all sessions under that workspace changes nothing for the others, and a new session in the same workspace still finds the content and images. A drag handle at the bottom of the input adjusts the height (persisted in real time). There is **no length limit** and the footer no longer shows a character or image count. **Images**: paste straight into the input (`image/*`, at most 20; byte limits follow the host's own composer attachment validation); thumbnails scroll horizontally above the input, a click opens the full size (Escape, the backdrop or the close button exits), and hovering a thumbnail reveals a remove button in its top-right corner (always visible on touch); clearing or removing releases the stored original. **Import from chat** (left of Add to chat): clears the note's text and images first (releasing the stored originals and deleting the IndexedDB record), then writes the text and images currently in the session or blank-session composer (asking first when the note is not empty; non-image attachments are skipped with a notice); the composer is left untouched and an empty composer only shows a notice without touching the note. **Add to chat**: clears the composer's text and images first (each attachment is removed and released), then writes the note and adds its images in note order (asking first when the composer is not empty and writing directly when it is empty), returns focus to the composer afterwards, and keeps the note; a write failure after the clear is not rolled back (the composer keeps what was written plus a notice). **Clear** is available whenever there is text or an image: the first click turns it into a red confirmation and the second click removes both the text and the images (clicking elsewhere, Escape or a 2-second timeout cancels). The module folds and unfolds with a persisted state. Sessions without a workspace (no cwd) fall back to a session-scoped note.
-- **Todo module**: a **workspace-shared** to-do list — keyed by the session's workspace directory, so every session under it shares one list and its order (persisted locally); every item is a **card** (1px border, subtle background, 10px radius — same as the module cards in HUD settings, 6px apart) and the **delete button is hidden by default and appears when you hover the row** (keyboard focus (`:focus-visible`) also reveals it), while clicking the item text starts editing and a delete asks for an inline confirm; they are an **absolutely positioned overlay** so the text owns the whole row width — on hover the overlay sits on the right end and fades the text out through a same-coloured gradient mask instead of narrowing it or forcing a rewrap; in hover-less environments such as touch they stay visible while the text reserves 60px on the right, and they no longer stick after a mouse drag; check/uncheck complete, add/delete items, drag-to-reorder whole rows (drag handle at the far left before the checkbox, whose hit area spans the full row height so multi-line items can be grabbed anywhere along that column; while dragging, the other items slide out of the way using their real row heights, and the order is saved only on drop), one-click clear completed (confirmation dialog, button disabled when no completed items); the bottom shows a completion count; the module is collapsible/expandable (state persisted). Concurrent edits from several sessions/tabs in the same workspace are merged by item id instead of overwriting each other.
-- **Fold state**: each module's collapsed/expanded state survives page refreshes (localStorage); the Session module uses the DSH favicon.
-- **Blank session page**: its own floating "HUD panel" button appears in the top-right (the page has no conversation header; on Windows it sits below the native caption, with that offset removed in fullscreen). **That button is hidden while the full-screen image preview is open** — the preview is a viewport-filling modal overlay (`role="dialog"` + `aria-modal`, e.g. the `dsh-codex-subscription` image viewer) while the HUD entry lives far above it in the stacking order, so without hiding it the entry floats above the image and the preview's top-right close button; closing the preview restores the button, and the panel's open state is untouched (the check only reads modal semantics plus viewport coverage, never a third-party class name). Each entry starts collapsed. Opening the panel reserves 300px on the right for the fixed panel and shifts the body and composer left; the button stays in place. While the official right sidebar (including dsh-better-sidebar) is expanded, both the floating entry and the panel are hidden — the entry no longer moves left of the sidebar and no longer takes the expanded panel's position as its own; once the sidebar closes the entry appears **immediately at its pre-open position** instead of flashing at the sidebar edge, and the page restores its previous open state (unless the HUD was explicitly collapsed). Git, notes, todos and the note-send target use the same recent workspace. Global MCP data loads and polls independently and can be viewed or toggled even without any session or workspace. The page renders the Session / Usage / Git / Notes / Todo / MCP modules (Git is always present and offers "init repo" when the target workspace is not a repository; the Usage module is always rendered and its DeepSeek balance shows `—` when no data is available); the session title and state chip are hidden when no session record exists (the workspace title menu keeps working). Entering a real session restores its own open/closed memory, and the header button takes over.
-
-## 🖼️ Screenshots
-
-### Module Previews
-
-#### Session module
-
-![alt text](docs/module-session.png)
-
-#### Context module
-
-![alt text](docs/module-context.png)
-
-#### Usage module
-
-![alt text](docs/module-usage.png)
-
-#### Outputs module
-
-![alt text](docs/module-outputs.png)
-
-#### git changes module
-
-![alt text](docs/module-git.png)
-
-#### Subagents module
-
-![alt text](docs/module-subagents.png)
-
-#### Tasks module
-
-![alt text](docs/module-tasks.png)
-
-#### Plan list module
-
-![alt text](docs/module-plan-list.png)
-
-#### MCP module
-
-![alt text](docs/module-mcp.png)
-
-#### Notes module
-
-![alt text](docs/module-notes_01.png)
-
-![alt text](docs/module-notes_02.png)
-#### Todo module
-
-![alt text](docs/module-todo.png)
-
-### Other interfaces
-
-#### hud settings interface
-
-![alt text](docs/hud-settings.png)
-
-#### git graph interface
-
-![alt text](docs/git-graph.png)
-
-#### git commit interface
-
-![alt text](docs/git-commit.png)
-
-#### Plan content interface
-
-![alt text](docs/plan-content.png)
+---
 
 ## ⚙️ Compatibility
 
-See the [v0.14.7 desktop verification record (Chinese)](docs/desktop-compatibility-0.14.7.md) for the tested environment, coverage, and reproduction steps.
+| Item | Version / note |
+| --- | --- |
+| DeepSeek Harness | `engines.dsh: >=0.2.1-rc.2`; verified on the macOS desktop app `0.2.2-rc.2` and later, with a fallback for older Web interfaces |
+| Platform | Verified on macOS; Windows and Linux rely on the same git command behaviour |
+| Theme | Follows the light and dark theme (`--dsw-alias-*` tokens) |
+| Language | Simplified Chinese and English, following the DSH locale |
+| Icon | The top-level `icon` field in `package.json` (packaged `icon.png`, 448×448, ≤256 KiB) |
+| Data scope | Notes and to-dos are shared per workspace directory, with a per-session fallback when a session has no `cwd`; folds and the open state are per session |
+| Subagent sessions | Open in the right sidebar through the official `subagentchat` resource; without that interface the panel shows a failure hint and keeps the main session |
+| Plan list source | The `exit_plan_mode` calls in the session log (`tool/call` / `tool/result` / `plan/mode`); review the state derivation if the approval semantics change upstream |
+| Related plugins | [dsh-account-usage](https://github.com/Ycet/dsh-account-usage), [dsh-codex-subscription](https://github.com/WSL043/dsh-codex-subscription), [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) (cooperating since `0.32.0`) |
 
-| Item               | Version / Notes                                                                                                                                                                                                           |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| DeepSeek Harness | verified on macOS desktop `0.2.2-rc.2` (`engines.dsh: >=0.2.1-rc.2`); legacy Web API fallbacks remain available; other versions require verification |
-| dsh-client-ui-subagent | Subagent conversations open as official `subagentchat` resources in the right sidebar. Versions without this API show a failure message and keep the main conversation |
-| dsh-plan-mode      | Data source of the Plan list:`exit_plan_mode` tool calls in the session log (`tool/call` / `tool/result` / `plan/mode` events); re-check the state derivation if the upstream review semantics change             |
-| dsh-better-sidebar | `0.32.0` (listens to the panel state through the public `ctx.betterSidebar` service and participates with the official right sidebar in the HUD's derived visibility; collapsing it from the HUD button relies on its collapse button's DOM marker, and if that fails the panel stays hidden until the sidebar closes — the HUD works standalone regardless; since v0.17.0 a left-click on a git change prefers the official turn-changes review and falls back to the `ctx.betterSidebar.openTab` worktree diff tab when that review is unavailable) |
-| Platform           | macOS verified; Windows/Linux theoretically compatible (identical git command behavior)                                                                                                                                   |
-| Theme              | Follows light/dark themes (uses`--dsw-alias-*` theme tokens)                                                                                                                                                            |
-| Language           | Simplified Chinese / English, follows the DSH locale                                                                                                                                                                      |
-| Icon               | Top-level `icon` in `package.json` (in-package relative path `icon.png`, 448×448 PNG, raw bytes ≤256 KiB); requires DSH support for manifest icons, older versions fall back to the default artwork                          |
-| Data scope         | Notes and Todo are shared per workspace directory (`localStorage`); sessions without a `cwd` fall back to session-local isolation                                                                                        |
-| Panel open state   | Persisted per session id in `dsh-awesome-hud:open` (a `{ "session id": "1"|"0" }` map); the blank session page never persists it; visibility = open memory ∩ both official and better-sidebar right sidebars collapsed |
+The desktop compatibility review is recorded in [docs/desktop-compatibility-0.14.7.md](docs/desktop-compatibility-0.14.7.md).
+
+---
 
 ## 🔧 Tech Stack
 
-| Category     | Content                                                                                                                                                                                                         |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Host         | Node.js ESM, `ctx.webServer` prefix routes, `ctx.settings`, `ctx.subagents`, `ctx.agents` / `ctx.commands` (compaction), `ctx.subprocess`, `ctx.llm` (AI commit messages)                                 |
-| Client       | Native JavaScript ModuleLoader bundle, React (`react.createElement`), Cordis Slots (`conversation.session.header.utilities` / `shell.overlay`), CSS theme variables; no new slot — the blank-session entry reuses `shell.overlay` |
-| Data sources | Client-side session projection (`ctx.sessions.list` / `workspaces` / `modelDirectories`) + own host APIs (git / MCP / subagents / plan list / compaction) + reused dsh-account-usage balance/usage routes (falls back to the official `deepseekAccount` service when missing) |
-| Tests        | `node --test` (git parsing, MCP parsing, status derivation, plan-list derivation, settings normalization, trust fence, git file actions; in `test/`)                                                                          |
+| Item | Content |
+| --- | --- |
+| Host | Node.js ESM, `ctx.webServer` prefix routes, `ctx.settings`, `ctx.subagents` / `ctx.agents`, `ctx.commands` (compaction), `ctx.subprocess`, `ctx.llm` (AI commit messages) |
+| Client | ModuleLoader bundle, React (`react.createElement`), Cordis slots (`conversation.session.header.utilities` / `shell.overlay`), CSS theme variables; no new slot |
+| Data | Session projections (`sessions` / `workspaces` / `modelDirectories`) plus the plugin's own host API (git, MCP, subagents, plans, compaction, handoff) and the dsh-account-usage routes (with a fallback to the official account service) |
+| Tests | `node --test` (git parsing, MCP, state derivation, plan derivation, settings normalisation, the trust fence, UI wiring and more, in `test/`) |
 
-## ⬆️ Upgrade Notes (v0.11.x → v0.21.1)
+---
+
+## 🧪 Development and tests
+
+```bash
+# Syntax check
+node --check lib/index.js && node --check lib/client.js
+
+# Full suite
+npm test
+```
+
+Current baseline: **727 tests / 724 passed / 0 failed / 3 skipped**.
+
+```
+dsh-awesome-hud/
+├── lib/index.js      # Host: routes, git / MCP / subagents / compaction / handoff / settings I/O
+├── lib/settings.js   # Settings model and normalisation (order, pin, panel, notes, git)
+├── lib/client.js     # Client: panel, modules, settings dialog, guide page, changelog page
+├── assets/icons/     # Panel and menu icons (served by the host asset route)
+├── cordis.patch.yml  # Plugin declaration and default configuration
+└── test/             # node --test regressions
+```
+
+---
+
+## 🔗 Related plugins
+
+| Plugin | Role |
+| --- | --- |
+| [dsh-account-usage](https://github.com/Ycet/dsh-account-usage) | Supplies the DeepSeek balance and OpenCode Go usage (with a fallback to the official DSH account service) |
+| [dsh-codex-subscription](https://github.com/WSL043/dsh-codex-subscription) | Supplies the Codex quota (5-hour, weekly and free) |
+| [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) | Sidebar cooperation: the panel and the sidebar take turns, and a Git file diff can fall back to its worktree tab |
+
+---
+
+## ⬆️ Upgrade Notes (v0.11.x → v0.21.2)
+
+<details>
+<summary>Open the per-version notes</summary>
+
+**v0.21.2: merged reasoning chip, per-session folding, subagent and outputs attribution fixes.** ① The session module merges the model name and the reasoning level into **one chip** (for example `deepseek-v4.1-flash:Max`): the lowest enabled level is grey, the highest purple, other levels and the default blue, `Default` shows when no level is stored, and a model without reasoning levels shows a grey name only. ② Every HUD module keeps its collapsed/expanded state **per session** in localStorage (`dsh-awesome-hud:folds:v2`, newest 200 sessions kept, the old global key is cleared without migration): the new-session page and a freshly created session expand Context, Tasks, Subagents, Plans and Outputs and fold Usage, git, Notes, To-do and MCP. Changes made on the new-session page are held in memory and carried into the session created there, and re-entering the page restores the defaults. ③ Fixed the stuck row actions in the git change tree: visibility now follows hover and keyboard focus (`:has(:focus-visible)`) instead of `:focus-within`, so a mouse click never pins the buttons while Tab focus still reveals them. ④ A subagent task now opens as a tab in the **current right-sidebar pane** instead of a new pane, and an already open subagent is revealed. ⑤ Outputs are strictly session-scoped: DSH per-turn summaries plus the paths this session's `write` / `edit` calls produced, rebuilt from durable events after a restart. The workspace scan is gone, so other sessions and your own manual edits never appear; files produced only by shell commands are no longer collected. ⑥ Guide sections for the HUD panel, the Context module and git are updated, four new test files cover the chip, hover rule, subagent placement and per-session folding, and the outputs cases now assert session attribution. ⑦ **Initializing a repository creates or completes `.gitignore`**: a missing file gets the common template used by "add to .gitignore", an existing file only receives the missing common entries and keeps its rules and line endings, and **a failed write never fails the repository setup** (the API reports `gitignore.mode=failed` and the panel shows a red notice); the already-a-repository branch never touches the file. The Git module also lays itself out **as soon as a session page opens**: until the snapshot arrives the title row keeps no branch or init button and the body reports that it is loading, so switching sessions no longer delays the whole module. ⑧ **Handoff in the Context module**: "Compact" becomes a split button (text half, a 1px divider, then a drop-down arrow). The text half still compacts; the arrow half opens a rounded menu below the button and **Handoff** starts a **fork subagent** in this session (same model, seeded with the completed turns) that writes a handoff document to `docs/handoff/`, using a built-in prompt (your wording plus one closing line to write in the session language). The subagent runs with `delivery=caller`, so it finishes silently and posts nothing back to the main session, and the Subagents module shows its progress. A missing live agent, a missing fork provider, or a concurrency or depth limit answers 404, 503 or 409 with readable copy, and both halves are disabled while the session runs. ⑨ **Any module can be pinned**: every card in the left column of the HUD settings gains a pin button between its name and checkbox (official DSH pin and unpin icons). Pinning moves the module first and keeps it just below the session module in the panel: at most **40vh**, scrolling inside, with its title sticky. Only one module can be pinned at a time (other pins grey out), and the pinned card keeps the first slot and cannot be dragged. A pin cancelled before saving returns the module to its earlier position; a pin cancelled after saving leaves the module first and freely draggable. Hiding the pinned module cancels the pin, and "Reset to defaults" clears it. The old "pin the context module in place" setting is gone, and a previously enabled option migrates to a pinned Context module. Three new test files cover pinning, handoff and `.gitignore` on init, and the former `test/context-pin` is rewritten as the general pinning suite. ⑩ **AI commit messages no longer read the session context**: the only inputs are the prompt saved in the commit dialog and the staged diff, while the project name and version still come from `package.json`; the default prompt loses its conversation paragraphs, a note “specified in the conversation” is no longer a basis either, and `{{sessionContext}}` is removed from the placeholder list (a leftover `{{sessionContext}}` in an old custom prompt is still replaced with an empty string, so the token never reaches the model). The placeholder hint, the prompt hint, the generate confirmation hint and the guide’s git section are reworded, and `sessionId` still rides along as routing metadata while the host no longer reads session events. New cases assert that the generate function never touches the sessions service or the context extractor and that an old placeholder is cleared. Baseline: 727 tests / 724 passed / 0 failed / 3 skipped.
 
 **v0.21.1: note dialog and image-drag fixes, Git commit and ignore improvements.** ① The note editor dialog (plus the note confirmation, HUD settings and git graph dialogs) now closes only when the press and the release both land on the backdrop: dragging a text selection out of the title or content input and releasing outside no longer closes it (the old code only compared the click target, and the browser dispatches such a click to the common ancestor of press and release, which is the backdrop). ② Reordering note images settles in place on release — the frame that applies the new order adds `data-settling` to the thumbnail strip so the transform transition is off, and both the dragged image and the images that made room stay where the drag preview put them, with no left-right jitter; the make-room animation during the drag is unchanged. ③ The "commit" button is no longer disabled when the workspace has no changed files: it opens the commit dialog, where "AI generate" and "commit" are greyed out and the staged-count line becomes "Nothing is staged for commit", so you can still read, edit and save the AI prompt (the prompt section stays collapsed by default). ④ AI commit messages now **reuse the project's current version**: the default prompt contains the YYMMDD date rule and "take the current version recorded in the version file, do not bump it" in its own text, so both can be edited in the dialog; after generation the host pins the date prefix to today and corrects the version to the project's current version (a self-invented bump is pulled back, and the old "version not incremented" retry and warning are gone); a saved custom prompt is fully authoritative (no date prefix, no version correction); `{{today}}`, `{{project}}`, `{{spec}}` and `{{sessionContext}}` are still injected, but for a custom prompt `{{project}}` and `{{sessionContext}}` only carry facts and context (the old values injected "the version MUST be strictly greater" and "notes must still follow strictly increasing version rules", which overrode the user's own version rule) and the host appends "this prompt is the only source of the rules; on conflict the later statement wins" so rules appended at the end really take effect; the default path keeps its original injection text. The commit dialog also closes on a backdrop click now — with the same safe rule as the other dialogs, so dragging a text selection out of the dialog and releasing does not close it. ⑤ The git graph / commit / revert buttons now split the module content width into equal thirds (aligned with the notes button row), and the branch button is a fixed 88px that truncates long branch names instead of resizing. ⑥ The context menu of a changed file and of a folder row in the tree gains "add to .gitignore" (icon `assets/icons/ignore.svg`): it writes to the repository-root `.gitignore`, creating it from a general template when missing (`.DS_Store`, `Thumbs.db`, `desktop.ini`, `.codegraph`, `node_modules/`, npm/yarn debug logs), anchors file rules as `/path` and folder rules as `/path/`, and never writes an equivalent rule twice; it only appends rules and never touches the index (no `git rm --cached`), so tracked or staged files keep being tracked and get an extra hint. The folder menu also gains "add to stage" / "revert" / "remove from stage". ⑦ The untracked status badge changes from a borderless bare "?" to the same outlined "U" pill as the other statuses — the old `data-kind="?"` CSS attribute selector was invalid, so its styling never applied. ⑧ The guide's git section gains the U letter, the .gitignore entry and the always-openable commit dialog, and the prompt item is reworded; the changelog page gains this version. New tests: `test/note-dialog-dismiss.test.mjs`, `test/note-image-settle.test.mjs`, `test/git-commit-empty.test.mjs`, `test/git-layout.test.mjs`, `test/gitignore.test.mjs` and `test/git-ignore-ui.test.mjs`, plus updates to the git menu, status badge, settings-dialog close, guide and changelog cases. Baseline: 673 tests / 670 pass / 0 fail / 3 skipped.
 
@@ -375,6 +454,10 @@ Notes and Todo moved from **session scope** to **workspace scope**. The first ti
 - **The old per-session keys are kept**, so rolling back to the previous version still finds the pre-migration data.
 
 If you want to reclaim the space, once you are satisfied with the migration run `localStorage.removeItem("dsh-awesome-hud:workspace-migrated")` in the browser console and then delete the non-workspace-path keys of `dsh-awesome-hud:notes` / `dsh-awesome-hud:todos` (after that the rollback path is gone).
+
+</details>
+
+---
 
 ## 📄 License
 

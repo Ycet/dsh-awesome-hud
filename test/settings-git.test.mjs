@@ -61,9 +61,12 @@ test("宿主 settings 接口：GET 返回 git，POST 合并并回显", async () 
     gitSettingsOf: settings.gitSettingsOf,
     normalizeModuleOrder: settings.normalizeModuleOrder,
     defaultModuleOrder: settings.defaultModuleOrder,
+    sanitizePinnedPatch: settings.sanitizePinnedPatch,
+    pinnedOf: settings.pinnedOf,
+    normalizePinned: settings.normalizePinned,
     ctx: { get: () => undefined },
   });
-  vm.runInContext(`let settingsScope = null; let memoryModules = null; let memoryUsage = null; let memoryContext = null; let memoryOrder = null; let memoryPanel = null; let memoryNote = null; let memoryGit = null;\n${hostSource.slice(start, end)}\nthis.handler = settingsHandler;`, context);
+  vm.runInContext(`let settingsScope = null; let memoryModules = null; let memoryUsage = null; let memoryContext = null; let memoryOrder = null; let memoryPinned = null; let memoryPanel = null; let memoryNote = null; let memoryGit = null;\n${hostSource.slice(start, end)}\nthis.handler = settingsHandler;`, context);
   const initial = await context.handler(true, null);
   assert.deepEqual(JSON.parse(JSON.stringify(initial.git)), { view: "list" });
   const saved = await context.handler(false, { git: { view: "tree" } });

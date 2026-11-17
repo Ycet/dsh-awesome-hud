@@ -22,7 +22,9 @@ test('点击子代理任务通过官方资源在右侧栏打开，保持主会�
   assert.equal(decodeURIComponent(url.pathname.slice('/session/'.length)), 'child/?');
   assert.equal(url.searchParams.get('parent'), 'direct parent/?');
   assert.equal(url.searchParams.get('mode'), 'continuable');
-  assert.deepEqual(JSON.parse(JSON.stringify(options)), { kind: 'subagentchat', preferNewPane: true });
+  // v0.21.2：不再要求新分栏，默认落到当前 docked 分栏并以标签页打开。
+  assert.deepEqual(JSON.parse(JSON.stringify(options)), { kind: 'subagentchat' });
+  assert.equal('preferNewPane' in options, false);
 });
 
 test('子代理保留各模式和直接父会话，缺失侧栏及打开失败均显式报错', async () => {

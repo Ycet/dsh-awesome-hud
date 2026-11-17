@@ -34,14 +34,15 @@ test('新建页便笺、待办、Git 与发送目标使用同一最近工作区�
   assert.equal(todo.props.workspaceKey, recent);
   assert.equal(note.props.sendSessionId, 'new');
   // v0.20.0：便笺模块默认展示便笺条列表（编辑视图才出现 textarea）；旧 v3 便笺在挂载时迁移为 v4 列表。
-  const noteTree = nodes(note.type(note.props));
+  // v0.21.2：便笺/待办/MCP 在新默认集里是折叠的，测试取正文时强制展开。
+  const noteTree = nodes(note.type({ ...note.props, fold: false }));
   assert.equal(noteTree.some(node => node.type === 'textarea'), false, '列表视图不渲染输入框');
   assert.ok(noteTree.some(node => node.props.className === 'hud-note-list'), '列表视图渲染便笺条列表');
   const migrated = JSON.parse(client.persisted.get('dsh-awesome-hud:notes'))[recent];
   assert.equal(migrated.v, 4);
   assert.equal(migrated.notes.length, 1);
   assert.equal(migrated.notes[0].text, '最近便笺');
-  assert.ok(nodes(todo.type(todo.props)).some(node => node.children?.includes('最近待办')));
+  assert.ok(nodes(todo.type({ ...todo.props, fold: false })).some(node => node.children?.includes('最近待办')));
   client.runPolls(); await settled();
   const git = client.calls.find(call => call.url.endsWith('/git'));
   assert.equal(git.payload.sessionId, 'new');
@@ -84,7 +85,7 @@ test('新建页全局 MCP 初次加载、轮询和启停不依赖代理会话', 
   assert.equal(client.calls.filter(call => call.url.endsWith('/mcp')).length, 2);
   const mcp = moduleOf(client.panel(), 'McpModule');
   assert.equal(mcp.props.servers[0].name, 'server');
-  const toggle = nodes(mcp.type(mcp.props)).find(node => node.props.className === 'hud-switch');
+  const toggle = nodes(mcp.type({ ...mcp.props, fold: false })).find(node => node.props.className === 'hud-switch');
   await toggle.props.onClick();
   const request = client.calls.find(call => call.url.endsWith('/mcp/toggle'));
   assert.equal(request.payload.server, 'server');
@@ -212,7 +213,7 @@ test('MCP 启停后，早于点击发出的旧轮询响应不得把开关回滚'
   // 同一次渲染内先启动旧轮询，再点击开关：两者共享同一个启停序号。
   const rendered = client.panel();
   const module = moduleOf(rendered, 'McpModule');
-  const toggle = nodes(module.type(module.props)).find(node => node.props.className === 'hud-switch');
+  const toggle = nodes(module.type({ ...module.props, fold: false })).find(node => node.props.className === 'hud-switch');
   client.runPolls(); // 旧轮询进入在途（响应被挂起）
   await toggle.props.onClick();
   await settled();

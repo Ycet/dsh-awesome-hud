@@ -1,5 +1,5 @@
 // dsh-awesome-hud — v0.19.0：「使用说明」页文案按 ASD-STE100 重写后的回归。
-//  1) 句子长度：英文功能组 ≤20 词、展示/设置组 ≤25 词；中文功能组 ≤24 字、其余 ≤28 字
+//  1) 句子长度：v0.21.2 起每条都是一行「名称：说明」，统一按英文 ≤20 词、中文 ≤24 字
 //     （中文口径：汉字按字计，连续的拉丁字母/数字词元按 1 计，例如「System prompt」记 2）
 //  2) 禁用词：英文 should / may / might / could / would；中文「建议」
 //  3) 标点：禁分号与括号；每条以句号收尾；每条最多 3 句
@@ -30,13 +30,18 @@ function zhUnits(sentence) {
   return cjk + latin;
 }
 
-const limitsFor = (kind) => (kind === "act" ? { en: 20, zh: 24 } : { en: 25, zh: 28 });
+// v0.21.2：不再区分展示 / 功能 / 设置，所有条目统一按「一行说清」的最紧口径校验。
+const LIMITS = { en: 20, zh: 24 };
 
 test("说明页文案：句长、标点与禁用词符合 ASD-STE100", () => {
   const problems = [];
   for (const section of sections) {
     for (const group of section.groups) {
-      const limit = limitsFor(group.kind);
+      // 小标题只是一个短词（不带句号），单独校验存在性与长度。
+      for (const dict of [zh, en]) {
+        if (typeof dict[group.title] !== "string" || dict[group.title].length === 0) problems.push(`${group.title}：缺少小标题文案`);
+      }
+      // 每条「名称：说明」走同一口径：英文 ≤20 词、中文 ≤24 字，单句最多 3 句。
       for (const key of group.items) {
         const zhText = zh[key];
         const enText = en[key];
@@ -57,7 +62,7 @@ test("说明页文案：句长、标点与禁用词符合 ASD-STE100", () => {
           if (sentences.length > 3) problems.push(`${key}/${lang}：${sentences.length} 句，上限 3 句 → ${text}`);
           for (const sentence of sentences) {
             const size = toLength(sentence);
-            if (size > limit[lang]) problems.push(`${key}/${lang}：${size} > ${limit[lang]} → ${sentence}`);
+            if (size > LIMITS[lang]) problems.push(`${key}/${lang}：${size} > ${LIMITS[lang]} → ${sentence}`);
           }
         }
       }
@@ -74,9 +79,15 @@ test("说明页文案：中英字典 guide 键成对，便笺关键键仍在", (
     assert.equal(typeof en[key], "string", `${key} 需要英文文案`);
   }
   const note = sections.find((section) => section.key === "note");
-  assert.ok(note.groups[1].items.includes("guideNoteImportEnabled"), "便笺功能组应包含导入前置条件一条");
-  // v0.20.0：多便笺新增列表/编辑/拖动/上限等条目，功能组上限放宽到 12 条。
-  assert.ok(note.groups[1].items.length <= 12, "便笺功能组仍不超过 12 条");
+  // 跨 realm：先转成本 realm 的普通数组再比较。
+  assert.deepEqual([...note.groups].map((group) => String(group.key)), ["module", "edit"], "便笺分为模块说明与编辑视图两个小标题");
+  const editItems = note.groups[1].items;
+  for (const key of ["guideNoteImages", "guideNoteImport", "guideNoteSend", "guideNoteClear"]) {
+    assert.ok(editItems.includes(key), `编辑视图小标题应保留 ${key}`);
+  }
+  const moduleItems = note.groups[0].items;
+  assert.ok(moduleItems.includes("guideNoteImportEnabled"), "模块说明应包含导入前置条件一条");
+  assert.ok(moduleItems.length <= 12, "模块说明条目仍不超过 12 条");
 });
 
 test("说明页文案：不再出现实现细节与旧写法", () => {

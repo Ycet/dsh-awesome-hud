@@ -55,6 +55,7 @@ function createRuntime(primitives, options = {}) {
     normalizeGitSettings: raw => ({ view: raw?.view === 'tree' ? 'tree' : 'list' }),
     GIT_VIEW_DEFAULT: 'list',
     normalizeNoteSettings: (raw) => ({ maxCount: raw !== null && raw !== undefined && Number.isFinite(Number(raw.maxCount)) ? Math.min(20, Math.max(5, Math.round(Number(raw.maxCount)))) : 5, popupEdit: raw?.popupEdit === true }),
+    // v0.21.2：置顶按钮的图钉图标走官方 primitives（officialIcon / OfficialIcon 均按真实源码抽取）
     noteCountViolations: options.noteViolations ?? (() => []),
     toast: (message) => { (options.toasts ?? []).push(message); },
     window: { clearTimeout() {}, setTimeout() {} },
@@ -96,6 +97,7 @@ function createRuntime(primitives, options = {}) {
      ${extractConst('HUD_CHEVRON_PATH')}
      ${extractConst('HUD_CHECK_PATH')}
      ${extractFunction('officialIcon')}
+     ${extractFunction('OfficialIcon')}
      ${extractFunction('officialControl')}
      ${extractFunction('viewportSize')}
      ${extractFunction('clampMenuPosition')}
@@ -118,7 +120,10 @@ function createRuntime(primitives, options = {}) {
      ${extractFunction('isDefaultFeatureSettings')}
      ${extractFunction('isDefaultDraft')}
      ${extractFunction('useOverlayDismiss')}
-     ${extractFunction('contextPinState')}
+     ${extractFunction('pinButtonState')}
+     ${extractFunction('moveKeyToFront')}
+     ${extractFunction('restoreKeyAt')}
+     ${extractFunction('normalizePinned')}
      ${extractFunction('SettingsDialog')}`,
     context,
   );
@@ -307,9 +312,9 @@ test('primitives 可用时右栏直接使用官方 Switch / SegmentedControl', (
   const dialog = runtime.render(baseProps());
 
   const official = nodes(dialog).filter(node => node.type === OfficialSwitch);
-  // 面板 2 + 上下文 4（三项展示 + v0.18.7 位置固定）+ 用量 3（三行数据；折叠展示用下拉）
-  // + 便笺 1（v0.21.0 弹窗编辑）= 10
-  assert.equal(official.length, 10, '所有启停项都应走官方 Switch');
+  // 面板 2 + 上下文 3（三项展示；v0.21.2 移除「上下文模块位置固定」）+ 用量 3（三行数据；折叠展示用下拉）
+  // + 便笺 1（v0.21.0 弹窗编辑）= 9
+  assert.equal(official.length, 9, '所有启停项都应走官方 Switch');
   // v0.21.0：分段控件 3 个（面板样式 + 侧位 + git 变更查看方式）。
   assert.equal(nodes(dialog).filter(node => node.type === OfficialSegmented).length, 3);
   // 官方组件必须收到受控 props。
@@ -343,25 +348,18 @@ test('置灰设置项：原因文字走红字样式，未置灰行保持次要�
   assert.match(clientSource, /\.hud-setting-row\[data-disabled=true\] \.hud-setting-name\{color:var\(--dsw-alias-label-secondary\)\}/);
 
   const runtime = createRuntime(null);
-  // 把「git」排到首位，让「上下文模块位置固定」因排序原因置灰。
-  const order = ['git', ...MODULE_KEYS.filter(key => key !== 'git')];
   const dialog = runtime.render(baseProps({
-    order,
     usageAvailability: { deepseek: true, opencode: false, codex: false },
     usageReasons: { opencode: 'settingsUsageOpencodeMissing', codex: 'settingsUsageCodexUnconfigured' },
   }));
   const cards = byClass(dialog, 'hud-settings-section hud-settings-section-card');
   const contextRows = byClass(cards[1], 'hud-setting-row');
-  const pinRow = contextRows[contextRows.length - 1];
-  assert.equal(pinRow.props['data-disabled'], true, '排序不允许时「上下文模块位置固定」置灰');
-  assert.equal(textOf(byClass(pinRow, 'hud-setting-hint')[0]), 'settingsContextPinOrder', '置灰原因写在说明小字里');
-  const pinSwitch = nodes(pinRow).find(node => node.type === 'button' && node.props?.role === 'switch');
-  assert.equal(pinSwitch.props.disabled, true, '置灰行完全不可点击');
-
-  // 未置灰行仍显示常规说明（不是原因文案）。
+  // v0.21.2：「上下文模块位置固定」已移除，上下文卡片只剩三行正常设置。
+  assert.equal(contextRows.length, 3, '上下文卡片三项设置');
   assert.equal(contextRows[0].props['data-disabled'], false);
-  // 上下文卡片顺序：会话统计 → Token 用量 → 分段进度条 → 位置固定（v0.19.2）。
+  // 上下文卡片顺序：会话统计 → Token 用量 → 分段进度条（v0.19.2）。
   assert.equal(textOf(byClass(contextRows[0], 'hud-setting-hint')[0]), 'settingsContextStatsHint');
+  assert.equal(textOf(byClass(contextRows[2], 'hud-setting-hint')[0]), 'settingsContextBarStyleHint');
 
   // 用量两行：原因同样落在说明小字里，codex 区分「插件不可用」与「已启用但未登录」。
   const usageRows = byClass(cards[2], 'hud-setting-row');
@@ -583,7 +581,9 @@ test('「保存设置」未改动时置灰；只改其它设置时便笺上限�
   assert.equal(confirm().props.disabled, false, '改动后可点');
   confirm().props.onClick();
   assert.equal(calls.length, 1, '只改其它设置时必须能保存');
-  assert.equal(calls[0].length, 7);
+  // v0.21.2：onConfirm 追加第 8 个参数（置顶模块键）。
+  assert.equal(calls[0].length, 8);
+  assert.equal(calls[0][7], '', '未置顶时提交空字符串');
 });
 
 test('调整便笺上限且工作区超限时同样保存成功', () => {
@@ -612,10 +612,10 @@ test('上下文与用量设置行都带上简短说明文案', () => {
   const hintOf = (card, index) => textOf(byClass(byClass(card, 'hud-setting-row')[index], 'hud-setting-hint')[0]);
   const contextCard = cardOf('settingsContextTitle');
   assert.deepEqual([
-    hintOf(contextCard, 0), hintOf(contextCard, 1), hintOf(contextCard, 2), hintOf(contextCard, 3),
+    hintOf(contextCard, 0), hintOf(contextCard, 1), hintOf(contextCard, 2),
   ], [
-    'settingsContextStatsHint', 'settingsContextUsageHint', 'settingsContextBarStyleHint', 'settingsContextPinHint',
-  ]);
+    'settingsContextStatsHint', 'settingsContextUsageHint', 'settingsContextBarStyleHint',
+  ], 'v0.21.2：上下文卡片只剩三项（位置固定已移除）');
   const usageCard = cardOf('settingsUsageTitle');
   assert.deepEqual([hintOf(usageCard, 0), hintOf(usageCard, 1), hintOf(usageCard, 2), hintOf(usageCard, 3)], [
     'settingsUsageDeepseekHint', 'settingsUsageOpencodeHint', 'settingsUsageCodexHint', 'settingsUsageFoldedHint',
@@ -644,4 +644,141 @@ test('git 变更查看方式：切换为文件树并保存，重新打开设置�
   const reopened = nodes(dialog).filter(node => node.type === 'button' && node.props?.className === 'hud-seg-item')
     .find(node => textOf(node) === 'settingsGitViewTree');
   assert.equal(reopened.props['aria-checked'], true);
+});
+
+// —— v0.21.2：模块置顶的交互行为（真实草稿状态机） ——
+
+/** 左栏模块卡片（按名称匹配），以及卡片上的置顶按钮 / 复选框。 */
+function moduleCard(dialog, key) {
+  return byClass(dialog, 'hud-settings-card').find(card => textOf(byClass(card, 'hud-settings-card-name')[0]) === `label:${key}`);
+}
+const pinButtonOf = (card) => byClass(card, 'hud-settings-pin')[0];
+const toggleOf = (card) => nodes(card).find(node => node.type === 'input' && node.props?.type === 'checkbox');
+const clickPin = (card) => pinButtonOf(card).props.onClick({ preventDefault() {}, stopPropagation() {} });
+
+test('置顶：点图钉把模块移到首位并置顶，其它卡片图钉随即置灰', () => {
+  const runtime = createRuntime(null);
+  let dialog = runtime.render(baseProps());
+  assert.ok(pinButtonOf(moduleCard(dialog, 'git')), '每张卡片都有置顶按钮');
+  // 初始：全部可点，且都没有置顶
+  for (const key of MODULE_KEYS) {
+    const button = pinButtonOf(moduleCard(dialog, key));
+    assert.equal(button.props.disabled, false, `${key} 初始可置顶`);
+    assert.equal(button.props['data-pinned'], false);
+  }
+  // 点的第一张卡片就是「上下文」→ 顺序本来就在首位，只置顶不挪位
+  const firstCard = byClass(dialog, 'hud-settings-card').find(card => card.props['data-pinned'] === false);
+  assert.ok(firstCard !== undefined);
+  const gitCard = moduleCard(dialog, 'git');
+  clickPin(gitCard);
+  dialog = runtime.render();
+  const cards = byClass(dialog, 'hud-settings-card');
+  assert.equal(textOf(byClass(cards[0], 'hud-settings-card-name')[0]), 'label:git', '置顶的模块排到第一位');
+  assert.equal(cards[0].props['data-pinned'], true);
+  // 置顶卡锁定首位：拖动手柄不可拖
+  const grip = byClass(cards[0], 'hud-settings-grip')[0];
+  assert.equal(grip.props.draggable, false, '置顶卡不可拖动');
+  assert.equal(grip.props.title, 'settingsDragPinned');
+  // 其它卡片的置顶按钮置灰
+  for (const card of cards.slice(1)) {
+    const button = pinButtonOf(card);
+    assert.equal(button.props.disabled, true, '已有模块置顶时其它图钉置灰');
+    assert.equal(button.props.title, 'settingsPinOccupied');
+  }
+  // 已置顶的卡片仍可点击取消
+  assert.equal(pinButtonOf(cards[0]).props.disabled, false);
+  assert.equal(pinButtonOf(cards[0]).props['aria-pressed'], 'true');
+});
+
+test('置顶：保存前取消置顶，模块回到置顶前的位置', () => {
+  const calls = [];
+  const runtime = createRuntime(null);
+  const order = [...MODULE_KEYS];
+  let dialog = runtime.render(baseProps({ order, onConfirm: (...args) => calls.push(args) }));
+  const beforeIndex = order.indexOf('git');
+  assert.ok(beforeIndex > 0, 'git 默认不在首位');
+  clickPin(moduleCard(dialog, 'git'));
+  dialog = runtime.render();
+  assert.equal(textOf(byClass(byClass(dialog, 'hud-settings-card')[0], 'hud-settings-card-name')[0]), 'label:git');
+  // 取消置顶（未保存）→ 回到原位
+  clickPin(moduleCard(dialog, 'git'));
+  dialog = runtime.render();
+  const names = byClass(dialog, 'hud-settings-card').map(card => textOf(byClass(card, 'hud-settings-card-name')[0]));
+  assert.equal(names[beforeIndex], 'label:git', '取消置顶后回到置顶前的下标');
+  assert.equal(byClass(dialog, 'hud-settings-card').every(card => card.props['data-pinned'] === false), true);
+  // 未改动 → 保存按钮不激活
+  const confirm = nodes(dialog).find(node => node.type === 'button' && node.props?.['data-kind'] === 'confirm');
+  assert.equal(confirm.props.disabled, true);
+  assert.equal(calls.length, 0);
+});
+
+test('置顶：已保存过的置顶取消后仍停在首位，且可继续手动排序', () => {
+  const calls = [];
+  const runtime = createRuntime(null);
+  const pinnedOrder = ['git', ...normalizeModuleOrder(null).filter(key => key !== 'git')];
+  let dialog = runtime.render(baseProps({ order: pinnedOrder, pinned: 'git', onConfirm: (...args) => calls.push(args) }));
+  const cards = () => byClass(dialog, 'hud-settings-card');
+  assert.equal(textOf(byClass(cards()[0], 'hud-settings-card-name')[0]), 'label:git', '回显时置顶模块在首位');
+  assert.equal(cards()[0].props['data-pinned'], true);
+  clickPin(cards()[0]);
+  dialog = runtime.render();
+  // 没有「本次置顶的基线」→ 取消后位置保留在首位，手柄恢复可拖
+  assert.equal(textOf(byClass(cards()[0], 'hud-settings-card-name')[0]), 'label:git', '保存过的置顶取消后仍停在首位');
+  assert.equal(cards()[0].props['data-pinned'], false);
+  assert.equal(byClass(cards()[0], 'hud-settings-grip')[0].props.draggable, true, '取消后可手动拖动');
+  // 提交时置顶键为空字符串
+  const confirm = nodes(dialog).find(node => node.type === 'button' && node.props?.['data-kind'] === 'confirm');
+  assert.equal(confirm.props.disabled, false, '取消置顶也算改动');
+  confirm.props.onClick();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][7], '');
+});
+
+test('置顶：取消勾选被置顶的模块时自动取消置顶', () => {
+  const calls = [];
+  const runtime = createRuntime(null);
+  let dialog = runtime.render(baseProps({ onConfirm: (...args) => calls.push(args) }));
+  clickPin(moduleCard(dialog, 'mcp'));
+  dialog = runtime.render();
+  assert.equal(byClass(dialog, 'hud-settings-card').find(card => card.props['data-pinned'] === true) !== undefined, true);
+  // 取消勾选被置顶的模块
+  const card = moduleCard(dialog, 'mcp');
+  toggleOf(card).props.onChange({ target: { checked: false } });
+  dialog = runtime.render();
+  assert.equal(byClass(dialog, 'hud-settings-card').every(item => item.props['data-pinned'] === false), true, '隐藏模块时置顶自动取消');
+  // 其它卡片的图钉恢复可点
+  assert.equal(pinButtonOf(moduleCard(dialog, 'git')).props.disabled, false);
+  // 提交：模块关闭 + 置顶为空
+  const confirm = nodes(dialog).find(node => node.type === 'button' && node.props?.['data-kind'] === 'confirm');
+  confirm.props.onClick();
+  assert.equal(calls[0][0].mcp, false);
+  assert.equal(calls[0][7], '');
+});
+
+test('置顶：本页不展示的模块图钉置灰，恢复默认会清空置顶', () => {
+  const calls = [];
+  const runtime = createRuntime(null);
+  let dialog = runtime.render(baseProps({ lockedModules: ['context'], pinned: 'context', onConfirm: (...args) => calls.push(args) }));
+  // 已置顶的锁定模块仍可取消（否则在新会话页无法解除置顶）
+  assert.equal(pinButtonOf(moduleCard(dialog, 'context')).props.disabled, false);
+  // 其它锁定模块置灰并说明原因
+  const lockedOther = runtime.render(baseProps({ lockedModules: ['context', 'tasks'], pinned: '', onConfirm: (...args) => calls.push(args) }));
+  const tasksCard = moduleCard(lockedOther, 'tasks');
+  assert.equal(pinButtonOf(tasksCard).props.disabled, true);
+  assert.equal(pinButtonOf(tasksCard).props.title, 'settingsPinLocked');
+
+  // 恢复默认（左栏）→ 置顶清空
+  dialog = runtime.render(baseProps({ order: ['git', ...normalizeModuleOrder(null).filter(key => key !== 'git')], pinned: 'git', onConfirm: (...args) => calls.push(args) }));
+  const reset = nodes(dialog).find(node => node.type === 'button' && node.props?.['data-kind'] === 'reset');
+  assert.equal(reset.props.disabled, false, '存在置顶即非默认');
+  reset.props.onClick({ preventDefault() {}, stopPropagation() {}, clientX: 10, clientY: 10, currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 0, bottom: 0, right: 0 }) } });
+  dialog = runtime.render();
+  const menuItems = nodes(dialog).filter(node => node.type === 'button' && node.props?.role === 'menuitem');
+  menuItems[1].props.onClick({ stopPropagation() {} });
+  dialog = runtime.render();
+  const confirm = nodes(dialog).find(node => node.type === 'button' && node.props?.['data-kind'] === 'confirm');
+  confirm.props.onClick();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][7], '', '恢复默认后置顶为空');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[0][2])), normalizeModuleOrder(null), '顺序回到出厂顺序');
 });

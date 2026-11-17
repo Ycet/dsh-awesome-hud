@@ -96,6 +96,9 @@ function createRuntime(primitives = null) {
       extractConst('HUD_CHECK_PATH'),
       extractFunction('guideActiveKey'),
       extractConst('GUIDE_SECTIONS'),
+      // v0.21.2：小标题结构 +「名称：说明」拆行 + 用量模块的关联插件地址。
+      extractConst('GUIDE_LINKS'),
+      extractFunction('splitGuideLine'),
       extractFunction('officialIcon'),
       extractFunction('officialControl'),
       extractFunction('viewportSize'),
@@ -117,13 +120,16 @@ function createRuntime(primitives = null) {
       extractFunction('isDefaultFeatureSettings'),
       extractFunction('isDefaultDraft'),
       extractFunction('useOverlayDismiss'),
-      extractFunction('contextPinState'),
+      extractFunction('pinButtonState'),
+      extractFunction('moveKeyToFront'),
+      extractFunction('restoreKeyAt'),
+      extractFunction('normalizePinned'),
       extractFunction('SettingsDialog'),
     ].join('\n'),
     context,
   );
   // 顶层 const 不是全局对象属性，需要在同一词法环境里取值。
-  const exposed = vm.runInContext('({ sections: GUIDE_SECTIONS, activeKey: guideActiveKey })', context);
+  const exposed = vm.runInContext('({ sections: GUIDE_SECTIONS, links: GUIDE_LINKS, activeKey: guideActiveKey })', context);
   // 官方控件保留为叶子节点，便于断言「确实用了官方组件」；其余本地函数组件展开成元素树。
   const keep = new Set([primitives?.Switch, primitives?.SegmentedControl].filter(Boolean));
   const expand = node => {
@@ -135,6 +141,7 @@ function createRuntime(primitives = null) {
   let last = null;
   return {
     sections: JSON.parse(JSON.stringify(exposed.sections)),
+    links: JSON.parse(JSON.stringify(exposed.links)),
     guideActiveKey: exposed.activeKey,
     render(nextProps) {
       if (nextProps !== undefined) props = nextProps;
@@ -224,12 +231,13 @@ test('点「使用说明」切到说明页，再点「HUD 设置」切回（随�
   assert.equal(byClass(dialog, 'hud-settings-guide').length, 0);
 });
 
-test('说明页：11 个模块小节，按「展示 / 功能 / 设置」分组且与大纲一致', () => {
+test('说明页：12 个模块小节，每节按小标题分组并逐行「名称：说明」', () => {
   const runtime = createRuntime();
   const sections = runtime.sections;
   assert.equal(sections.length, 12, '每个模块一个小节');
+  // v0.21.2：顺序按用户确认的清单（HUD 面板 → 会话 → 上下文 → 用量 → 产物 → Git → 任务 → 子代理 → 计划清单 → 便笺 → 待办 → MCP）。
   assert.deepEqual(sections.map(section => section.key), [
-    'panel', 'session', 'context', 'usage', 'git', 'outputs', 'subagents', 'tasks', 'plans', 'mcp', 'note', 'todo',
+    'panel', 'session', 'context', 'usage', 'outputs', 'git', 'tasks', 'subagents', 'plans', 'note', 'todo', 'mcp',
   ]);
 
   let dialog = runtime.render(baseProps());
@@ -240,9 +248,8 @@ test('说明页：11 个模块小节，按「展示 / 功能 / 设置」分组�
   assert.equal(toc.length, sections.length, '左侧目录项与大纲数量一致');
   assert.deepEqual(toc.map(textOf), sections.map(section => section.title));
 
-  // v0.20.0：「便笺」新增条数上限设置，同样带「设置」分组。
-  const withSettings = sections.filter(section => section.groups.some(group => group.kind === 'set')).map(section => section.key);
-  assert.deepEqual(withSettings, ['panel', 'note']);
+  // v0.21.2：小标题固定按「小标题数量 ∈ 1–3」，HUD 面板与 Git 是三段，计划清单与便笺是两段。
+  assert.deepEqual(sections.map(section => section.groups.length), [3, 1, 1, 1, 1, 3, 1, 1, 2, 2, 1, 1]);
 
   const rendered = byClass(dialog, 'hud-guide-section');
   assert.equal(rendered.length, sections.length);
@@ -251,25 +258,35 @@ test('说明页：11 个模块小节，按「展示 / 功能 / 设置」分组�
     assert.equal(node.props.id, `hud-guide-section-${section.key}`);
     assert.equal(textOf(byClass(node, 'hud-guide-section-title')[0]), section.title);
     const groups = byClass(node, 'hud-guide-group');
-    assert.equal(groups.length, section.groups.length, `${section.key} 的分组数量与大纲一致`);
+    assert.equal(groups.length, section.groups.length, `${section.key} 的小标题数量与大纲一致`);
     let total = 0;
     for (const [groupIndex, group] of section.groups.entries()) {
-      const label = byClass(groups[groupIndex], 'hud-guide-group-label')[0];
-      const expectedLabel = group.kind === 'show' ? 'guideKindShow' : group.kind === 'set' ? 'guideKindSet' : 'guideKindAct';
-      assert.equal(textOf(label), expectedLabel, `${section.key}/${group.kind} 分组标签`);
+      // 小标题用 h3 呈现，替代原来的「展示 / 功能 / 设置」标签。
+      const title = byClass(groups[groupIndex], 'hud-guide-group-title')[0];
+      assert.equal(textOf(title), group.title, `${section.key}/${group.key} 小标题`);
+      assert.equal(nodes(groups[groupIndex]).filter(node => node.props?.['data-kind'] !== undefined).length, 0, '不再按展示 / 功能 / 设置分组');
       const items = byClass(groups[groupIndex], 'hud-guide-item');
-      assert.deepEqual(items.map(textOf), group.items, `${section.key}/${group.kind} 的要点应与大纲一致`);
-      // v0.19.0：便笺一节新增图片 / 从聊天导入等能力（`/` 与 `@` 补全已移除），「功能」分组上限放宽到 8 条；
-      // v0.20.0：多便笺新增列表/编辑/拖动等条目，便笺功能组上限放宽到 12 条。
-      const maxItems = section.key === 'note' && group.kind === 'act' ? 12 : 8;
-      assert.ok(items.length >= 1 && items.length <= maxItems, `${section.key}/${group.kind} 要点数量应克制（1–${maxItems} 条）`);
+      const linkCount = (group.links === undefined ? 0 : runtime.links[group.links].length);
+      assert.equal(items.length, group.items.length + linkCount, `${section.key}/${group.key} 的条目数量应与大纲一致`);
+      // 正文条目：文案原样输出（名称与说明由客户端按冒号切开渲染，文本节点拼回原文）。
+      assert.deepEqual(items.slice(0, group.items.length).map(textOf), group.items, `${section.key}/${group.key} 的条目应与大纲一致`);
+      // 关联插件地址：名称 + 可点击链接。
+      for (const [linkIndex, link] of (group.links === undefined ? [] : runtime.links[group.links]).entries()) {
+        const linkItem = items[group.items.length + linkIndex];
+        assert.ok(textOf(linkItem).includes(link.href), `${link.name} 需要渲染地址`);
+        const anchor = nodes(linkItem).find(child => child.type === 'a');
+        assert.equal(anchor.props.href, link.href);
+        assert.equal(anchor.props.target, '_blank');
+        assert.equal(anchor.props.rel, 'noreferrer noopener');
+      }
+      // 每个小标题下的条目保持克制（便笺模块说明 10 条是上限）。
+      assert.ok(items.length >= 1 && items.length <= 12, `${section.key}/${group.key} 条目数量应克制（1–12 条）`);
       total += items.length;
     }
-    // v0.19.0：panel 一节同时讲「固定展示」与「悬停展示」，上限放宽到 16 条；
-    // v0.20.0：便笺一节新增多便笺能力，同样放宽到 16 条；
-    // v0.21.0：便笺「设置」组新增弹窗编辑要点（展示 3 + 功能 12 + 设置 2），上限放宽到 18 条；其余仍按 12 条克制。
-    const limit = section.key === 'panel' ? 16 : section.key === 'note' ? 18 : 12;
-    assert.ok(total >= 3 && total <= limit, `${section.key} 整节要点总数应为 3–${limit} 条（保持简短）`);
+    // 整节上限：HUD 面板（7 + 2 + 8）、Git（7 + 3 + 4）与便笺（10 + 8）分多个小标题，允许更多；
+    // 其余模块单小节按 12 条克制。
+    const limit = section.key === 'panel' ? 18 : section.key === 'note' ? 18 : section.key === 'git' ? 16 : 12;
+    assert.ok(total >= 3 && total <= limit, `${section.key} 整节条目总数应为 3–${limit} 条（保持简短）`);
   }
 });
 
@@ -367,7 +384,8 @@ test('底部栏常驻：未改动时「恢复默认」「保存设置」都置�
   assert.equal(footer()[1].props.disabled, false, '改动后「保存设置」可点');
   footer()[1].props.onClick();
   assert.equal(confirmations.length, 1);
-  assert.equal(confirmations[0].length, 7, '确认时同时提交七个草稿（含便笺与 git 变更）');
+  // v0.21.2：追加第 8 个参数（置顶模块键）。
+  assert.equal(confirmations[0].length, 8, '确认时同时提交八个草稿（含便笺、git 变更与置顶）');
 });
 
 test('guideActiveKey：首屏 / 阈值边界 / 末尾 / 负滚动位置 / 空大纲', () => {
@@ -387,10 +405,13 @@ test('guideActiveKey：首屏 / 阈值边界 / 末尾 / 负滚动位置 / 空大
 
 test('双语：大纲与标签引用的键在 zh / en 字典中都存在且非空', () => {
   const sections = vm.runInNewContext(`${extractConst('GUIDE_SECTIONS')}\nGUIDE_SECTIONS;`);
-  const keys = ['settingsGuideTab', 'guideKindShow', 'guideKindAct', 'guideKindSet'];
+  const keys = ['settingsGuideTab'];
   for (const section of sections) {
     keys.push(section.title);
-    for (const group of section.groups) keys.push(...group.items);
+    for (const group of section.groups) {
+      keys.push(group.title);
+      keys.push(...group.items);
+    }
   }
 
   const client = hudClient();
@@ -415,7 +436,10 @@ test('样式：目录 240px 与设置页左栏对齐、内容区独立滚动、�
   assert.match(clientSource, /\.hud-guide-content\{flex:1 1 auto;min-width:0;overflow-y:auto/);
   assert.match(clientSource, /\.hud-guide-section\{display:flex;flex-direction:column;gap:8px;scroll-margin-top:8px/);
   assert.match(clientSource, /\.hud-guide-group\{display:flex;flex-direction:column;gap:3px;min-width:0\}/);
-  assert.match(clientSource, /\.hud-guide-group-label\{font-size:11px;line-height:16px;font-weight:600;color:var\(--dsw-alias-label-secondary\)\}/);
+  // v0.21.2：分组标签换成小标题，条目名称单独加重，附加插件地址用链接色。
+  assert.match(clientSource, /\.hud-guide-group-title\{margin:2px 0 0;font-size:11\.5px;line-height:17px;font-weight:600;color:var\(--dsw-alias-label-primary\)\}/);
+  assert.match(clientSource, /\.hud-guide-item-name\{font-weight:600;color:var\(--dsw-alias-label-primary\)\}/);
+  assert.match(clientSource, /\.hud-guide-link\{color:var\(--dsw-alias-state-business-primary\);text-decoration:none/);
   assert.match(clientSource, /\.hud-guide-item\{font-size:12\.5px;line-height:19px;color:var\(--dsw-alias-label-secondary\);overflow-wrap:anywhere\}/);
 });
 
@@ -432,7 +456,9 @@ test('接线：SettingsDialog 持有标签状态，说明页与设置页共享�
   // 「使用说明」标签左侧用 assets/icons/hint.svg；大纲与页面内不再配图标。
   assert.match(clientSource, /react\.createElement\(Icon, \{ name: "hint", size: 14, color: "inherit" \}\)/);
   assert.match(clientSource, /className: "hud-guide-group",/);
-  assert.match(clientSource, /"data-kind": group.kind,/);
+  // v0.21.2：分组用 h3 小标题，不再出现 data-kind。
+  assert.match(clientSource, /className: "hud-guide-group-title" \}, t\(group\.title\)\)/);
+  assert.doesNotMatch(clientSource, /"data-kind": group\.kind,/);
   assert.doesNotMatch(clientSource, /\{ key: "panel", icon:/);
 });
 

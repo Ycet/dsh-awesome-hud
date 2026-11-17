@@ -60,14 +60,15 @@ test("宿主设置接口：GET 返回 note，POST 合并 note 并回显", async 
   const end = hostSource.indexOf("\n\n\tctx.effect", start);
   const {
     normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, sanitizeOrderPatch, sanitizeContextPatch, sanitizePanelPatch, sanitizeNotePatch, sanitizeGitPatch,
-    modulesOf, usageDisplayOf, contextSettingsOf, moduleOrderOf, panelSettingsOf, noteSettingsOf, gitSettingsOf, normalizeModuleOrder, defaultModuleOrder,
+    modulesOf, usageDisplayOf, contextSettingsOf, moduleOrderOf, panelSettingsOf, noteSettingsOf, gitSettingsOf, normalizeModuleOrder, defaultModuleOrder, sanitizePinnedPatch, pinnedOf, normalizePinned,
   } = await import("../lib/settings.js");
   const context = vm.createContext({
     normalizeSettings, sanitizeModulesPatch, sanitizeUsagePatch, sanitizeOrderPatch, sanitizeContextPatch, sanitizePanelPatch, sanitizeNotePatch, sanitizeGitPatch,
     modulesOf, usageDisplayOf, contextSettingsOf, moduleOrderOf, panelSettingsOf, noteSettingsOf, gitSettingsOf, normalizeModuleOrder, defaultModuleOrder,
+    sanitizePinnedPatch, pinnedOf, normalizePinned,
     ctx: { get: () => undefined },
   });
-  vm.runInContext(`let settingsScope = null; let memoryModules = null; let memoryUsage = null; let memoryContext = null; let memoryOrder = null; let memoryPanel = null; let memoryNote = null; let memoryGit = null;\n${hostSource.slice(start, end)}\nthis.handler = settingsHandler;`, context);
+  vm.runInContext(`let settingsScope = null; let memoryModules = null; let memoryUsage = null; let memoryContext = null; let memoryOrder = null; let memoryPinned = null; let memoryPanel = null; let memoryNote = null; let memoryGit = null;\n${hostSource.slice(start, end)}\nthis.handler = settingsHandler;`, context);
   const initial = await context.handler(true, null);
   assert.deepEqual(JSON.parse(JSON.stringify(initial.note)), { maxCount: NOTE_COUNT_DEFAULT, popupEdit: false }, "默认 GET 返回 maxCount=5 与 popupEdit=false");
   const saved = await context.handler(false, { note: { maxCount: 9, popupEdit: true } });
@@ -103,9 +104,11 @@ test("客户端接线：设置卡片、数字步进器、确认前校验与恢�
   assert.match(source.slice(resetStart, resetStart + 600), /setNoteDraft\(defaultNoteSettings\(\)\);/);
   assert.match(source, /const resetAllSettings = \(\) => \{/);
   // 面板设置菜单把草稿一并提交给 updateSettings。
-  assert.match(source, /props\.onSettingsChange\(draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft, gitDraft\);/);
+  assert.match(source, /props\.onSettingsChange\(draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft, gitDraft, pinnedDraft\);/);
   // 说明页与 README 用同一套 5–20 文案依据。
-  assert.match(source, /guideNoteLimit: "在 HUD 设置 → 便笺 中可调整便笺条数上限，范围为 5–20，默认 5。上限调低后仍可保存。已有条数超过上限的工作区保持现状，但不能再新建便笺。"/);
+  // v0.21.2：说明页改为「名称：说明」一行一条，仍要写清范围与超限表现。
+  // v0.21.2：说明页只讲用户能看到的功能与设置，超限现状这类边界不再写进说明页。
+  assert.match(source, /guideNoteLimit: "条数上限：在设置里调整，范围 5 到 20，默认 5。"/);
   // v0.20.1：保存时不再因工作区超限而拒绝（只保留新建时的上限检查）。
   const confirmStart = source.indexOf("const confirmSettings = () => {");
   const confirmBody = source.slice(confirmStart, source.indexOf("};", confirmStart));

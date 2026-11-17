@@ -50,12 +50,14 @@ test("便笺 textarea 只处理输入与粘贴，不挂补全键盘/光标监听
   assert.equal(noteBlock.includes("trackTrigger"), false);
 });
 
-test("说明页便笺分节：展示 / 功能 / 设置三组，且不含 / 与 @ 要点", () => {
+test("说明页便笺分节：模块说明 + 便笺编辑视图两小节，且不含 / 与 @ 要点", () => {
   const sections = vm.runInNewContext(`${extractConst("GUIDE_SECTIONS")}\nGUIDE_SECTIONS;`);
   const note = sections.find((section) => section.key === "note");
   assert.ok(note !== undefined, "应有便笺分节");
-  // v0.20.0：新增「设置」组（便笺条数上限）。
-  assert.deepEqual(JSON.parse(JSON.stringify(note.groups.map((group) => group.kind))), ["show", "act", "set"]);
+  // v0.21.2：改为两个小标题（模块说明 / 便笺编辑视图），条数上限与弹窗编辑归入对应小节。
+  assert.deepEqual(JSON.parse(JSON.stringify(note.groups.map((group) => group.key))), ["module", "edit"]);
+  assert.equal(note.groups[0].items.includes("guideNoteLimit"), true, "条数上限属于模块说明");
+  assert.equal(note.groups[1].items.includes("guideNotePopup"), true, "弹窗编辑属于编辑视图");
   const actItems = note.groups[1].items;
   assert.equal(actItems.includes("guideNoteSlashAt"), false);
   for (const key of ["guideNoteImages", "guideNoteImport", "guideNoteSend", "guideNoteClear"]) {

@@ -1,4 +1,6 @@
-// dsh-awesome-hud — v0.19.1「产物 / Outputs」模块：
+// dsh-awesome-hud — 「产物 / Outputs」模块（v0.21.2 语义）：
+//  0) 只认**本会话**证据：每轮 workspace/changes 摘要 + 本会话 write/edit 的 file_path；
+//     不再扫描工作区，避免其它会话的产物与用户自己的编辑混进来。
 //  1) 汇总本会话**所有轮次**里指定格式、位于工作区内、仍存在的改动文件；
 //     按最后改动轮次倒序，最多展示 OUTPUT_LIMIT（10）个；界面默认先显示前 3 个、可展开全部。
 //  2) 点击行在官方右侧栏打开文件内容：地址按 DSH 的 file 资源语法逐段编码。
@@ -14,9 +16,6 @@ import {
   OUTPUT_LIMIT,
   Config,
   collectOutputs,
-  collectWorkspaceOutputs,
-  mergeOutputFiles,
-  resolveSessionStartedAt,
   isOutputCandidatePath,
   sessionFileAddress,
 } from "../lib/index.js";
@@ -196,13 +195,16 @@ test("客户端接线：默认位于 git 之上、新建会话页不展示、说
   assert.match(source, /const refreshOutputs = async \(\) => \{/, "轮询存在");
   assert.match(source, /const polls = \[refreshGit, refreshSubagents, refreshPlans, refreshOutputs\]/, "并入 5 秒轮询批次");
   assert.match(source, /setOutputs\(null\);/, "新建会话页/切会话时清空快照");
-  assert.match(source, /outputs: typeof parsed\.outputs === "boolean"/, "折叠状态持久化");
+  // v0.21.2：折叠状态按会话保存，默认集里产物是展开（false）。
+  assert.match(source, /const FOLD_MODULE_KEYS = Object\.freeze\(\["context", "usage", "git", "outputs"/);
+  assert.match(source, /return \{ context: false, tasks: false, subagents: false, plans: false, outputs: false/, "默认集包含产物且为展开");
   assert.match(source, /icon: "outputs"/);
   // 说明页第 12 节
   assert.match(source, /\{ key: "outputs", title: "guideOutputsTitle"/);
   const sections = vm.runInNewContext(`${extractConst("GUIDE_SECTIONS")}\nGUIDE_SECTIONS;`);
   assert.equal(sections.length, 12, "说明页新增一节");
-  assert.deepEqual(plain(sections.find((section) => section.key === "outputs").groups.map((group) => group.kind)), ["show", "act"]);
+  // v0.21.2：单小节「模块说明」，不再分展示 / 功能。
+  assert.deepEqual(plain(sections.find((section) => section.key === "outputs").groups.map((group) => group.key)), ["module"]);
   // 中英文案成对
   const { zh, en } = hudClient().dictionaries[0];
   for (const key of ["outputsModule", "outputsLimitHint", "outputsOpenFailed",
@@ -564,76 +566,61 @@ test("点击打开：调用 sidebarRight.openResource；服务缺失或抛错时
   assert.equal(noAddress.toasts.length, 1, "缺地址视为打开失败");
 });
 
-// —— v0.20.0：终端命令产生的改动也纳入产物（工作区扫描） ——
+// —— v0.21.2：产物改为「本会话可归因」证据，不再扫描工作区 ——
 
-test('collectWorkspaceOutputs：按扩展名/修改时间收录，跳过 node_modules 与隐藏项', async () => {
-  const { mkdtemp, mkdir, writeFile, utimes, rm } = await import('node:fs/promises');
-  const { tmpdir } = await import('node:os');
-  const { join } = await import('node:path');
-  const root = await mkdtemp(join(tmpdir(), 'hud-outputs-'));
-  try {
-    await mkdir(join(root, 'sub'), { recursive: true });
-    await mkdir(join(root, 'node_modules'), { recursive: true });
-    await writeFile(join(root, 'new.md'), 'x');
-    await writeFile(join(root, 'old.md'), 'x');
-    await writeFile(join(root, 'note.txt'), 'x');
-    await writeFile(join(root, 'sub', 'deep.md'), 'x');
-    await writeFile(join(root, 'node_modules', 'hidden.md'), 'x');
-    await writeFile(join(root, '.hidden.md'), 'x');
-    const now = Date.now();
-    await utimes(join(root, 'new.md'), new Date(now - 10_000), new Date(now - 10_000));
-    await utimes(join(root, 'sub', 'deep.md'), new Date(now - 20_000), new Date(now - 20_000));
-    await utimes(join(root, 'old.md'), new Date(now - 7_200_000), new Date(now - 7_200_000));
-    await utimes(join(root, 'note.txt'), new Date(now - 5_000), new Date(now - 5_000));
-    const since = now - 60_000;
-    const result = await collectWorkspaceOutputs({ cwd: root, since, limit: 10 });
-    assert.deepEqual(JSON.parse(JSON.stringify(result.files.map((file) => file.path))), ['new.md', 'sub/deep.md']);
-    assert.equal(result.total, 2);
-    assert.equal(result.truncated, false);
-    // 限制条数：最新的在前，超出部分标记截断。
-    const limited = await collectWorkspaceOutputs({ cwd: root, since, limit: 1 });
-    assert.deepEqual(JSON.parse(JSON.stringify(limited.files.map((file) => file.path))), ['new.md']);
-    assert.equal(limited.truncated, true);
-    // 会话开始前的旧文件不收（重启后 since 不变，仍能列出同样的文件）。
-    const older = await collectWorkspaceOutputs({ cwd: root, since: now - 1_000 });
-    assert.deepEqual(JSON.parse(JSON.stringify(older.files.map((file) => file.path))), []);
-    // 不存在的目录按空列表处理。
-    const missing = await collectWorkspaceOutputs({ cwd: join(root, 'nope'), since, limit: 10 });
-    assert.deepEqual(JSON.parse(JSON.stringify(missing.files)), []);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
+/** 构造一条 tool/call 事件（arguments 为 JSON 字符串，与 DSH durable 事件一致）。 */
+const toolCallEvent = (seq, turn, name, filePath) => ({
+  type: "tool/call",
+  seq,
+  data: { turn, name, arguments: JSON.stringify({ file_path: filePath }) },
 });
 
-test('resolveSessionStartedAt：优先 header.createdAt，回退首个事件时间', () => {
-  assert.equal(resolveSessionStartedAt({ header: { createdAt: 1234 } }, []), 1234);
-  assert.equal(resolveSessionStartedAt({ header: { startedAt: 2345 } }, []), 2345);
-  assert.equal(resolveSessionStartedAt({ header: {} }, [{ time: 3456 }]), 3456);
-  const fallback = resolveSessionStartedAt({ header: {} }, []);
-  assert.ok(typeof fallback === 'number' && fallback > 0);
+test("collectOutputs：本会话 write/edit 的路径进产物，只读工具与非法路径不入列", async () => {
+  const events = [
+    toolCallEvent(1, 1, "write", "/work/proj/out/generated.html"),
+    toolCallEvent(2, 1, "edit", "docs/edited.md"),
+    toolCallEvent(3, 1, "read", "out/read-only.md"),
+    toolCallEvent(4, 1, "bash", "out/shell.md"),
+    toolCallEvent(5, 2, "write", "/tmp/outside.md"),
+    toolCallEvent(6, 2, "write", "notes.txt"),
+    { type: "tool/call", seq: 7, data: { turn: 2, name: "write", arguments: "not json" } },
+  ];
+  const output = await collectOutputs({
+    sessionId: "s1",
+    cwd: "/work/proj",
+    events,
+    summaryFor: () => undefined,
+    exists: async () => true,
+  });
+  assert.deepEqual(plain(output.files.map((file) => file.path)), ["docs/edited.md", "out/generated.html"], "绝对路径按 cwd 归一；read/bash/txt/工作区外都丢弃");
+  assert.equal(output.total, 2);
+  assert.equal(output.files[1].address.startsWith("dsh-resource://file/session/s1/"), true);
 });
 
-test('mergeOutputFiles：摘要与扫描合并去重，按修改时间倒序并补右侧栏地址', () => {
-  const merged = mergeOutputFiles('s1', [
-    { path: 'a.md', display: 'a.md', turn: 3 },
-    { path: 'b.md', display: 'b.md', turn: 1 },
-  ], [
-    { path: 'a.md', mtimeMs: 300 },
-    { path: 'c.md', mtimeMs: 200 },
-    { path: 'd.md', mtimeMs: 400 },
-  ], 10);
-  // 同一路径只出现一次；按 mtime 倒序（d > a > c），摘要补上的轮次保留。
-  // 摘要独有、扫描没扫到的 b.md 排在带 mtime 的文件之后。
-  assert.deepEqual(JSON.parse(JSON.stringify(merged.files.map((file) => file.path))), ['d.md', 'a.md', 'c.md', 'b.md']);
-  assert.equal(merged.files[1].turn, 3, '摘要的轮次合并进扫描结果');
-  assert.equal(merged.total, 4);
-  assert.equal(merged.files[0].address.startsWith('dsh-resource://file/session/s1/'), true);
-  assert.deepEqual(JSON.parse(JSON.stringify(merged.files[0].name)), 'd.md');
-  // 摘要里没有 mtime 的条目排在带 mtime 的条目之后，仍可被限制条数。
-  const limited = mergeOutputFiles('s1', [{ path: 'z.md', turn: 9 }, ...Array.from({ length: 12 }, (_, i) => ({ path: `f${i}.md`, mtimeMs: i }))], [], 2);
-  assert.equal(limited.files.length, 2);
-  assert.equal(limited.truncated, true);
-  assert.equal(limited.total, 13);
+test("collectOutputs：摘要与工具证据合并，按轮次 / 事件序号倒序", async () => {
+  const events = [toolCallEvent(8, 2, "write", "out/late.md"), changeEvent(9, 3)];
+  const output = await collectOutputs({
+    sessionId: "s1",
+    cwd: "/work/proj",
+    events,
+    summaryFor: (seq) => (seq === 9 ? { turn: 3, files: [{ path: "out/summary.png", display: "report/summary.png" }] } : undefined),
+    exists: async () => true,
+  });
+  assert.deepEqual(plain(output.files.map((file) => file.path)), ["out/summary.png", "out/late.md"], "轮次大的在前，同轮次按事件序号倒序");
+  assert.equal(output.files[0].display, "report/summary.png", "摘要的展示名保留");
+  assert.equal(output.files[1].display, "out/late.md");
+});
+
+test("v0.21.2：宿主不再扫描工作区，产物只吃本会话证据", async () => {
+  const host = await import("../lib/index.js");
+  assert.equal("collectWorkspaceOutputs" in host, false, "工作区扫描已移除");
+  assert.equal("mergeOutputFiles" in host, false, "两路合并已移除");
+  assert.equal("resolveSessionStartedAt" in host, false, "会话起点时间只服务扫描，已移除");
+  const text = await readFile(join(root, "lib/index.js"), "utf8");
+  assert.match(text, /const collected = await collectOutputs\(\{/);
+  assert.match(text, /\t+\t+\t+\tcwd,\n/);
+  assert.doesNotMatch(text, /collectWorkspaceOutputs/);
+  assert.doesNotMatch(text, /mtimeMs/);
 });
 
 test("v0.21.0：产物右键菜单：五项、分割线、添加至聊天/定位/复制与禁用态", async () => {

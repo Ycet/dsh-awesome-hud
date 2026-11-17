@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   DEFAULT_COMMIT_PROMPT, LOCAL_COMMIT_SPEC, COMMIT_PROMPT_PLACEHOLDERS, COMMIT_PROMPT_PRECEDENCE,
-  commitPromptProjectFacts, defaultProjectInstruction, customSessionContextInstruction, renderCommitPromptTemplate, Config,
+  commitPromptProjectFacts, defaultProjectInstruction, renderCommitPromptTemplate, Config,
   generateCommitMessage, formatStyledDate,
 } from "../lib/index.js";
 import {
@@ -23,9 +23,12 @@ const HOST_SOURCE = readFileSync(new URL("../lib/index.js", import.meta.url), "u
 test("宿主：默认模板把日期与版本规范写进正文，且仍作为空模板的回退值（v0.21.1）", () => {
   // v0.21.1：日期/版本规范不再只靠 {{spec}} 注入，规则原文直接写进默认模板，用户可改写。
   assert.doesNotMatch(DEFAULT_COMMIT_PROMPT, /\{\{spec\}\}/, "默认模板不再引用 {{spec}}（规则已内联）");
-  for (const key of ["today", "project", "sessionContext"]) {
+  for (const key of ["today", "project"]) {
     assert.match(DEFAULT_COMMIT_PROMPT, new RegExp(`\\{\\{${key}\\}\\}`), `默认模板缺少 {{${key}}}`);
   }
+  // v0.21.2：默认模板与占位符列表都不再有会话上下文。
+  assert.doesNotMatch(DEFAULT_COMMIT_PROMPT, /\{\{sessionContext\}\}/);
+  assert.deepEqual([...COMMIT_PROMPT_PLACEHOLDERS], ["spec", "today", "project"]);
   // 显性化的关键规则：时间格式、项目名与版本号格式、三条版本递增规则。
   assert.match(DEFAULT_COMMIT_PROMPT, /备注格式为 \[时间\] 修改内容/);
   assert.match(DEFAULT_COMMIT_PROMPT, /时间格式：取系统当前时间，固定格式为 YYMMDD/);
@@ -87,15 +90,22 @@ test("宿主：提示词收敛——换行归一、去首尾空白、超长截�
   assert.equal(Config.dict.commitPrompt.meta.default, "");
 });
 
-test("默认提示词：提示词与暂存区优先，会话上下文按轮次且只作参考", () => {
-  assert.match(DEFAULT_COMMIT_PROMPT, /primary source of the message/);
-  assert.match(DEFAULT_COMMIT_PROMPT, /secondary and lower priority/);
+test("默认提示词：只依据提示词与暂存区变更，不再引用会话上下文（v0.21.2）", () => {
+  assert.match(DEFAULT_COMMIT_PROMPT, /are the only basis for the message/);
+  assert.match(DEFAULT_COMMIT_PROMPT, /You do not read the session conversation/);
   assert.match(DEFAULT_COMMIT_PROMPT, /Never describe changes that are not present in the staged diff/);
-  assert.match(DEFAULT_COMMIT_PROMPT, /use that note as the 修改内容/);
-  assert.match(DEFAULT_COMMIT_PROMPT, /CURRENT version exactly as recorded/);
-  // 宿主注入的会话上下文标注为 secondary reference，且按轮次提取。
-  assert.match(HOST_SOURCE, /Conversation context — recent turns of the current session\. This is a secondary reference only/);
-  assert.match(HOST_SOURCE, /extractSessionContext\(sessionEvents \?\? \[\]\)/);
+  // 旧模板里依赖会话的两句必须消失。
+  assert.doesNotMatch(DEFAULT_COMMIT_PROMPT, /use that note as the 修改内容/);
+  assert.doesNotMatch(DEFAULT_COMMIT_PROMPT, /CURRENT version exactly as recorded/);
+  assert.doesNotMatch(DEFAULT_COMMIT_PROMPT, /conversation context/i);
+  // 宿主生成函数内不得再出现会话读取（函数体按起止注释切出来单独断言）。
+  const start = HOST_SOURCE.indexOf("export async function generateCommitMessage");
+  const end = HOST_SOURCE.indexOf("/** git 写操作通用流程", start);
+  assert.ok(start > 0 && end > start, "生成函数体定位失败");
+  const body = HOST_SOURCE.slice(start, end);
+  assert.doesNotMatch(body, /sessions/, "生成过程不得读取会话服务");
+  assert.doesNotMatch(body, /extractSessionContext|Conversation context/);
+  assert.match(body, /Staged changes \(git diff --staged\):/, "用户消息仍只携带暂存区差异");
 });
 
 test("宿主接线：generate 使用保存的提示词模板，git/prompt 读写并回传默认模板", () => {
@@ -107,7 +117,8 @@ test("宿主接线：generate 使用保存的提示词模板，git/prompt 读写
   assert.match(HOST_SOURCE, /today,/);
   // v0.21.1：自定义提示词只注入项目事实，默认路径才注入「沿用当前版本」的规则文本
   assert.match(HOST_SOURCE, /project: customPrompt \? commitPromptProjectFacts\(pkg\) : defaultProjectInstruction\(pkg\),/);
-  assert.match(HOST_SOURCE, /sessionContext: sessionContext === ""/);
+  // v0.21.2：占位符仍注入空串（兼容旧自定义提示词），但不再从会话里取内容。
+  assert.match(HOST_SOURCE, /sessionContext: "",/);
   // 用户消息只携带 diff；日期前缀与版本校验只在默认提示词下执行。
   assert.match(HOST_SOURCE, /const prompt = \["Staged changes \(git diff --staged\):", body\]\.join\("\\n"\);/);
   assert.match(HOST_SOURCE, /if \(!customPrompt\) \{[\s\S]{0,220}head\[1\] !== today/);
@@ -194,7 +205,7 @@ const settle = () => new Promise((resolve) => setImmediate(resolve));
 /** 生成链路的桩环境：临时工作区（package.json）+ git 输出 + 捕获 system/messages 的 llm。 */
 /**
  * 生成链路的桩环境：临时工作区（默认带 package.json）+ git 输出 + 捕获 system/messages 的 llm。
- * options.sessionEvents 提供后，ctx.get("sessions") 返回带该事件的会话（用于会话上下文注入测试）；
+ * serviceReads 记录 ctx.get 请求过的服务名，用于断言生成过程没有读会话；
  * options.packageJson 传 null 表示工作区里没有可解析的 package.json。
  */
 async function withGenerateStub(run, options = {}) {
@@ -216,11 +227,12 @@ async function withGenerateStub(run, options = {}) {
       },
     };
     const captured = [];
+    const serviceReads = [];
     const ctx = {
       get(name) {
-        if (name === "sessions" && options.sessionEvents !== undefined) {
-          return { get: () => ({ snapshotEvents: () => options.sessionEvents }) };
-        }
+        serviceReads.push(name);
+        // v0.21.2：生成不再需要会话服务；仍提供桩实现，确保「误读会话」能被 serviceReads 检测到。
+        if (name === "sessions") return { get: () => ({ snapshotEvents: () => [] }) };
         if (name !== "llm") return undefined;
         return {
           stream: async function* (request) {
@@ -231,7 +243,7 @@ async function withGenerateStub(run, options = {}) {
         };
       },
     };
-    return await run({ dir, diff, subprocess, ctx, captured });
+    return await run({ dir, diff, subprocess, ctx, captured, serviceReads });
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -275,6 +287,22 @@ test("宿主：模型自作主张升版时，默认路径把它拉回项目当�
     const result = await generateCommitMessage(ctx, subprocess, dir, "");
     assert.equal(result.message, `[${today}] probe-app v1.2.3：修复了回归用例`, "日期与版本号都会被校正为宿主值");
   }, { output: "[000000] probe-app v9.9.9：修复了回归用例" });
+});
+
+test("宿主：生成提交信息不读取会话上下文，旧提示词的 {{sessionContext}} 被替换为空串（v0.21.2）", async () => {
+  await withGenerateStub(async ({ dir, subprocess, ctx, captured, serviceReads }) => {
+    await generateCommitMessage(ctx, subprocess, dir, "session-legacy");
+    assert.deepEqual([...serviceReads], ["llm"], "生成只需要 llm 服务，不再读取会话");
+    assert.doesNotMatch(captured[0].system, /Conversation context/);
+    assert.doesNotMatch(captured[0].system, /\{\{sessionContext\}\}/);
+    assert.equal(captured[0].messages.length, 1, "用户消息只有一条，且只含暂存区差异");
+  }, { output: "X" });
+
+  await withGenerateStub(async ({ dir, subprocess, ctx, captured }) => {
+    await generateCommitMessage(ctx, subprocess, dir, "", "旧提示词：{{sessionContext}}\n只输出一行。");
+    assert.match(captured[0].system, /^旧提示词：/, "自定义提示词仍然原样生效");
+    assert.doesNotMatch(captured[0].system, /\{\{sessionContext\}\}/, "旧提示词里的占位符不得漏出");
+  }, { output: "X" });
 });
 
 test("客户端：默认折叠，展开后回填默认提示词；无自定义时不显示「已自定义」", async () => {

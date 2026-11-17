@@ -102,6 +102,14 @@ function createHarness(options = {}) {
     defaultModuleOrder,
     normalizeModuleOrder,
     MODULE_KEYS: [...MODULE_KEYS],
+    // v0.21.2：置顶键的收敛/迁移（hook 在 GET/保存时用到）。
+    normalizePinned: (value) => (typeof value === 'string' && MODULE_KEYS.includes(value) ? value : ''),
+    pinnedOfSettings: (raw) => {
+      if (raw === null || raw === undefined || typeof raw !== 'object') return '';
+      const explicit = typeof raw.pinned === 'string' && MODULE_KEYS.includes(raw.pinned) ? raw.pinned : '';
+      if (explicit !== '') return explicit;
+      return raw.context !== null && typeof raw.context === 'object' && raw.context.pinned === true ? 'context' : '';
+    },
     // 首次加载的面板对账（本用例只关心缓存/镜像更新）
     ensurePanelPrefs: () => Promise.resolve(panelPrefs),
     applyPanelPrefs: next => { appliedPanels.push({ ...next }); Object.assign(panelPrefs, next); },
@@ -156,7 +164,9 @@ function createHarness(options = {}) {
         result,
         modules: () => slots[0],
         usage: () => slots[1],
-        panel: () => slots[4],
+        // v0.21.2：state 顺序为 modules / usage / context / order / pinned / panel / …
+        pinned: () => slots[4],
+        panel: () => slots[5],
         seed: () => vm.runInContext('this.peekBody()', context),
       };
     },

@@ -170,8 +170,9 @@ test("v0.19.2：上下文模块支持折叠，折叠后只保留标题行（占�
 	assert.equal(expandButton.props["data-fold"], true);
 	assert.equal(expandButton.props["aria-label"], "expandModule");
 
-	// 折叠状态持久化：loadStoredFolds 默认值与会话读取都包含 context。
-	assert.match(source, /const fallback = \{ context: false, git: false/);
-	assert.match(source, /context: typeof parsed\.context === "boolean" \? parsed\.context : fallback\.context/);
+	// 折叠状态持久化（v0.21.2 起按会话保存）：默认集在 defaultFoldMap 里，逐字段收敛在 normalizeFoldMap 里。
+	assert.match(source, /return \{ context: false, tasks: false, subagents: false, plans: false, outputs: false, usage: true, git: true, note: true, todo: true, mcp: true \};/);
+	assert.match(source, /for \(const key of FOLD_MODULE_KEYS\) \{\n\t+if \(typeof value\[key\] === "boolean"\) base\[key\] = value\[key\];/);
+	assert.match(source, /const FOLDS_STORAGE_KEY = "dsh-awesome-hud:folds:v2";/);
 	assert.match(source, /fold: folds\.context/);
 });

@@ -110,7 +110,10 @@ function createRuntime(options = {}) {
      ${extractFunction('isDefaultFeatureSettings')}
      ${extractFunction('isDefaultDraft')}
      ${extractFunction('useOverlayDismiss')}
-     ${extractFunction('contextPinState')}
+     ${extractFunction('pinButtonState')}
+     ${extractFunction('moveKeyToFront')}
+     ${extractFunction('restoreKeyAt')}
+     ${extractFunction('normalizePinned')}
      ${extractFunction('SettingsDialog')}`,
     context,
   );
@@ -222,7 +225,7 @@ test('「恢复所有设置」：左右两栏草稿全部回到默认', () => {
   runtime.render(baseProps({
     modules: { ...defaultModules(), git: false },
     usage: { ...defaultUsageDisplay(), folded: 'oc-5h' },
-    context: { ...defaultContextSettings(), pinned: true },
+    pinned: 'context',
     order: ['git', ...normalizeModuleOrder(null).filter(key => key !== 'git')],
     panel: { style: 'sidebar', side: 'left', newSessionOpen: true, chatOpen: false },
     note: { maxCount: 8, popupEdit: true },
@@ -232,13 +235,15 @@ test('「恢复所有设置」：左右两栏草稿全部回到默认', () => {
   clickItem(runtime, 0);
   confirmPayload(runtime, calls);
   assert.equal(calls.length, 1, '重置只改草稿，仍需确认');
-  const [draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft] = calls[0];
+  const [draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft, , pinnedDraft] = calls[0];
   assert.deepEqual(JSON.parse(JSON.stringify(draft)), defaultModules());
   assert.equal(usageDraft.folded, 'none');
   assert.deepEqual(JSON.parse(JSON.stringify(orderDraft)), normalizeModuleOrder(null));
   assert.deepEqual(JSON.parse(JSON.stringify(contextDraft)), defaultContextSettings());
   assert.deepEqual(JSON.parse(JSON.stringify(panelDraft)), defaultPanelSettings());
   assert.deepEqual(JSON.parse(JSON.stringify(noteDraft)), { maxCount: 5, popupEdit: false });
+  // v0.21.2：恢复默认一并取消置顶。
+  assert.equal(pinnedDraft, '');
 });
 
 test('「恢复 hud 模块启用状态、排序」：只复位左栏，右栏草稿保持', () => {
@@ -248,7 +253,7 @@ test('「恢复 hud 模块启用状态、排序」：只复位左栏，右栏草
     modules: { ...defaultModules(), git: false },
     order: ['git', ...normalizeModuleOrder(null).filter(key => key !== 'git')],
     usage: { ...defaultUsageDisplay(), folded: 'oc-1w' },
-    context: { ...defaultContextSettings(), pinned: true },
+    pinned: 'context',
     panel: { style: 'sidebar', side: 'right', newSessionOpen: false, chatOpen: true },
     note: { maxCount: 7, popupEdit: true },
     onConfirm: (...args) => calls.push(args),
@@ -256,11 +261,12 @@ test('「恢复 hud 模块启用状态、排序」：只复位左栏，右栏草
   openMenu(runtime);
   clickItem(runtime, 1);
   confirmPayload(runtime, calls);
-  const [draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft] = calls[0];
+  const [draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft, , pinnedDraft] = calls[0];
   assert.deepEqual(JSON.parse(JSON.stringify(draft)), defaultModules());
   assert.deepEqual(JSON.parse(JSON.stringify(orderDraft)), normalizeModuleOrder(null));
   assert.equal(usageDraft.folded, 'oc-1w');
-  assert.equal(contextDraft.pinned, true);
+  // v0.21.2：置顶属于左栏，随左栏一起复位。
+  assert.equal(pinnedDraft, '');
   assert.equal(panelDraft.style, 'sidebar');
   assert.deepEqual(JSON.parse(JSON.stringify(noteDraft)), { maxCount: 7, popupEdit: true });
 });
@@ -273,7 +279,7 @@ test('「恢复 hud 模块功能设置」：只复位右栏，模块开关与排
     modules: { ...defaultModules(), git: false },
     order: changedOrder,
     usage: { ...defaultUsageDisplay(), folded: 'oc-5h' },
-    context: { ...defaultContextSettings(), pinned: true },
+    pinned: 'context',
     panel: { style: 'sidebar', side: 'right', newSessionOpen: false, chatOpen: true },
     note: { maxCount: 7, popupEdit: true },
     onConfirm: (...args) => calls.push(args),
@@ -281,11 +287,12 @@ test('「恢复 hud 模块功能设置」：只复位右栏，模块开关与排
   openMenu(runtime);
   clickItem(runtime, 2);
   confirmPayload(runtime, calls);
-  const [draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft] = calls[0];
+  const [draft, usageDraft, orderDraft, , panelDraft, noteDraft, , pinnedDraft] = calls[0];
   assert.equal(draft.git, false, '模块开关保持');
   assert.deepEqual(JSON.parse(JSON.stringify(orderDraft)), changedOrder, '排序保持');
   assert.equal(usageDraft.folded, 'none');
-  assert.equal(contextDraft.pinned, false);
+  // v0.21.2：只复位右栏时置顶保持不动。
+  assert.equal(pinnedDraft, 'context', '置顶属于左栏，右栏复位不影响它');
   assert.equal(panelDraft.style, 'card');
   assert.deepEqual(JSON.parse(JSON.stringify(noteDraft)), { maxCount: 5, popupEdit: false });
 });

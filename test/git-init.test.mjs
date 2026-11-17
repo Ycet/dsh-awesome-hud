@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { Readable } from "node:stream";
 import vm from "node:vm";
 import { apply } from "../lib/index.js";
+import { hudClient, moduleOf, nodes } from "./helpers/client-harness.mjs";
 
 const source = readFileSync(new URL("../lib/client.js", import.meta.url), "utf8");
 
@@ -140,10 +141,11 @@ function extractExpression(from) {
   return source.slice(from, index).trim();
 }
 
-const headExtra = extractExpression(source.indexOf("extra: isRepo") + "extra: ".length);
+// v0.21.2：标题行按钮改成「加载中 → 空 / 仓库 → 分支 / 非仓库 → 初始化」三段分流。
+const headExtra = extractExpression(source.indexOf("extra: loading") + "extra: ".length);
 
-test("Git 模块标题栏：非仓库展示「初始化仓库」，仓库展示分支切换按钮", () => {
-  assert.ok(headExtra.startsWith("isRepo"), "extra 必须以「是否仓库」分流");
+test("Git 模块标题栏：加载中不出按钮，非仓库展示「初始化仓库」，仓库展示分支切换按钮", () => {
+  assert.ok(headExtra.startsWith("loading"), "extra 必须以「是否加载中」优先分流");
   const sandbox = {
     react: { createElement: (type, props, ...children) => ({ type, props, children }) },
     Icon: "Icon",
@@ -154,8 +156,11 @@ test("Git 模块标题栏：非仓库展示「初始化仓库」，仓库展示�
     initRepo: () => {},
     initBusy: false,
   };
+  // 加载中：两侧都还判断不出来，标题行右侧留空
+  const pending = vm.runInNewContext(headExtra, { ...sandbox, loading: true, isRepo: false });
+  assert.equal(pending, null, "加载中不得先摆「初始化仓库」或分支按钮");
   // 非仓库：同一位置渲染「初始化仓库」按钮
-  const initButton = vm.runInNewContext(headExtra, { ...sandbox, isRepo: false });
+  const initButton = vm.runInNewContext(headExtra, { ...sandbox, loading: false, isRepo: false });
   assert.equal(initButton.type, "button");
   assert.equal(initButton.props.className, "hud-btn-small hud-git-btn");
   assert.equal(initButton.props.title, "gitInitRepoTitle");
@@ -166,29 +171,34 @@ test("Git 模块标题栏：非仓库展示「初始化仓库」，仓库展示�
   assert.equal(initButton.children[1], "gitInitRepo");
 
   // 初始化进行中：按钮置灰
-  const busy = vm.runInNewContext(headExtra, { ...sandbox, isRepo: false, initBusy: true });
+  const busy = vm.runInNewContext(headExtra, { ...sandbox, loading: false, isRepo: false, initBusy: true });
   assert.equal(busy.props.disabled, true);
 
   // 仓库：仍是分支切换按钮（位置相同），不出现「初始化仓库」
-  const repoExtra = vm.runInNewContext(headExtra, { ...sandbox, isRepo: true, props: { git: { branch: "main" } } });
+  const repoExtra = vm.runInNewContext(headExtra, { ...sandbox, loading: false, isRepo: true, props: { git: { branch: "main" } } });
   assert.equal(repoExtra.props.className, "hud-btn-small hud-git-btn hud-branch-switch");
   assert.equal(repoExtra.props.ref.marker, "branchBtn");
   assert.equal(repoExtra.children[1].children[0], "main");
 
   // 仓库但无分支名（分离 HEAD 且读不到名字）：不渲染任何按钮
-  const noBranch = vm.runInNewContext(headExtra, { ...sandbox, isRepo: true, props: { git: { branch: null } } });
+  const noBranch = vm.runInNewContext(headExtra, { ...sandbox, loading: false, isRepo: true, props: { git: { branch: null } } });
   assert.equal(noBranch, null);
 });
 
-test("Git 模块：非仓库正文只展示提示，仓库正文保留动作与统计", () => {
-  // 非仓库：正文首子节点是提示文案（不渲染 git graph / commit / revert）
-  assert.match(source, /const isRepo = props\.git\?\.isRepo === true;/);
-  assert.match(source, /const gitFiles = Array\.isArray\(props\.git\?\.files\) \? props\.git\.files : \[\];/);
+test("Git 模块：加载中先给提示，非仓库只展示提示，仓库正文保留动作与统计", () => {
+  // v0.21.2：快照未到（null）算加载中，正文先渲染一行加载提示
+  assert.match(source, /const loading = props\.git === null \|\| props\.git === undefined;/);
+  assert.match(source, /const isRepo = loading !== true && props\.git\.isRepo === true;/);
+  assert.match(source, /const gitFiles = isRepo && Array\.isArray\(props\.git\.files\) \? props\.git\.files : \[\];/);
+  assert.match(source, /loading\n\t+\? react\.createElement\("div", \{ className: "hud-git-loading", role: "status", "aria-live": "polite" \}, t\("gitLoading"\)\)/);
+  // 非仓库：正文是提示文案（不渲染 git graph / commit / revert）
   assert.match(source, /: react\.createElement\("div", \{ className: "hud-git-summary" \}, t\("gitNoRepo"\)\),/);
   assert.match(source, /isRepo \? react\.createElement\("div", \{ className: "hud-git-summary" \}, summaryText\) : null\)\)/);
-  // 非仓库不再被渲染条件挡掉：只要求拿到快照（isRepo 由模块内部处理）
-  assert.match(source, /activeModules\.git === false \|\| git === null \|\| git === undefined \? null : react\.createElement\(GitModule, \{/);
-  assert.doesNotMatch(source, /activeModules\.git === false \|\| git === null \|\| git === undefined \|\| git\.isRepo !== true/);
+  // 模块不再被「快照为空」挡掉：只要模块启用、且存在可探测的会话就渲染（加载态由模块内部处理）；
+  // 例外是没有可探测会话时（空工作区新建页）保持隐藏，避免永远转圈。
+  assert.match(source, /git: \(\) => activeModules\.git === false \|\| \(git === null && moduleSessionId === ""\) \? null : react\.createElement\(GitModule, \{/);
+  assert.match(source, /git: git \?\? null,/);
+  assert.doesNotMatch(source, /activeModules\.git === false \|\| git === null \|\| git === undefined/);
   // 变更计数与分组读取安全（非仓库快照没有 files）
   assert.match(source, /for \(const file of gitFiles\) \{/);
   assert.match(source, /const stagedFiles = gitFiles\.filter\(\(file\) => file\.staged === true\);/);
@@ -207,6 +217,7 @@ test("端到端：非仓库快照渲染「初始化仓库」，init 后的快照
     toggleBranchMenu: () => {},
     initRepo: () => {},
     initBusy: false,
+    loading: false,
     isRepo: snapshot.isRepo === true,
   });
 
@@ -226,11 +237,43 @@ test("初始化仓库的调用、提示与中英文案齐备", () => {
   assert.match(source, /const initRepo = async \(event\) => \{/);
   assert.match(source, /event\?\.stopPropagation\?\.\(\); \/\/ 避免触发模块折叠/);
   assert.match(source, /const snapshot = await call\("git\/init", \{ sessionId: props\.sessionId \}\);/);
-  assert.match(source, /toast\(t\("gitInitDone"\), "success"\);/);
+  // v0.21.2：成功提示按宿主回报的 .gitignore 结果分流（新建 / 补全 / 未改动 / 写盘失败）。
+  assert.match(source, /toast\(t\(mode === "created" \? "gitInitIgnoreCreated" : mode === "merged" \? "gitInitIgnoreMerged" : "gitInitDone"\), "success"\);/);
+  assert.match(source, /if \(mode === "failed"\) toast\(interpolate\(t\("gitIgnoreFailed"\), \{ detail: ignore\?\.error \?\? "" \}\), "error"\);/);
   assert.match(source, /toast\(interpolate\(t\("gitInitFailed"\), \{ detail: error\?\.message \?\? String\(error\) \}\), "error"\);/);
   assert.match(source, /gitInitRepo: "初始化仓库",/);
   assert.match(source, /gitInitRepoTitle: "在当前工作区初始化 git 仓库",/);
   assert.match(source, /gitNoRepo: "当前工作区不是 git 仓库",/);
   assert.match(source, /gitInitRepo: "init repo",/);
   assert.match(source, /gitNoRepo: "The current workspace is not a git repository",/);
+});
+
+test("进入会话页：git 快照未到时模块直接展示加载态，标题行不摆按钮", () => {
+  const client = hudClient({
+    state: { current: "sess", byId: { sess: { cwd: "/work/session", updatedAt: 2, displayTitle: "Session A" } } },
+    current: "sess",
+    workspaces: [{ workspaceId: "w1", path: "/work/session", title: "Session", updatedAt: 2, sessionIds: ["sess"] }],
+  });
+  const gitModule = moduleOf(client.panel(), "GitModule");
+  assert.ok(gitModule !== undefined, "Git 模块必须首帧就渲染（不再等快照）");
+  assert.equal(gitModule.props.git, null, "首帧快照为空 → 交给模块内的加载态");
+  // 折叠状态下标题行立刻可见（默认折叠 git），右侧没有按钮
+  const foldedTree = gitModule.type(gitModule.props);
+  const foldedHead = nodes(foldedTree).find((node) => node.type?.name === "ModuleHead");
+  assert.equal(foldedHead.props.extra, null, "折叠 + 加载中：标题行不放按钮");
+  // 展开后：正文给加载提示（带 role=status，方便读屏播报）
+  const tree = gitModule.type({ ...gitModule.props, fold: false });
+  const loading = nodes(tree).find((node) => node.props?.className === "hud-git-loading");
+  assert.ok(loading !== undefined, "加载中必须在正文给提示");
+  assert.equal(loading.props.role, "status");
+  assert.equal(loading.props["aria-live"], "polite");
+  assert.equal(loading.children[0], "gitLoading");
+  // 标题行：extra 为空（既不是分支按钮，也不是「初始化仓库」），也不显示变更计数
+  const head = nodes(tree).find((node) => node.type?.name === "ModuleHead");
+  assert.ok(head !== undefined, "标题行必须存在");
+  assert.equal(head.props.extra, null, "加载中标题行不放按钮");
+  assert.equal(head.props.countText, null, "加载中不显示变更计数");
+  // 整棵子树没有任何操作按钮，也没有「不是 git 仓库」的提示
+  assert.deepEqual(nodes(tree).filter((node) => node.type === "button"), [], "加载中不应出现操作按钮");
+  assert.equal(nodes(tree).some((node) => (node.children ?? []).includes("gitNoRepo")), false);
 });

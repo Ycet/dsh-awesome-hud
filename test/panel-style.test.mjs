@@ -267,8 +267,9 @@ test('设置行：HUD 面板样式位于 HUD 面板展开位置上方', () => {
   assert.ok(styleIndex < sideIndex, '样式行必须在侧位行之前渲染');
   assert.match(clientSource, /settingsPanelStyle: "HUD 面板样式",/);
   assert.match(clientSource, /settingsPanelStyleSidebar: "边栏样式",/);
-  // 说明页：面板一节新增「面板样式」要点，中英成对。
-  assert.match(clientSource, /guidePanelStyle: "在「HUD面板通用设置」里选择卡片样式或边栏样式。/);
-  assert.match(clientSource, /guidePanelStyle: "Choose Card or Sidebar in “HUD panel general settings”\./);
-  assert.match(clientSource, /items: \["guidePanelEntry", "guidePanelSide", "guidePanelStyle",/);
+  // 说明页：面板一节保留「面板样式」要点（v0.21.2 改为「名称：说明」一行一条），中英成对。
+  assert.match(clientSource, /guidePanelStyle: "面板样式：可选卡片样式或边栏样式，默认卡片样式。/);
+  assert.match(clientSource, /guidePanelStyle: "Panel style: Settings offer the card style or the sidebar style,/);
+  // 「HUD 面板」小标题下按顺序列出面板本体条目。
+  assert.match(clientSource, /title: "guidePanelGroupPanel", items: \["guidePanelSide", "guidePanelStyle",/);
 });
