@@ -34,20 +34,14 @@
 - [🔧 技术栈](#-技术栈)
 - [🧪 开发与测试](#-开发与测试)
 - [🔗 关联插件](#-关联插件)
-- [⬆️ 升级说明（v0.11.x → v0.21.2）](#️-升级说明v011x--v0212)
+- [⬆️ 升级说明（v0.11.x → v0.21.3）](#️-升级说明v011x--v0213)
 - [📄 许可证](#-许可证)
 
 ---
 
-## 🖼️ 界面效果
+## 🖼️ HUD面板
 
-**浅色主题**
-
-![HUD 面板在浅色主题下的效果](docs/hud-light.png)
-
-**深色主题**
-
-![HUD 面板在深色主题下的效果](docs/hud-dark.png)
+![alt text](docs/hud-preview.png)
 
 ---
 
@@ -58,7 +52,7 @@
 | 会话 | 工作区与会话名称、运行状态、模型与思考等级标签；菜单里重命名、置顶、分支、归档、复制。 |
 | 上下文 | 占用率与进度条、会话统计与 Token 用量；一键压缩，或派子代理写交接文档。 |
 | 用量 | DeepSeek 余额、OpenCode Go 额度、Codex 额度；折叠后在标题展示其中一项。 |
-| 产物 | 本会话改动过的文档 / 表格 / 演示 / 图片；点击预览，右键加入聊天或复制路径。 |
+| 产物 | 本会话及其子会话改动过的文档 / 表格 / 演示 / 图片；点击预览，右键加入聊天或复制路径。 |
 | Git | 分支与变更数量、暂存与未暂存分组、diff、commit（含 AI 生成提交信息）、git graph。 |
 | 任务 | 会话任务清单与完成状态，随任务变化实时刷新。 |
 | 子代理任务 | 当前会话的子代理层级与状态，点击在右侧栏打开该子代理会话。 |
@@ -106,7 +100,7 @@
 
 ### 产物模块
 
-列出本会话改动过的文档、表格、演示与图片（终端命令产生的改动同样收录），按最后一次改动排序，最多 10 个文件，默认先显示 3 个、可展开查看全部；没有产物时模块整体不展示。
+列出本会话及其子会话（子代理）改动过的文档、表格、演示与图片（终端命令产生的改动同样收录），按最后一次改动排序，最多 10 个文件，默认先显示 3 个、可展开查看全部；没有产物时模块整体不展示。子代理的产物取它日志里的 `write` / `edit` 记录（fork 子代理只算它自己写出的部分，不重复父会话的历史），路径换算到主会话工作区，工作区之外的（例如 worktree 里的）不收录。**分支会话**继续显示分支之前的产物：DSH 不记录分支的来源，插件用「继承前缀里 `job` 事件的 `owner` + 边界事件时间」认出源会话，从而沿用它的子代理产物与每轮改动摘要。
 
 - **悬停路径**：鼠标在文件行上停留 0.5 秒显示完整相对路径；
 - **点击打开**：在右侧栏打开文件内容；
@@ -191,7 +185,7 @@
 
 ## ⚙️ HUD 设置与面板行为
 
-点会话模块右上角的齿轮打开设置，弹窗顶部是三个标签：**「HUD 设置」/「使用说明」/「更新日志」**（「使用说明」是内置上手指南，按模块分节、每节给小标题与逐条说明；「更新日志」按版本分组记录改动）。
+点会话模块右上角的齿轮打开设置，弹窗顶部是三个标签：**「HUD 设置」/「使用说明」/「更新日志」**（「使用说明」是内置上手指南，按模块分节、每节给小标题与逐条说明；「更新日志」按版本分组记录改动，左栏当前版本号右侧带「最新」标签）。
 
 - **左栏**：勾选模块控制显隐、拖动手柄排序（从上到下就是面板顺序）、卡片的图钉可置顶该模块（同时只允许一个）；
 - **右栏**：五张卡片——HUD 面板通用设置（面板样式：卡片 / 边栏，默认卡片；展开位置：左 / 右；两处默认开合）、上下文、用量、git 变更、便笺；
@@ -215,7 +209,7 @@
 
 ```bash
 # 1. 安装（无需 git；本机需有 pnpm，dsh plugin 会调用它）
-dsh plugin --profile web add dsh-awesome-hud@0.21.2
+dsh plugin --profile web add dsh-awesome-hud@0.21.3
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -227,7 +221,7 @@ dsh plugin --profile web add dsh-awesome-hud@0.21.2
 
 ```bash
 # 1. 安装（锁定版本 tag，要求本机 git 可访问 GitHub）
-dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.2"
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.3"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -245,7 +239,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 
 ```bash
 # 1. 安装（可直接用 Release 资产 URL，也可先下载 .tgz 再传本地路径）
-dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.2/dsh-awesome-hud-0.21.2.tgz"
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.3/dsh-awesome-hud-0.21.3.tgz"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -258,7 +252,7 @@ dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/d
 
 ```bash
 # 从 npm 安装（推荐）
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.2
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.3
 
 # 从本地源码安装（开发）
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -305,11 +299,17 @@ dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/d
 # 语法检查
 node --check lib/index.js && node --check lib/client.js
 
-# 全量用例
+# 全量用例（会先校验并自动对齐「更新日志」最新版本的日期）
 npm test
+
+# 只校验 / 手动修正最新版本日期
+npm run changelog:date -- --check
+npm run changelog:date
 ```
 
-当前基线：**727 tests / 724 pass / 0 fail / 3 skipped**。
+「更新日志」最新版本的日期由 `scripts/changelog-date.mjs` 把关：该版本改过（`lib/client.js`、`lib/index.js`、`package.json` 有未提交改动）时取写入日期，工作树干净时取这三个文件最后一次提交的日期；不一致就改成修改日期，已发布版本的历史日期不动（`package.json` 升了版本但还没补更新日志条目时跳过）。`npm test` 的 `pretest` 会先自动对齐。
+
+当前基线：**738 tests / 735 pass / 0 fail / 3 skipped**。
 
 ```
 dsh-awesome-hud/
@@ -333,10 +333,12 @@ dsh-awesome-hud/
 
 ---
 
-## ⬆️ 升级说明（v0.11.x → v0.21.2）
+## ⬆️ 升级说明（v0.11.x → v0.21.3）
 
 <details>
 <summary>按版本查看各版本改动要点</summary>
+
+**v0.21.3：产物收录子会话文件、更新日志左栏「最新」标签**：① 「产物」模块的文件范围从「本会话」扩展到「本会话及其子会话（子代理）」：子代理写出的文档、表格、演示与图片同样列入列表，证据取子代理日志里 durable 的 `write` / `edit` 工具调用（DSH 重启后仍可重建，仍不扫描工作区），路径统一换算到主会话工作区——运行在 worktree 等主工作区之外的子代理产物不收录；主会话与子会话的条目按改动时间统一倒序，同一路径只出现一次，10 个上限与存在性检查预算在合并后共享；子代理日志损坏、子代理服务缺失或读取失败都只影响子会话那部分，主会话产物照常返回。② **分支会话不再丢产物**：DSH 的分支不记录来源 id（官方注释为 fork 没有 durable 来源关系），但分支日志的前缀是源会话事件的逐字拷贝——插件按「前缀里 `job` 等事件的 `owner` 出现次数」排出候选，再用「继承前缀最后一条事件的时间与类型必须一致」校验认出源会话；认出后，源会话的子代理产物（如「交接」写的文档）一并列出，继承轮次的改动在源会话仍存活时从其每轮摘要补回。校验不通过时宁可只列本会话证据，也不猜。③ 更新日志页左栏的当前版本号右侧新增「最新 / Current」标签，与右栏版本卡片标题上的徽标复用同一套样式；该行处于高亮态时徽标底色加深一档，避免与行底色重合。④ 子代理目录同时取自会话日志里 durable 的 `subagent/catalog` 事件，子代理服务不可用时仍能收录直接子代理的产物；说明页「HUD 面板」「产物」两节同步文案。新增产物子会话与分支延续用例（合并与去重、跨工作区换算、上限与 stat 预算、冷读观察释放、服务缺失降级、分支来源识别与边界校验）。基线：736 tests / 733 pass / 0 fail / 3 skipped。
 
 **v0.21.2：思考等级合并标签、按会话折叠、子代理与产物归属修复**：① 会话模块的模型名与思考等级合并为**一个标签**（如 `deepseek-v4.1-flash：Max`）：最低启用档灰色、最高档紫色、其余档位与默认档蓝色，未设置等级显示 `Default`，关闭思考或模型没有思考档位时只显示灰色模型名（旧的灰底等级胶囊与 `resolveEffortLabel` 已移除）。② HUD 各模块的折叠/展开状态改为**按会话保存**（localStorage 新键 `dsh-awesome-hud:folds:v2`，最多保留最近 200 个会话，旧全局键读取时清理、不迁移）：新建会话页与刚创建的会话默认展开上下文、任务、子代理任务、计划清单与产物，默认折叠用量、git、便笺、待办与 MCP；新建会话页上的手动改动用内存态保存、由在该页创建的会话继承，重新进入新建会话页时恢复默认。③ 修复 git 变更树点击目录/文件后行内按钮不隐藏：可见性从 `:focus-within` 改为鼠标悬浮或键盘可见焦点（`:has(:focus-visible)`），鼠标点击不再触发，Tab 聚焦时按钮仍可用。④ 子代理任务改为在右侧栏**当前分栏**以标签页打开（移除 `preferNewPane: true`），不再多开一列；同一子代理已打开时切到已有标签。⑤ 「产物」改为严格会话级：只取 DSH 每轮改动摘要与本会话 `write` / `edit` 写出的路径（durable 事件，重启 DSH 后仍可重建），不再扫描工作区——同工作区其它会话的产物、以及你自己编辑过的文件都不会混入；终端命令生成的文件不再自动收录。⑥ 说明页「HUD 面板」「上下文」「git」三节文案同步；新增 `test/session-model-badge`、`test/git-hover-actions`、`test/subagent-open`、`test/folds-session` 四组用例，并把产物用例改写为会话可归因口径。⑦ **初始化仓库时创建或补全 `.gitignore`**：工作区没有该文件就按通用模板新建（与右键「add to .gitignore」同一份模板），已有文件只追加缺失的通用项、原有规则与换行风格保持不动，且**写入失败不影响建仓成功**（接口回 `gitignore.mode=failed` 并在界面给一条红色提示）；已是仓库的幂等分支不碰该文件；同时 Git 模块改为**进入会话页立即占位**——快照未到时标题行不摆分支/初始化按钮、正文提示「正在加载 git 状态…」，数据到达后自动切换，切换会话不再整块迟到。⑧ **上下文模块新增「交接」**：「压缩」改为拆分按钮（文字区 │ 1px 分割线 │ 下拉图标），点文字区仍是压缩，点下拉图标在按钮下方弹出圆角菜单，选「交接」即在当前会话派一个 **fork 子代理**（沿用当前会话模型、继承会话已完成轮次的日志）把交接文档写到工作区 `docs/handoff/`，提示词内置（用户给定原文 + 末尾一句「用会话主要语言书写」），子代理以 `delivery=caller` **静默结束、不向主会话投递消息**，进度在「子代理任务」模块可见；无存活 agent / 无 fork 提供者 / 并发或深度超限分别返回 404 / 503 / 409 并给可读提示，会话运行中「压缩」与「交接」一起置灰。⑨ **任一模块都可置顶**：HUD 设置左栏每张卡片的名称与复选框之间新增图钉按钮（DSH 官方置顶 / 取消置顶图标），置顶即把该模块移到排序首位并在面板里固定显示在「会话」模块下方——最高 **40vh**、超出在固定区内滚动、标题行照常吸附；同时只允许一个模块置顶（其它图钉置灰），置顶卡锁定首位不可拖；未保存取消置顶回原位、保存后取消留在首位可继续手动排序、取消勾选被置顶模块自动取消置顶、「恢复默认设置」一并清空置顶；旧设置项「上下文模块位置固定」已移除，升级前开启过的用户读侧迁移为「上下文置顶」。新增 `test/module-pin`、`test/handoff`、`test/git-init-gitignore` 三组用例，并把原 `test/context-pin` 改写为通用的模块置顶用例。⑩ **AI 生成提交信息不再读取当前会话上下文**：生成输入只有 commit 弹窗里的提示词与暂存区 diff，项目名与版本仍取自 `package.json`；默认提示词删掉会话上下文段落，「对话里指定的备注」也不再作为依据，`{{sessionContext}}` 从可用占位符列表移除（旧自定义提示词里残留的该占位符仍替换为空串，不会漏进提示词正文），弹窗的占位符说明、提示词说明、二次确认提示与说明页 git 一节同步改写；`sessionId` 仍作为路由元数据随请求发出，但宿主不再读取会话事件。新增用例把关「生成函数内不出现 sessions 与上下文提取」以及「旧提示词的占位符被清空」。基线：727 tests / 724 pass / 0 fail / 3 skipped。
 

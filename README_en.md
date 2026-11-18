@@ -34,20 +34,14 @@ Click to jump to a section.
 - [🔧 Tech Stack](#-tech-stack)
 - [🧪 Development and tests](#-development-and-tests)
 - [🔗 Related plugins](#-related-plugins)
-- [⬆️ Upgrade Notes (v0.11.x → v0.21.2)](#️-upgrade-notes-v011x--v0212)
+- [⬆️ Upgrade Notes (v0.11.x → v0.21.3)](#️-upgrade-notes-v011x--v0213)
 - [📄 License](#-license)
 
 ---
 
-## 🖼️ Panel preview
+## 🖼️ HUD Panel
 
-**Light theme**
-
-![HUD panel in the light theme](docs/hud-light.png)
-
-**Dark theme**
-
-![HUD panel in the dark theme](docs/hud-dark.png)
+![alt text](docs/hud-preview.png)
 
 ---
 
@@ -58,7 +52,7 @@ Click to jump to a section.
 | Session | Workspace and session names, run state, one chip for model and reasoning level; menus for rename, pin, branch, archive and copy. |
 | Context | Fill ratio and bar, session stats and token usage; one-click compaction, or a subagent that writes a handoff document. |
 | Usage | DeepSeek balance, OpenCode Go quota and Codex quota; one of them can show in the title while folded. |
-| Outputs | Documents, sheets, slides and images this session changed; click to preview, right click to add to chat or copy a path. |
+| Outputs | Documents, sheets, slides and images this session and its subagents changed; click to preview, right click to add to chat or copy a path. |
 | Git | Branch and change count, staged and unstaged groups, diff, commit with AI message, git graph. |
 | Tasks | The session task list and states, refreshed as the tasks change. |
 | Subagent tasks | Subagents of the current session with their states; open one in the right sidebar. |
@@ -106,7 +100,7 @@ The first three lines come from two related plugins: [dsh-account-usage](https:/
 
 ### Outputs module
 
-Lists the documents, sheets, slides and images this session changed (changes from terminal commands appear too), newest first, up to 10 files. Three files show first and the rest open on click; the module stays hidden while there are no outputs.
+Lists the documents, sheets, slides and images this session and its subagents changed (changes from terminal commands appear too), newest first, up to 10 files. Three files show first and the rest open on click; the module stays hidden while there are no outputs. A subagent's outputs come from the `write` / `edit` records in its own log (a fork subagent does not repeat the history it inherited), mapped into the main workspace, so files outside it — a worktree, for example — are not listed. **A branched session** keeps the outputs from before the branch: DSH records no source for a fork, so the plugin identifies the source session from the `owner` fields of the inherited `job` events and checks it against the boundary event, then reuses that session's subagent outputs and per-turn changes.
 
 - **Hover path**: a 0.5-second hover on a file row shows the full relative path;
 - **Open**: a click opens the file content in the right sidebar;
@@ -191,7 +185,7 @@ Lists the connected MCP servers and their global on and off state. A click start
 
 ## ⚙️ HUD settings and panel behaviour
 
-Click the gear at the top right of the Session module to open the settings dialog. The dialog has three tabs: **“HUD settings”**, **“Usage guide”** and **“Changelog”** (the guide is the built-in manual with a heading and one-line entries per topic; the changelog groups the changes by version).
+Click the gear at the top right of the Session module to open the settings dialog. The dialog has three tabs: **“HUD settings”**, **“Usage guide”** and **“Changelog”** (the guide is the built-in manual with a heading and one-line entries per topic; the changelog groups the changes by version, and its version list marks the current version as Current).
 
 - **Left pane**: tick modules to show or hide them, drag a handle to set the panel order, and a pin on each card pins that module (one at a time);
 - **Right pane**: five cards — HUD panel general settings (panel style: card or sidebar, card by default; panel side: left or right; the two default open states), Context, Usage, Git changes and Notes;
@@ -215,7 +209,7 @@ Panel behaviour:
 
 ```bash
 # 1. Install (no git required; pnpm must be on PATH for `dsh plugin`)
-dsh plugin --profile web add dsh-awesome-hud@0.21.2
+dsh plugin --profile web add dsh-awesome-hud@0.21.3
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -227,7 +221,7 @@ dsh plugin --profile web add dsh-awesome-hud@0.21.2
 
 ```bash
 # 1. Install (pinned to a release tag; requires git access to GitHub)
-dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.2"
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.3"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -245,7 +239,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 
 ```bash
 # 1. Install (use the Release asset URL directly, or pass a downloaded .tgz path)
-dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.2/dsh-awesome-hud-0.21.2.tgz"
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.3/dsh-awesome-hud-0.21.3.tgz"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -258,7 +252,7 @@ Quit DeepSeek Harness completely, then use the CLI that ships with the desktop a
 
 ```bash
 # From npm (recommended)
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.2
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.3
 
 # From local source (development)
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -305,11 +299,17 @@ The desktop compatibility review is recorded in [docs/desktop-compatibility-0.14
 # Syntax check
 node --check lib/index.js && node --check lib/client.js
 
-# Full suite
+# Full suite (checks and aligns the changelog date of the newest version first)
 npm test
+
+# Check only / fix the newest version date by hand
+npm run changelog:date -- --check
+npm run changelog:date
 ```
 
-Current baseline: **727 tests / 724 passed / 0 failed / 3 skipped**.
+`scripts/changelog-date.mjs` guards the date of the newest changelog entry: while that version has uncommitted changes in `lib/client.js`, `lib/index.js` or `package.json` the date is the file write date, and on a clean tree it is the last commit date of those files. A mismatch is corrected to the modification date, released versions keep their own dates, and the check is skipped while `package.json` has a version without a changelog entry. The `pretest` hook aligns it before `npm test`.
+
+Current baseline: **738 tests / 735 passed / 0 failed / 3 skipped**.
 
 ```
 dsh-awesome-hud/
@@ -333,10 +333,12 @@ dsh-awesome-hud/
 
 ---
 
-## ⬆️ Upgrade Notes (v0.11.x → v0.21.2)
+## ⬆️ Upgrade Notes (v0.11.x → v0.21.3)
 
 <details>
 <summary>Open the per-version notes</summary>
+
+**v0.21.3: subagent outputs and the Current mark in the version list.** ① The Outputs module now covers **this session and its subagents**: documents, sheets, slides and images written by a subagent appear in the list too. The evidence is the durable `write` / `edit` records in the subagent log (rebuilt after a DSH restart, and still without a workspace scan), and every path is mapped into the main workspace, so a subagent running in a worktree or another directory contributes nothing outside it. Main-session and subagent entries share one newest-first order, a path appears once, and the 10-file cap and the existence-check budget are shared after the merge. A corrupt subagent log, a missing subagents service or a failed read only drops that part, and the main-session outputs still load. ② **A branched session keeps its outputs**: DSH records no source for a fork, yet the branch log starts with a verbatim copy of the source events. The plugin ranks the `owner` session ids found in that prefix and accepts one only when the last inherited event matches by time and type, so the branch reuses the source session subagent outputs (for example the handoff document) and, while the source session is still alive, its per-turn changes. When the check fails it lists only this session, rather than guess. ③ The version list on the left of the Changelog page now shows a **Current** mark next to the current version number, reusing the badge style of the version cards on the right; the mark gets one step more contrast while its row is highlighted, so it never blends into the row. ④ Subagent ids also come from the durable `subagent/catalog` events in the session log, so direct subagent outputs still appear when the subagents service is down; the guide sections for the HUD panel and the Outputs module are reworded. New outputs cases cover the merge, dedupe, cross-workspace mapping, the shared cap and stat budget, the cold-read lease, the degraded path and the fork source check. Baseline: 736 tests / 733 passed / 0 failed / 3 skipped.
 
 **v0.21.2: merged reasoning chip, per-session folding, subagent and outputs attribution fixes.** ① The session module merges the model name and the reasoning level into **one chip** (for example `deepseek-v4.1-flash:Max`): the lowest enabled level is grey, the highest purple, other levels and the default blue, `Default` shows when no level is stored, and a model without reasoning levels shows a grey name only. ② Every HUD module keeps its collapsed/expanded state **per session** in localStorage (`dsh-awesome-hud:folds:v2`, newest 200 sessions kept, the old global key is cleared without migration): the new-session page and a freshly created session expand Context, Tasks, Subagents, Plans and Outputs and fold Usage, git, Notes, To-do and MCP. Changes made on the new-session page are held in memory and carried into the session created there, and re-entering the page restores the defaults. ③ Fixed the stuck row actions in the git change tree: visibility now follows hover and keyboard focus (`:has(:focus-visible)`) instead of `:focus-within`, so a mouse click never pins the buttons while Tab focus still reveals them. ④ A subagent task now opens as a tab in the **current right-sidebar pane** instead of a new pane, and an already open subagent is revealed. ⑤ Outputs are strictly session-scoped: DSH per-turn summaries plus the paths this session's `write` / `edit` calls produced, rebuilt from durable events after a restart. The workspace scan is gone, so other sessions and your own manual edits never appear; files produced only by shell commands are no longer collected. ⑥ Guide sections for the HUD panel, the Context module and git are updated, four new test files cover the chip, hover rule, subagent placement and per-session folding, and the outputs cases now assert session attribution. ⑦ **Initializing a repository creates or completes `.gitignore`**: a missing file gets the common template used by "add to .gitignore", an existing file only receives the missing common entries and keeps its rules and line endings, and **a failed write never fails the repository setup** (the API reports `gitignore.mode=failed` and the panel shows a red notice); the already-a-repository branch never touches the file. The Git module also lays itself out **as soon as a session page opens**: until the snapshot arrives the title row keeps no branch or init button and the body reports that it is loading, so switching sessions no longer delays the whole module. ⑧ **Handoff in the Context module**: "Compact" becomes a split button (text half, a 1px divider, then a drop-down arrow). The text half still compacts; the arrow half opens a rounded menu below the button and **Handoff** starts a **fork subagent** in this session (same model, seeded with the completed turns) that writes a handoff document to `docs/handoff/`, using a built-in prompt (your wording plus one closing line to write in the session language). The subagent runs with `delivery=caller`, so it finishes silently and posts nothing back to the main session, and the Subagents module shows its progress. A missing live agent, a missing fork provider, or a concurrency or depth limit answers 404, 503 or 409 with readable copy, and both halves are disabled while the session runs. ⑨ **Any module can be pinned**: every card in the left column of the HUD settings gains a pin button between its name and checkbox (official DSH pin and unpin icons). Pinning moves the module first and keeps it just below the session module in the panel: at most **40vh**, scrolling inside, with its title sticky. Only one module can be pinned at a time (other pins grey out), and the pinned card keeps the first slot and cannot be dragged. A pin cancelled before saving returns the module to its earlier position; a pin cancelled after saving leaves the module first and freely draggable. Hiding the pinned module cancels the pin, and "Reset to defaults" clears it. The old "pin the context module in place" setting is gone, and a previously enabled option migrates to a pinned Context module. Three new test files cover pinning, handoff and `.gitignore` on init, and the former `test/context-pin` is rewritten as the general pinning suite. ⑩ **AI commit messages no longer read the session context**: the only inputs are the prompt saved in the commit dialog and the staged diff, while the project name and version still come from `package.json`; the default prompt loses its conversation paragraphs, a note “specified in the conversation” is no longer a basis either, and `{{sessionContext}}` is removed from the placeholder list (a leftover `{{sessionContext}}` in an old custom prompt is still replaced with an empty string, so the token never reaches the model). The placeholder hint, the prompt hint, the generate confirmation hint and the guide’s git section are reworded, and `sessionId` still rides along as routing metadata while the host no longer reads session events. New cases assert that the generate function never touches the sessions service or the context extractor and that an old placeholder is cleared. Baseline: 727 tests / 724 passed / 0 failed / 3 skipped.
 

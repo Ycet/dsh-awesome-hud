@@ -204,19 +204,24 @@ test('版本数据：倒序、版本号格式、首条等于 package.json 版本
   assert.ok(entries.length >= 2, '至少覆盖 v0.20.1 与 v0.20.0');
   // v0.21.0：数据源只保留最新 20 个版本（更旧记录删除，避免持续膨胀）。
   assert.ok(entries.length <= 20, `版本条目不得超过 20 条，实际 ${entries.length}`);
-  // v0.21.2：最新一条是「会话 / 面板 / Git 与产物 / 上下文交接 / 模块置顶」五组；更早版本整体后移一位。
+  // v0.21.3：最新一条是「产物：子会话文件 / 产物：分支会话 / 更新日志：当前版本」三组；更早版本整体后移一位。
   assert.deepEqual(
     JSON.parse(JSON.stringify(entries[0].groups.map(group => group.title))),
+    ['changelog0213GroupOutputs', 'changelog0213GroupBranch', 'changelog0213GroupChangelog'],
+    'v0.21.3 的三个分组',
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(entries[1].groups.map(group => group.title))),
     ['changelog0212GroupSession', 'changelog0212GroupPanel', 'changelog0212GroupGit', 'changelog0212GroupContext', 'changelog0212GroupPin'],
     'v0.21.2 的五个分组',
   );
   assert.deepEqual(
-    JSON.parse(JSON.stringify(entries[1].groups.map(group => group.title))),
+    JSON.parse(JSON.stringify(entries[2].groups.map(group => group.title))),
     ['changelog0211GroupNote', 'changelog0211GroupGit'],
     'v0.21.1 的两个分组',
   );
   assert.deepEqual(
-    JSON.parse(JSON.stringify(entries[2].groups.map(group => group.title))),
+    JSON.parse(JSON.stringify(entries[3].groups.map(group => group.title))),
     ['changelog021GroupNote', 'changelog021GroupReset', 'changelog021GroupChangelog', 'changelog021GroupUsage', 'changelog021GroupGit', 'changelog021GroupOutputs', 'changelog021GroupPanel'],
     'v0.21.0 的七个分组',
   );
@@ -300,6 +305,18 @@ test('页面结构：第三个标签打开更新日志页，左栏版本号与�
   assert.equal(toc[0].props['data-active'], true, '默认高亮最新版本');
   assert.deepEqual(toc.slice(1).map(node => node.props['data-active']), versions.slice(1).map(() => false));
 
+  // v0.21.3：左栏当前版本号右侧带「最新」徽标（与右栏卡片同一套样式类，仅收窄外边距）。
+  const hasClass = (node, name) => typeof node?.props?.className === 'string' && node.props.className.split(' ').includes(name);
+  const tocBadges = toc.map(item => nodes(item).filter(node => hasClass(node, 'hud-guide-toc-badge')));
+  assert.equal(tocBadges[0].length, 1, '首条带「最新」徽标');
+  assert.deepEqual(tocBadges.slice(1).map(list => list.length), versions.slice(1).map(() => 0), '其余版本不带徽标');
+  assert.equal(textOf(tocBadges[0][0]), 'changelogLatest', '徽标文案是「最新 / Current」字典键');
+  assert.equal(hasClass(tocBadges[0][0], 'hud-changelog-badge'), true, '复用右栏的徽标样式类');
+  const tocMain = nodes(toc[0]).filter(node => hasClass(node, 'hud-guide-toc-main'));
+  assert.equal(tocMain.length, 1, '版本号与徽标归成一组');
+  assert.deepEqual(tocMain[0].children.map(textOf), [versions[0], 'changelogLatest'], '徽标紧贴版本号，不被日期推走');
+  assert.equal(toc[0].children.filter(child => child === null).length, 0, '首条两侧都有内容');
+
   // 右栏：每个版本一张卡片，卡片内按分组列要点。
   const cards = byClass(dialog, 'hud-guide-section hud-changelog-version');
   assert.equal(cards.length, entries.length);
@@ -363,6 +380,11 @@ test('样式：更新日志页与说明页同一套绝对定位覆盖、分组�
   assert.match(clientSource, /className: "hud-guide-content"/);
   // 高亮复用说明页的纯函数，不再重复实现一份。
   assert.match(clientSource, /guideActiveKey\(versions, offsets/);
+  // v0.21.3：左栏徽标的三条规则——分组容器、徽标取消左外边距、高亮行加深底色保证对比。
+  assert.match(clientSource, /\.hud-guide-toc-main\{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:6px\}/);
+  assert.match(clientSource, /\.hud-guide-toc-main>\.hud-guide-toc-label\{flex:0 1 auto;min-width:0\}/);
+  assert.match(clientSource, /\.hud-guide-toc-badge\{margin-left:0\}/);
+  assert.match(clientSource, /\.hud-guide-toc-item\[data-active=true\] \.hud-guide-toc-badge\{background:color-mix/);
 });
 
 test('图标资产：changelog.svg 已入库、清理干净、宿主白名单放行', () => {

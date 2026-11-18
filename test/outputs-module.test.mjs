@@ -1,6 +1,7 @@
-// dsh-awesome-hud — 「产物 / Outputs」模块（v0.21.2 语义）：
-//  0) 只认**本会话**证据：每轮 workspace/changes 摘要 + 本会话 write/edit 的 file_path；
-//     不再扫描工作区，避免其它会话的产物与用户自己的编辑混进来。
+// dsh-awesome-hud — 「产物 / Outputs」模块（v0.21.3 语义）：
+//  0) 只认**本会话及其子会话**证据：主会话取每轮 workspace/changes 摘要 + write/edit 的
+//     file_path，子会话只取 durable 的 write/edit；不再扫描工作区，避免其它会话的产物与
+//     用户自己的编辑混进来。
 //  1) 汇总本会话**所有轮次**里指定格式、位于工作区内、仍存在的改动文件；
 //     按最后改动轮次倒序，最多展示 OUTPUT_LIMIT（10）个；界面默认先显示前 3 个、可展开全部。
 //  2) 点击行在官方右侧栏打开文件内容：地址按 DSH 的 file 资源语法逐段编码。
@@ -703,4 +704,100 @@ test("v0.21.0：无目标会话 / 旧宿主绝对路径 / 带空格路径的菜�
   assert.equal(items[0].disabled, true, "无目标会话时添加至聊天置灰");
   assert.equal(items[0].reason, zh.outputsAddNoTarget);
   assert.equal(items[4].disabled, true, "旧宿主缺 absolutePath 时绝对路径复制置灰");
+});
+
+// —— v0.21.3：产物收录子会话（子代理）写出的文件 ——
+
+/** 构造一条带事件时间的 `write` / `edit` 工具调用事件（时间用于跨会话排序）。 */
+const timedToolCall = (seq, time, path, name = "write") => ({ ...toolCallEvent(seq, 0, name, path), time });
+
+test("v0.21.3：sources 里的子会话候选一并汇总，按改动时间倒序且与主会话去重", async () => {
+  const output = await collectOutputs({
+    sessionId: "s1",
+    cwd: "/ws",
+    events: [timedToolCall(1, 100, "docs/main.md")],
+    exists: async () => true,
+    sources: [
+      {
+        cwd: "/ws",
+        events: [timedToolCall(1, 300, "docs/handoff/a.md"), timedToolCall(2, 200, "docs/main.md")],
+      },
+    ],
+  });
+  assert.deepEqual(
+    output.files.map((file) => file.path),
+    ["docs/handoff/a.md", "docs/main.md"],
+    "子会话产物按时间插进列表，不另起一段",
+  );
+  assert.equal(output.total, 2, "同一路径只算一条候选");
+  // 去重保留先扫描到的主会话记录（产物模块以主会话的展示信息为准）。
+  const shared = output.files.find((file) => file.path === "docs/main.md");
+  assert.equal(shared.source, "session");
+  assert.equal(output.files[0].source, "subagent", "子会话产物标记来源");
+  // 子会话同样只认 write / edit 与白名单后缀。
+  const filtered = await collectOutputs({
+    sessionId: "s1",
+    cwd: "/ws",
+    exists: async () => true,
+    sources: [
+      {
+        cwd: "/ws",
+        events: [
+          timedToolCall(1, 10, "notes.txt", "write"),
+          timedToolCall(2, 20, "docs/a.md", "bash"),
+          timedToolCall(3, 30, "docs/b.md", "edit"),
+        ],
+      },
+    ],
+  });
+  assert.deepEqual(filtered.files.map((file) => file.path), ["docs/b.md"], "非白名单后缀与其它工具都不收录");
+});
+
+test("v0.21.3：不同工作区的子会话按主工作区换算路径，越界文件丢弃", async () => {
+  const output = await collectOutputs({
+    sessionId: "s1",
+    cwd: "/ws",
+    exists: async () => true,
+    sources: [
+      // 与主会话共用工作区：路径原样保留。
+      { cwd: "/ws", events: [timedToolCall(1, 10, "docs/same.md")] },
+      // 运行在 worktree 里：绝对路径落在主工作区内，换算成主会话相对路径。
+      { cwd: "/ws/worktrees/wt", events: [timedToolCall(1, 20, "docs/wt.md")] },
+      // 运行在完全无关的目录：换算后越界，直接丢弃。
+      { cwd: "/elsewhere", events: [timedToolCall(1, 30, "docs/outside.md")] },
+      // 坏数据：sources 里混入 null 不应让整次收集失败。
+      null,
+    ],
+  });
+  assert.deepEqual(
+    output.files.map((file) => file.path),
+    ["worktrees/wt/docs/wt.md", "docs/same.md"],
+    "worktree 产物换算进主工作区，工作区外的丢弃",
+  );
+});
+
+test("v0.21.3：子会话产物与主会话共用上限、stat 预算与右侧栏地址", async () => {
+  const childEvents = [];
+  for (let index = 1; index <= 12; index += 1) childEvents.push(timedToolCall(index, index, `out/f${index}.png`));
+  let stats = 0;
+  const output = await collectOutputs({
+    sessionId: "s1",
+    cwd: "/ws",
+    exists: async () => { stats += 1; return true; },
+    sources: [{ cwd: "/ws", events: childEvents }],
+  });
+  assert.equal(output.files.length, 10, "上限对合并后的列表生效");
+  assert.equal(output.truncated, true);
+  assert.equal(output.stats, stats, "stats 与实际检查次数一致");
+  assert.equal(output.files[0].path, "out/f12.png", "最新改动在前");
+  assert.equal(output.files[0].address, "dsh-resource://file/session/s1/out/f12.png", "地址用主会话 id 拼");
+
+  const capped = await collectOutputs({
+    sessionId: "s1",
+    cwd: "/ws",
+    exists: async () => true,
+    statLimit: 3,
+    sources: [{ cwd: "/ws", events: childEvents }],
+  });
+  assert.equal(capped.stats, 3, "子会话候选同样受 stat 预算约束");
 });
