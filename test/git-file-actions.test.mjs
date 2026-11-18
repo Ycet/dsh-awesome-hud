@@ -30,11 +30,14 @@ test('文件行左键先开官方「第 N 轮改动」review，再回退 diff ta
   assert.match(source, /event\.key !== "ContextMenu" && !\(event\.shiftKey && event\.key === "F10"\)/);
   assert.match(source, /openFileMenu\(event, file, group\);/);
 
-  // 官方 review（第 N 轮改动）优先；官方侧栏不可用/最新一轮没有该文件时才回退 diff tab。
+  // v0.21.4：官方 review（任意一轮）优先 → better-sidebar（装了才用）→ 官方文件预览。
   const official = source.indexOf('call("git/changes-review"');
   const fallback = source.indexOf('openGitFileDiff(props.sessionId, file, group)');
+  const preview = source.indexOf('openFilePreview(file)');
   assert.ok(official > 0 && fallback > official, '官方 review 必须排在 better-sidebar 回退之前');
+  assert.ok(preview > fallback, 'better-sidebar 之后退回官方文件预览');
   assert.match(source, /sidebarRight\.openResource\(review\.address, \{ params: \{ index: review\.index \} \}\)/);
+  assert.match(source, /call\("git\/file-preview", \{ sessionId: props\.sessionId, path: file\.path \}\)/);
 });
 
 test('悬停文件行 0.5s 后在鼠标位置显示完整路径（v0.17.0）', () => {
@@ -115,16 +118,16 @@ test('openGitFileDiff 交给 betterSidebar.openTab；未安装时返回 false �
   assert.equal(missing.openGitFileDiff('session-1', { path: 'a/b.ts', status: 'M' }, 'changes'), false);
 });
 
-test('diff 打开失败有中英文可读提示（v0.17.0）', () => {
-  assert.match(source, /gitDiffUnavailable: "无法打开右侧 git diff：需要安装并启用 dsh-better-sidebar"/);
+test('diff 打开失败有中英文可读提示（v0.21.4 更新文案）', () => {
+  assert.match(source, /gitDiffUnavailable: "无法打开该文件：安装并启用 dsh-better-sidebar 可查看工作树 diff。"/);
   assert.match(source, /gitDiffOpenFailed: "打开 git diff 失败：\{detail\}"/);
-  assert.match(source, /gitDiffUnavailable: "Cannot open the git diff in the right sidebar: install and enable dsh-better-sidebar"/);
+  assert.match(source, /gitDiffUnavailable: "Cannot open the file: install and enable dsh-better-sidebar to view its working-tree diff."/);
   assert.match(source, /gitDiffOpenFailed: "Failed to open the git diff: \{detail\}"/);
   assert.match(source, /toast\(t\("gitDiffUnavailable"\)\)/);
   assert.match(source, /toast\(interpolate\(t\("gitDiffOpenFailed"\), \{ detail: error\?\.message \?\? String\(error\) \}\)\)/);
 });
 
-test('官方「第 N 轮改动」review 坐标：最新轮命中、唯一 basename、旧轮不冒充（v0.17.0）', () => {
+test('官方「第 N 轮改动」review 坐标：逐轮回退、按路径边界匹配、不按 basename 猜（v0.21.4）', () => {
   const events = [
     { type: 'workspace/changes', seq: 10, data: { turn: 1 } },
     { type: 'tool/result', seq: 11 },
@@ -135,6 +138,7 @@ test('官方「第 N 轮改动」review 坐标：最新轮命中、唯一 basena
     20: { turn: 2, files: [
       { path: 'dsh-awesome-hud/README_en.md', display: 'dsh-awesome-hud/README_en.md' },
       { path: 'src/a.ts', display: 'src/a.ts' },
+      { path: 'dsh-archive-manager/package.json', display: 'dsh-archive-manager/package.json' },
     ] },
   };
   const summaryFor = seq => summaries[seq];
@@ -146,15 +150,22 @@ test('官方「第 N 轮改动」review 坐标：最新轮命中、唯一 basena
     seq: 20,
     turn: 2,
   });
-  // display 路径与唯一 basename 兜底（HUD 路径相对仓库根、摘要路径相对会话 cwd）。
-  assert.equal(resolveChangesReview(events, summaryFor, 's', 'src/a.ts').index, 1);
-  assert.equal(resolveChangesReview(events, summaryFor, 's', 'README_en.md').index, 0);
+  // 文件可能在上几轮改过：最新一轮没有就继续向前找，不能直接放弃。
+  const older = resolveChangesReview(events, summaryFor, 's', 'old-file.ts');
+  assert.equal(older.turn, 1, '回退到第 1 轮');
+  assert.equal(older.index, 0);
 
-  // 最新一轮没有该文件时不能翻旧轮次：旧轮快照可能已不是当前工作树内容。
-  assert.equal(resolveChangesReview(events, summaryFor, 's', 'old-file.ts'), null);
+  // HUD 路径相对仓库根、摘要路径相对会话 cwd：cwd 在仓库子目录时按路径边界后缀匹配。
+  const nested = resolveChangesReview(events, seq => (seq === 20 ? { turn: 2, files: [{ path: 'docs/a.md' }] } : undefined), 's', 'pkg/docs/a.md');
+  assert.equal(nested.index, 0);
+  assert.equal(nested.turn, 2);
+
+  // v0.21.4 回归：同 basename 不同目录不算命中（点 dsh-awesome-hud/package.json 不能打开 archive-manager 的）。
+  assert.equal(resolveChangesReview(events, summaryFor, 's', 'dsh-awesome-hud/package.json'), null);
+  assert.equal(resolveChangesReview(events, summaryFor, 's', 'dsh-awesome-hud/client.js'), null);
   // 同名多文件时不猜测。
   const ambiguous = { 20: { turn: 2, files: [{ path: 'a/x.ts' }, { path: 'b/x.ts' }] } };
-  assert.equal(resolveChangesReview(events, seq => ambiguous[seq], 's', 'x.ts'), null);
+  assert.equal(resolveChangesReview(events, seq => ambiguous[seq], 's', 'c/x.ts'), null);
   // 摘要被释放/服务缺失、无 workspace/changes 事件、非法轮号。
   assert.equal(resolveChangesReview(events, () => undefined, 's', 'src/a.ts'), null);
   assert.equal(resolveChangesReview([{ type: 'tool/result', seq: 1 }], summaryFor, 's', 'src/a.ts'), null);

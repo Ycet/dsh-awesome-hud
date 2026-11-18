@@ -10,11 +10,9 @@ function fixtureServices(root, calls) {
     sessions: {
       get: (id) => (id === "fixture" ? {
         header: { cwd: root },
-        snapshotEvents: () => [{ type: "workspace/changes", seq: 1, data: { turn: 1 } }],
+        // v0.21.4：产物只认 durable 的 write/edit 证据。
+        snapshotEvents: () => [{ type: "tool/call", seq: 1, time: 1000, data: { turn: 1, name: "write", arguments: JSON.stringify({ file_path: "docs/a.md" }) } }],
       } : undefined),
-    },
-    workspaceChanges: {
-      summary: () => ({ turn: 1, files: [{ path: "docs/a.md", display: "docs/a.md" }], stats: 1 }),
     },
     sessionController: {
       openWorkspacePath: async (request) => { calls.push(request); return { opened: true }; },
@@ -73,7 +71,7 @@ test("outputs：子会话产物合并进列表，冷读的观察在使用后释�
       sessions: {
         get: (id) => (id === "fixture" ? {
           header: { cwd: root },
-          snapshotEvents: () => [{ type: "workspace/changes", seq: 1, data: { turn: 1 } }],
+          snapshotEvents: () => [{ type: "tool/call", seq: 1, time: 1, data: { turn: 1, name: "write", arguments: JSON.stringify({ file_path: "docs/a.md" }) } }],
         } : id === "child-2" ? {
           header: { cwd: root },
           // fork 子代理：前两条是继承来的父会话事件，不能算成子会话自己的产物。
@@ -205,20 +203,13 @@ function forkFixture(root, disposed = []) {
         };
       },
     },
-    workspaceChanges: {
-      // 继承前缀的摘要只挂在来源会话名下（DSH 按会话 id 缓存），本会话取不到。
-      summary: (id, seq) => (id === "parent-1" && seq === 1
-        ? { turn: 1, files: [{ path: "docs/inherited.md", display: "docs/inherited.md" }], stats: 1 }
-        : undefined),
-    },
   };
 }
 
-test("outputs：分支会话认出 fork 来源，延续前缀摘要与来源会话的子代理产物", { timeout: 30000 }, async () => {
+test("outputs：分支会话认出 fork 来源，延续来源会话的子代理产物", { timeout: 30000 }, async () => {
   const root = await createRepo("hud-outputs-fork-");
   try {
     await mkdir(join(root, "docs/handoff"), { recursive: true });
-    await writeFile(join(root, "docs/inherited.md"), "i\n");
     await writeFile(join(root, "docs/handoff/handoff.md"), "h\n");
     await writeFile(join(root, "docs/notes.md"), "n\n");
     const disposed = [];
@@ -227,7 +218,6 @@ test("outputs：分支会话认出 fork 来源，延续前缀摘要与来源会�
     assert.equal(body.status, 200, JSON.stringify(body));
     assert.equal(body.forkSource, "parent-1", "分支会话应认出 fork 来源");
     const paths = body.files.map((item) => item.path);
-    assert.ok(paths.includes("docs/inherited.md"), "继承轮次的产物从来源会话的摘要取回");
     assert.ok(paths.includes("docs/handoff/handoff.md"), "来源会话的子代理产物同样列出");
     assert.ok(paths.includes("docs/notes.md"), "分支自己的 write 照常收录");
     assert.equal(body.files.find((item) => item.path === "docs/handoff/handoff.md")?.source, "subagent");
@@ -271,7 +261,7 @@ test("outputs：子代理服务缺失时仍能靠日志里的 subagent/catalog �
         get: (id) => (id === "fixture" ? {
           header: { cwd: root },
           snapshotEvents: () => [
-            { type: "workspace/changes", seq: 1, time: 100, data: { turn: 1 } },
+            { type: "tool/call", seq: 1, time: 100, data: { turn: 1, name: "write", arguments: JSON.stringify({ file_path: "docs/a.md" }) } },
             // 目录事件是 durable 的：即使子代理服务不可用也能拿到直接子代理。
             { type: "subagent/catalog", seq: 2, time: 200, data: { childId: "child-3", mode: "one-shot" } },
           ],
@@ -280,11 +270,6 @@ test("outputs：子代理服务缺失时仍能靠日志里的 subagent/catalog �
           inheritedEventCount: 0,
           snapshotEvents: () => childEvents,
         } : undefined),
-      },
-      workspaceChanges: {
-        summary: (id, seq) => (id === "fixture" && seq === 1
-          ? { turn: 1, files: [{ path: "docs/a.md", display: "docs/a.md" }], stats: 1 }
-          : undefined),
       },
     });
     const body = await call("outputs");

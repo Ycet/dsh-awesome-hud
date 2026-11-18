@@ -53,67 +53,60 @@ test("格式白名单：16 种扩展名且大小写不敏感，其它一律排�
   assert.equal(isOutputCandidatePath(undefined), false);
 });
 
-test("collectOutputs：跨全部轮次取并集，同一文件以最后一次改动为准", () => {
-  const events = [];
-  const table = {};
-  for (let turn = 1; turn <= 30; turn += 1) {
-    const seq = turn * 10;
-    events.push(changeEvent(seq, turn));
-    table[seq] = { turn, files: [{ path: `docs/t${turn}.md`, display: `docs/t${turn}.md` }, { path: "docs/shared.md", display: "docs/shared.md" }] };
-  }
-  const base = {
-    sessionId: "s1",
-    events,
-    summaryFor: summariesOf(table),
-    exists: async () => true,
-  };
-  return collectOutputs(base).then((output) => {
-    // 不受轮次窗口限制：候选总数覆盖最初一轮至今的全部去重文件
-    assert.equal(output.total, 31, "去重后的候选总数 = 30 个独立文件 + 1 个共享文件");
-    assert.equal(output.files.length, 10, "展示仍受 10 条上限约束");
-    const paths = output.files.map((file) => file.path);
-    assert.equal(paths.includes("docs/t1.md"), false, "最早的轮次排在 10 名之外");
-    return collectOutputs({ ...base, limit: 100 }).then((all) => {
-      const allPaths = all.files.map((file) => file.path);
-      assert.ok(allPaths.includes("docs/t1.md"), "放大上限后能拿到最早轮次的文件");
-      assert.equal(allPaths.filter((path) => path === "docs/shared.md").length, 1, "同一文件只出现一次");
-      const shared = all.files.find((file) => file.path === "docs/shared.md");
-      assert.equal(shared.turn, 30, "重复改动取最后一次轮次");
-      assert.equal(all.files[0].turn, 30, "按最后改动倒序");
-    });
-  });
+/** 构造一条 durable 的 write/edit 工具调用（v0.21.4 起产物唯一的证据来源）。 */
+const writeCall = (seq, turn, path, name = "write", time) => ({
+  type: "tool/call",
+  seq,
+  ...(time === undefined ? {} : { time }),
+  data: { turn, name, arguments: JSON.stringify({ file_path: path }) },
 });
 
-test("collectOutputs：按最后改动倒序，最多 10 个并标记截断", () => {
-  const events = [changeEvent(10, 1)];
-  const files = [];
-  for (let index = 1; index <= 30; index += 1) files.push({ path: `out/f${index}.png`, display: `out/f${index}.png` });
-  const result = collectOutputs({
-    sessionId: "s1",
-    events,
-    summaryFor: () => ({ turn: 1, files }),
-    exists: async () => true,
-  });
-  return result.then((output) => {
-    assert.equal(OUTPUT_LIMIT, 10);
-    assert.equal(output.files.length, 10, "只返回 10 个");
-    assert.equal(output.total, 30);
-    assert.equal(output.truncated, true);
-    // 同一轮内按 display 升序：f1、f10、f11… 的码元序
-    assert.equal(output.files[0].path, "out/f1.png");
-    const next = collectOutputs({ sessionId: "s1", events, summaryFor: () => ({ turn: 1, files: files.slice(0, 3) }), exists: async () => true });
-    return next.then((small) => assert.equal(small.truncated, false, "不足 10 个时不算截断"));
-  });
+test("collectOutputs：跨全部轮次取并集，同一文件以最后一次改动为准", async () => {
+  const events = [];
+  for (let turn = 1; turn <= 30; turn += 1) {
+    events.push(writeCall(turn * 10, turn, `docs/t${turn}.md`));
+    // shared.md 每轮都改一次：同一路径只保留最后一条，轮次取 30。
+    events.push(writeCall(turn * 10 + 1, turn, "docs/shared.md"));
+  }
+  const base = { sessionId: "s1", events, exists: async () => true };
+  const output = await collectOutputs(base);
+  assert.equal(output.total, 31, "去重后的候选总数 = 30 个独立文件 + 1 个共享文件");
+  assert.equal(output.files.length, 10, "展示仍受 10 条上限约束");
+  assert.equal(output.truncated, true);
+  assert.equal(output.files.map((file) => file.path).includes("docs/t1.md"), false, "最早的轮次排在 10 名之外");
+
+  const all = await collectOutputs({ ...base, limit: 100 });
+  const allPaths = all.files.map((file) => file.path);
+  assert.ok(allPaths.includes("docs/t1.md"), "放大上限后能拿到最早轮次的文件");
+  assert.equal(allPaths.filter((path) => path === "docs/shared.md").length, 1, "同一文件只出现一次");
+  const shared = all.files.find((file) => file.path === "docs/shared.md");
+  assert.equal(shared.turn, 30, "重复改动取最后一次轮次");
+  assert.equal(all.files[0].turn, 30, "按最后改动倒序");
+});
+
+test("collectOutputs：按最后改动倒序，最多 10 个并标记截断", async () => {
+  const events = [];
+  for (let index = 1; index <= 30; index += 1) events.push(writeCall(index, 1, `out/f${index}.png`));
+  const output = await collectOutputs({ sessionId: "s1", events, exists: async () => true });
+  assert.equal(OUTPUT_LIMIT, 10);
+  assert.equal(output.files.length, 10, "只返回 10 个");
+  assert.equal(output.total, 30);
+  assert.equal(output.truncated, true);
+  assert.equal(output.files[0].path, "out/f30.png", "同一轮内按事件序号倒序");
+  const small = await collectOutputs({ sessionId: "s1", events, exists: async () => true, limit: 3 });
+  assert.equal(small.files.length, 3);
+  assert.equal(small.truncated, true);
+  const exact = await collectOutputs({ sessionId: "s1", events: events.slice(0, 3), exists: async () => true });
+  assert.equal(exact.truncated, false, "不足 10 个时不算截断");
 });
 
 test("collectOutputs：只保留仍存在的文件，且存在性检查有次数上限", async () => {
-  const files = [];
-  for (let index = 1; index <= 30; index += 1) files.push({ path: `out/f${index}.md`, display: `out/f${index}.md` });
+  const events = [];
+  for (let index = 1; index <= 30; index += 1) events.push(writeCall(index, 1, `out/f${index}.md`));
   const checks = [];
   const output = await collectOutputs({
     sessionId: "s1",
-    events: [changeEvent(10, 1)],
-    summaryFor: () => ({ turn: 1, files }),
+    events,
     limit: 100,
     exists: async (path) => {
       checks.push(path);
@@ -123,45 +116,29 @@ test("collectOutputs：只保留仍存在的文件，且存在性检查有次数
     },
   });
   assert.equal(output.files.length, 20, "删除的文件不进列表");
-  assert.equal(output.files[0].path, "out/f11.md");
+  assert.equal(output.files[0].path, "out/f30.md");
   assert.equal(new Set(checks).size, checks.length, "同一路径不重复检查");
   assert.ok(output.stats <= 64, "存在性检查次数受 statLimit 约束");
 
-  const capped = await collectOutputs({
-    sessionId: "s1",
-    events: [changeEvent(10, 1)],
-    summaryFor: () => ({ turn: 1, files }),
-    exists: async () => false,
-    statLimit: 5,
-  });
+  const capped = await collectOutputs({ sessionId: "s1", events, exists: async () => false, statLimit: 5 });
   assert.equal(capped.files.length, 0);
   assert.equal(capped.stats, 5, "到达次数上限即停止检查");
 });
 
-test("collectOutputs：坏事件与非摘要事件安全跳过，不抛错", async () => {
-  const events = [null, undefined, { type: "other", seq: 1 }, { type: "workspace/changes" }, changeEvent(5, 2), changeEvent(6, 3)];
-  const output = await collectOutputs({
-    sessionId: "s1",
-    events,
-    summaryFor: (seq) => {
-      if (seq === 5) throw new Error("摘要不可用");
-      if (seq === 6) return { turn: 3, files: [{ path: "a.md", display: "a.md" }, { path: "b.pdf" }] };
-      return undefined;
-    },
-    exists: async () => true,
-  });
-  assert.deepEqual(output.files.map((file) => file.path), ["a.md", "b.pdf"]);
-  assert.equal(output.files[1].display, "b.pdf", "缺 display 时回退 path");
-  assert.equal(output.files[0].name, "a.md");
-  assert.equal(output.files[0].dir, "");
-  const nested = await collectOutputs({
-    sessionId: "s1",
-    events: [changeEvent(1, 1)],
-    summaryFor: () => ({ turn: 1, files: [{ path: "src/deep/a.png", display: "src/deep/a.png" }] }),
-    exists: async () => true,
-  });
-  assert.equal(nested.files[0].name, "a.png");
-  assert.equal(nested.files[0].dir, "src/deep");
+test("collectOutputs：坏事件安全跳过，不抛错", async () => {
+  const events = [
+    null, undefined, { type: "other", seq: 1 }, { type: "tool/call" },
+    { type: "tool/call", seq: 2, data: { turn: 1, name: "write", arguments: "not json" } },
+    writeCall(3, 1, "a.md"),
+    writeCall(4, 1, "b.pdf"),
+    writeCall(5, 2, "src/deep/a.png"),
+  ];
+  const output = await collectOutputs({ sessionId: "s1", events, exists: async () => true });
+  assert.deepEqual(output.files.map((file) => file.path), ["src/deep/a.png", "b.pdf", "a.md"]);
+  const nested = output.files[0];
+  assert.equal(nested.name, "a.png");
+  assert.equal(nested.dir, "src/deep");
+  assert.equal(output.files[2].display, "a.md", "工具证据的展示名就是路径");
 });
 
 test("会话文件地址：逐段编码，`:` 保持字面，与 DSH 的 file 资源语法一致", () => {
@@ -590,7 +567,6 @@ test("collectOutputs：本会话 write/edit 的路径进产物，只读工具与
     sessionId: "s1",
     cwd: "/work/proj",
     events,
-    summaryFor: () => undefined,
     exists: async () => true,
   });
   assert.deepEqual(plain(output.files.map((file) => file.path)), ["docs/edited.md", "out/generated.html"], "绝对路径按 cwd 归一；read/bash/txt/工作区外都丢弃");
@@ -598,18 +574,21 @@ test("collectOutputs：本会话 write/edit 的路径进产物，只读工具与
   assert.equal(output.files[1].address.startsWith("dsh-resource://file/session/s1/"), true);
 });
 
-test("collectOutputs：摘要与工具证据合并，按轮次 / 事件序号倒序", async () => {
-  const events = [toolCallEvent(8, 2, "write", "out/late.md"), changeEvent(9, 3)];
-  const output = await collectOutputs({
+test("collectOutputs：工具证据按事件时间倒序，时间缺失时退回轮次与序号", async () => {
+  const timed = await collectOutputs({
     sessionId: "s1",
     cwd: "/work/proj",
-    events,
-    summaryFor: (seq) => (seq === 9 ? { turn: 3, files: [{ path: "out/summary.png", display: "report/summary.png" }] } : undefined),
+    events: [writeCall(8, 2, "out/late.md", "write", 3000), writeCall(9, 3, "out/new.md", "edit", 1000)],
     exists: async () => true,
   });
-  assert.deepEqual(plain(output.files.map((file) => file.path)), ["out/summary.png", "out/late.md"], "轮次大的在前，同轮次按事件序号倒序");
-  assert.equal(output.files[0].display, "report/summary.png", "摘要的展示名保留");
-  assert.equal(output.files[1].display, "out/late.md");
+  assert.deepEqual(plain(timed.files.map((file) => file.path)), ["out/late.md", "out/new.md"], "事件时间大的在前");
+
+  const legacy = await collectOutputs({
+    sessionId: "s1",
+    events: [writeCall(1, 2, "b.md"), writeCall(2, 3, "a.md")],
+    exists: async () => true,
+  });
+  assert.deepEqual(plain(legacy.files.map((file) => file.path)), ["a.md", "b.md"], "无时间戳时轮次大的在前");
 });
 
 test("v0.21.2：宿主不再扫描工作区，产物只吃本会话证据", async () => {

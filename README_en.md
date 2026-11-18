@@ -34,7 +34,7 @@ Click to jump to a section.
 - [🔧 Tech Stack](#-tech-stack)
 - [🧪 Development and tests](#-development-and-tests)
 - [🔗 Related plugins](#-related-plugins)
-- [⬆️ Upgrade Notes (v0.11.x → v0.21.3)](#️-upgrade-notes-v011x--v0213)
+- [⬆️ Upgrade Notes (v0.11.x → v0.21.4)](#️-upgrade-notes-v011x--v0214)
 - [📄 License](#-license)
 
 ---
@@ -100,7 +100,7 @@ The first three lines come from two related plugins: [dsh-account-usage](https:/
 
 ### Outputs module
 
-Lists the documents, sheets, slides and images this session and its subagents changed (changes from terminal commands appear too), newest first, up to 10 files. Three files show first and the rest open on click; the module stays hidden while there are no outputs. A subagent's outputs come from the `write` / `edit` records in its own log (a fork subagent does not repeat the history it inherited), mapped into the main workspace, so files outside it — a worktree, for example — are not listed. **A branched session** keeps the outputs from before the branch: DSH records no source for a fork, so the plugin identifies the source session from the `owner` fields of the inherited `job` events and checks it against the boundary event, then reuses that session's subagent outputs and per-turn changes.
+Lists the documents, sheets, slides and images this session and its subagents **wrote with `write` / `edit`**: newest first, up to 10 files, with three shown first and the rest opened on click, and the module hidden while there are no outputs. Only these durable records count, so the list survives a DSH restart and never includes files another session or you changed by hand (files produced directly by shell commands no longer appear). A subagent contributes only the `write` / `edit` records in its own log (a fork subagent does not repeat the history it inherited), mapped into the main workspace, so files outside it — a worktree, for example — are not listed. **A branched session** keeps the outputs from before the branch: DSH records no source for a fork, so the plugin identifies the source session from the `owner` fields of the inherited `job` events and checks it against the boundary event, then reuses that session's subagent outputs.
 
 - **Hover path**: a 0.5-second hover on a file row shows the full relative path;
 - **Open**: a click opens the file content in the right sidebar;
@@ -209,7 +209,7 @@ Panel behaviour:
 
 ```bash
 # 1. Install (no git required; pnpm must be on PATH for `dsh plugin`)
-dsh plugin --profile web add dsh-awesome-hud@0.21.3
+dsh plugin --profile web add dsh-awesome-hud@0.21.4
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -221,7 +221,7 @@ dsh plugin --profile web add dsh-awesome-hud@0.21.3
 
 ```bash
 # 1. Install (pinned to a release tag; requires git access to GitHub)
-dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.3"
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.4"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -239,7 +239,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 
 ```bash
 # 1. Install (use the Release asset URL directly, or pass a downloaded .tgz path)
-dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.3/dsh-awesome-hud-0.21.3.tgz"
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.4/dsh-awesome-hud-0.21.4.tgz"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -252,7 +252,7 @@ Quit DeepSeek Harness completely, then use the CLI that ships with the desktop a
 
 ```bash
 # From npm (recommended)
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.3
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.4
 
 # From local source (development)
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -309,7 +309,7 @@ npm run changelog:date
 
 `scripts/changelog-date.mjs` guards the date of the newest changelog entry: while that version has uncommitted changes in `lib/client.js`, `lib/index.js` or `package.json` the date is the file write date, and on a clean tree it is the last commit date of those files. A mismatch is corrected to the modification date, released versions keep their own dates, and the check is skipped while `package.json` has a version without a changelog entry. The `pretest` hook aligns it before `npm test`.
 
-Current baseline: **738 tests / 735 passed / 0 failed / 3 skipped**.
+Current baseline: **745 tests / 742 passed / 0 failed / 3 skipped**.
 
 ```
 dsh-awesome-hud/
@@ -333,10 +333,12 @@ dsh-awesome-hud/
 
 ---
 
-## ⬆️ Upgrade Notes (v0.11.x → v0.21.3)
+## ⬆️ Upgrade Notes (v0.11.x → v0.21.4)
 
 <details>
 <summary>Open the per-version notes</summary>
+
+**v0.21.4: the MCP switches match the settings pane, and git diff targeting is fixed.** ① Each row of the MCP module now uses the same switch component as the settings pane instead of the custom green pill: the official `Switch` renders when available, and the local fallback keeps the same geometry and theme tokens, with the brand color for the on track and the theme foreground for the thumb, sized 36×20 instead of 30×18. Clicking still disables that row, refreshes the whole module from the returned snapshot, and drops late answers from older polls. ② The old custom switch styles and their `data-on` state are gone, so the panel keeps one switch style. A new `test/mcp-switch.test.mjs` covers the shared component, the disabled state, the official-first path and the removed styles. ③ **Fixed a left click on a git change row opening the wrong diff**: the old basename fallback matched a same-named file in another directory, so `dsh-awesome-hud/package.json` could open `dsh-archive-manager/package.json`. Matching now uses the exact path or a path-boundary suffix from the repository root to the session cwd. The official turn review is also looked up turn by turn instead of only the latest one, so a file changed in an earlier turn opens its official diff instead of always falling back to dsh-better-sidebar; when that extension is absent, official DSH has no working-tree diff page either, so the clicked file opens in the official file preview instead of a red toast. ④ **Outputs list only what this session and its subagents wrote**: the per-turn change summary is gone, because it is a whole-repository working-tree diff between the turn start and end, so files another session or you changed in the same window were counted as this session's products (session `b086d5e7` showed READMEs from two other plugins). The only evidence now is the durable `write` / `edit` call, which survives a restart; the trade-off is that files produced directly by shell commands no longer appear automatically. Baseline: 745 tests / 742 passed / 0 failed / 3 skipped.
 
 **v0.21.3: subagent outputs and the Current mark in the version list.** ① The Outputs module now covers **this session and its subagents**: documents, sheets, slides and images written by a subagent appear in the list too. The evidence is the durable `write` / `edit` records in the subagent log (rebuilt after a DSH restart, and still without a workspace scan), and every path is mapped into the main workspace, so a subagent running in a worktree or another directory contributes nothing outside it. Main-session and subagent entries share one newest-first order, a path appears once, and the 10-file cap and the existence-check budget are shared after the merge. A corrupt subagent log, a missing subagents service or a failed read only drops that part, and the main-session outputs still load. ② **A branched session keeps its outputs**: DSH records no source for a fork, yet the branch log starts with a verbatim copy of the source events. The plugin ranks the `owner` session ids found in that prefix and accepts one only when the last inherited event matches by time and type, so the branch reuses the source session subagent outputs (for example the handoff document) and, while the source session is still alive, its per-turn changes. When the check fails it lists only this session, rather than guess. ③ The version list on the left of the Changelog page now shows a **Current** mark next to the current version number, reusing the badge style of the version cards on the right; the mark gets one step more contrast while its row is highlighted, so it never blends into the row. ④ Subagent ids also come from the durable `subagent/catalog` events in the session log, so direct subagent outputs still appear when the subagents service is down; the guide sections for the HUD panel and the Outputs module are reworded. New outputs cases cover the merge, dedupe, cross-workspace mapping, the shared cap and stat budget, the cold-read lease, the degraded path and the fork source check. Baseline: 736 tests / 733 passed / 0 failed / 3 skipped.
 

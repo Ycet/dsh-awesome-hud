@@ -204,24 +204,29 @@ test('版本数据：倒序、版本号格式、首条等于 package.json 版本
   assert.ok(entries.length >= 2, '至少覆盖 v0.20.1 与 v0.20.0');
   // v0.21.0：数据源只保留最新 20 个版本（更旧记录删除，避免持续膨胀）。
   assert.ok(entries.length <= 20, `版本条目不得超过 20 条，实际 ${entries.length}`);
-  // v0.21.3：最新一条是「产物：子会话文件 / 产物：分支会话 / 更新日志：当前版本」三组；更早版本整体后移一位。
+  // v0.21.4：最新一条是「MCP 模块」「Git：diff 定位」「产物：归属」三组；更早版本整体后移一位。
   assert.deepEqual(
     JSON.parse(JSON.stringify(entries[0].groups.map(group => group.title))),
+    ['changelog0214GroupMcp', 'changelog0214GroupGit', 'changelog0214GroupOutputs'],
+    'v0.21.4 的三个分组',
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(entries[1].groups.map(group => group.title))),
     ['changelog0213GroupOutputs', 'changelog0213GroupBranch', 'changelog0213GroupChangelog'],
     'v0.21.3 的三个分组',
   );
   assert.deepEqual(
-    JSON.parse(JSON.stringify(entries[1].groups.map(group => group.title))),
+    JSON.parse(JSON.stringify(entries[2].groups.map(group => group.title))),
     ['changelog0212GroupSession', 'changelog0212GroupPanel', 'changelog0212GroupGit', 'changelog0212GroupContext', 'changelog0212GroupPin'],
     'v0.21.2 的五个分组',
   );
   assert.deepEqual(
-    JSON.parse(JSON.stringify(entries[2].groups.map(group => group.title))),
+    JSON.parse(JSON.stringify(entries[3].groups.map(group => group.title))),
     ['changelog0211GroupNote', 'changelog0211GroupGit'],
     'v0.21.1 的两个分组',
   );
   assert.deepEqual(
-    JSON.parse(JSON.stringify(entries[3].groups.map(group => group.title))),
+    JSON.parse(JSON.stringify(entries[4].groups.map(group => group.title))),
     ['changelog021GroupNote', 'changelog021GroupReset', 'changelog021GroupChangelog', 'changelog021GroupUsage', 'changelog021GroupGit', 'changelog021GroupOutputs', 'changelog021GroupPanel'],
     'v0.21.0 的七个分组',
   );

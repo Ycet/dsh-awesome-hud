@@ -2,6 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hudClient, moduleOf, nodes, settled } from './helpers/client-harness.mjs';
 
+/**
+ * v0.21.4：MCP 行的启停开关改用 HudSwitch（与 HUD 设置右栏同一组件）。
+ * 测试先把组件渲染成回退按钮，再取它的 onClick。
+ */
+function mcpSwitch(module) {
+  const element = nodes(module.type({ ...module.props, fold: false })).find(node => node.type?.name === 'HudSwitch');
+  assert.ok(element, 'MCP 行必须渲染 HudSwitch');
+  return element.type({ ...element.props });
+}
+
 const older = 'C:\\work\\older', recent = 'C:\\work\\recent';
 const fixture = {
   state: { current: 'old', byId: { old: { cwd: older, updatedAt: 1 }, new: { cwd: recent, updatedAt: 9 } } },
@@ -85,7 +95,7 @@ test('新建页全局 MCP 初次加载、轮询和启停不依赖代理会话', 
   assert.equal(client.calls.filter(call => call.url.endsWith('/mcp')).length, 2);
   const mcp = moduleOf(client.panel(), 'McpModule');
   assert.equal(mcp.props.servers[0].name, 'server');
-  const toggle = nodes(mcp.type({ ...mcp.props, fold: false })).find(node => node.props.className === 'hud-switch');
+  const toggle = mcpSwitch(mcp);
   await toggle.props.onClick();
   const request = client.calls.find(call => call.url.endsWith('/mcp/toggle'));
   assert.equal(request.payload.server, 'server');
@@ -213,7 +223,7 @@ test('MCP 启停后，早于点击发出的旧轮询响应不得把开关回滚'
   // 同一次渲染内先启动旧轮询，再点击开关：两者共享同一个启停序号。
   const rendered = client.panel();
   const module = moduleOf(rendered, 'McpModule');
-  const toggle = nodes(module.type({ ...module.props, fold: false })).find(node => node.props.className === 'hud-switch');
+  const toggle = mcpSwitch(module);
   client.runPolls(); // 旧轮询进入在途（响应被挂起）
   await toggle.props.onClick();
   await settled();
