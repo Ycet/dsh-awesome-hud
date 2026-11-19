@@ -34,7 +34,7 @@
 - [🔧 技术栈](#-技术栈)
 - [🧪 开发与测试](#-开发与测试)
 - [🔗 关联插件](#-关联插件)
-- [⬆️ 升级说明（v0.11.x → v0.21.4）](#️-升级说明v011x--v0214)
+- [⬆️ 升级说明（v0.11.x → v0.21.5）](#️-升级说明v011x--v0215)
 - [📄 许可证](#-许可证)
 
 ---
@@ -52,7 +52,7 @@
 | 会话 | 工作区与会话名称、运行状态、模型与思考等级标签；菜单里重命名、置顶、分支、归档、复制。 |
 | 上下文 | 占用率与进度条、会话统计与 Token 用量；一键压缩，或派子代理写交接文档。 |
 | 用量 | DeepSeek 余额、OpenCode Go 额度、Codex 额度；折叠后在标题展示其中一项。 |
-| 产物 | 本会话及其子会话改动过的文档 / 表格 / 演示 / 图片；点击预览，右键加入聊天或复制路径。 |
+| 产物 | 本会话及其子会话写出的文档 / 表格 / 演示 / 图片，以及本会话交付的文件；点击预览，右键加入聊天或复制路径。 |
 | Git | 分支与变更数量、暂存与未暂存分组、diff、commit（含 AI 生成提交信息）、git graph。 |
 | 任务 | 会话任务清单与完成状态，随任务变化实时刷新。 |
 | 子代理任务 | 当前会话的子代理层级与状态，点击在右侧栏打开该子代理会话。 |
@@ -100,7 +100,7 @@
 
 ### 产物模块
 
-列出本会话及其子会话（子代理）**用 `write` / `edit` 写出的**文档、表格、演示与图片，按最后一次改动排序，最多 10 个文件，默认先显示 3 个、可展开查看全部；没有产物时模块整体不展示。只认这两类 durable 证据：重启 DSH 后列表仍能重建，也不会把同工作区其它会话、或你自己手改的文件算进来（终端命令直接生成的文件不再自动收录）。子代理的产物取它日志里的 `write` / `edit` 记录（fork 子代理只算它自己写出的部分，不重复父会话的历史），路径换算到主会话工作区，工作区之外的（例如 worktree 里的）不收录。**分支会话**继续显示分支之前的产物：DSH 不记录分支的来源，插件用「继承前缀里 `job` 事件的 `owner` + 边界事件时间」认出源会话，从而沿用它的子代理产物。
+列出本会话及其子会话（子代理）**用 `write` / `edit` 写出的**文档、表格、演示与图片，以及本会话用官方 `present` 交付的文件，按最后一次改动排序，最多 10 个文件，默认先显示 3 个、可展开查看全部；没有产物时模块整体不展示。只认这两类 durable 证据：重启 DSH 后列表仍能重建，也不会把同工作区其它会话、或你自己手改的文件算进来（终端命令直接生成的文件不再自动收录）。交付路径必须落在会话工作区内，工作区外的路径不列入，因为右侧栏预览按会话工作区解析。子代理的产物取它日志里的 `write` / `edit` 记录（fork 子代理只算它自己写出的部分，不重复父会话的历史），路径换算到主会话工作区，工作区之外的（例如 worktree 里的）不收录。**分支会话**继续显示分支之前的产物：DSH 不记录分支的来源，插件用「继承前缀里 `job` 事件的 `owner` + 边界事件时间」认出源会话，从而沿用它的子代理产物。
 
 - **悬停路径**：鼠标在文件行上停留 0.5 秒显示完整相对路径；
 - **点击打开**：在右侧栏打开文件内容；
@@ -209,7 +209,7 @@
 
 ```bash
 # 1. 安装（无需 git；本机需有 pnpm，dsh plugin 会调用它）
-dsh plugin --profile web add dsh-awesome-hud@0.21.4
+dsh plugin --profile web add dsh-awesome-hud@0.21.5
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -221,7 +221,7 @@ dsh plugin --profile web add dsh-awesome-hud@0.21.4
 
 ```bash
 # 1. 安装（锁定版本 tag，要求本机 git 可访问 GitHub）
-dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.4"
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.5"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -239,7 +239,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 
 ```bash
 # 1. 安装（可直接用 Release 资产 URL，也可先下载 .tgz 再传本地路径）
-dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.4/dsh-awesome-hud-0.21.4.tgz"
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.5/dsh-awesome-hud-0.21.5.tgz"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -252,7 +252,7 @@ dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/d
 
 ```bash
 # 从 npm 安装（推荐）
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.4
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.5
 
 # 从本地源码安装（开发）
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -309,7 +309,7 @@ npm run changelog:date
 
 「更新日志」最新版本的日期由 `scripts/changelog-date.mjs` 把关：该版本改过（`lib/client.js`、`lib/index.js`、`package.json` 有未提交改动）时取写入日期，工作树干净时取这三个文件最后一次提交的日期；不一致就改成修改日期，已发布版本的历史日期不动（`package.json` 升了版本但还没补更新日志条目时跳过）。`npm test` 的 `pretest` 会先自动对齐。
 
-当前基线：**745 tests / 742 pass / 0 fail / 3 skipped**。
+当前基线：**748 tests / 745 pass / 0 fail / 3 skipped**。
 
 ```
 dsh-awesome-hud/
@@ -333,10 +333,12 @@ dsh-awesome-hud/
 
 ---
 
-## ⬆️ 升级说明（v0.11.x → v0.21.4）
+## ⬆️ 升级说明（v0.11.x → v0.21.5）
 
 <details>
 <summary>按版本查看各版本改动要点</summary>
+
+**v0.21.5：「产物」收录本会话交付的文件**：官方 `present` 工具声明的交付文件（`files[].path`，绝对路径或工作区相对路径）现在也列入产物列表，与 `write` / `edit` 共用同一套工作区归一、扩展名白名单、去重与排序规则；证据仍然是 durable 的 `tool/call` 事件，重启 DSH 后照样重建。工作区外的交付路径不列入，因为右侧栏的文件预览按会话工作区解析、打不开。基线：748 tests / 745 pass / 0 fail / 3 skipped。
 
 **v0.21.4：MCP 启停开关与 HUD 设置右栏统一、git diff 定位修复**：① 「MCP」模块每行的启停开关不再使用自绘的绿色胶囊，改为与 HUD 设置右栏同一个开关组件：官方 `Switch` 可用时直接渲染官方组件，缺失时回退到同几何、同主题 token 的本地实现（开态轨道用品牌色、滑块随主题取前景色，尺寸从 30×18 变为 36×20）；点击行为不变，仍是先置灰自身、请求成功后再用返回快照刷新整块，早到的旧轮询响应照旧丢弃。② 旧的自定义开关样式（`.hud-switch` 与 `data-on` 状态）已删除，面板里只保留一套开关样式，避免两处再走样。新增 `test/mcp-switch.test.mjs` 把关「MCP 行渲染同一个开关组件、禁用态不触发、官方组件优先、旧样式不再出现」。③ **修复 git 变更行左键打开错误 diff**：以前按 basename 兜底匹配每轮摘要，点 `dsh-awesome-hud/package.json` 会打开 `dsh-archive-manager/package.json` 的同名条目；现在只按精确路径或「仓库根路径 → 会话 cwd 路径」的路径边界匹配，同名文件不再串台。同时官方「第 N 轮改动」review 从「只看最新一轮」改为逐轮向前查找，文件在本会话前几轮改过也能打开官方 diff，不再一律回退到 dsh-better-sidebar；没有 better-sidebar 时，官方也没有「工作树任意文件」的 diff 页面，就打开该文件的官方文件预览（不再是红色提示）。④ **「产物」只列本会话与子代理写出的文件**：不再读取 DSH 的「每轮改动摘要」——它其实是整仓工作树的轮初/轮末 diff，同工作区里别的会话（或你自己）在同一时间窗改过的文件会被算进本会话产物（实测 `b086d5e7` 的产物列表混进了另两个插件的 README）。现在唯一证据是 durable 的 `write` / `edit` 工具调用，重启后仍可重建；代价是终端命令（脚本、构建）直接生成的文件不再自动出现。基线：745 tests / 742 pass / 0 fail / 3 skipped。
 

@@ -1,7 +1,6 @@
-// dsh-awesome-hud — 「产物 / Outputs」模块（v0.21.3 语义）：
-//  0) 只认**本会话及其子会话**证据：主会话取每轮 workspace/changes 摘要 + write/edit 的
-//     file_path，子会话只取 durable 的 write/edit；不再扫描工作区，避免其它会话的产物与
-//     用户自己的编辑混进来。
+// dsh-awesome-hud — 「产物 / Outputs」模块（v0.21.5 语义）：
+//  0) 只认**本会话及其子会话**证据：write/edit 的 file_path 与 present 的 files[].path；
+//     不再扫描工作区、不读每轮摘要，避免其它会话的产物与用户自己的编辑混进来。
 //  1) 汇总本会话**所有轮次**里指定格式、位于工作区内、仍存在的改动文件；
 //     按最后改动轮次倒序，最多展示 OUTPUT_LIMIT（10）个；界面默认先显示前 3 个、可展开全部。
 //  2) 点击行在官方右侧栏打开文件内容：地址按 DSH 的 file 资源语法逐段编码。
@@ -589,6 +588,64 @@ test("collectOutputs：工具证据按事件时间倒序，时间缺失时退回
     exists: async () => true,
   });
   assert.deepEqual(plain(legacy.files.map((file) => file.path)), ["a.md", "b.md"], "无时间戳时轮次大的在前");
+});
+
+/** 构造一条 present 工具调用（v0.21.5 起的第二类产物证据：交付声明）。 */
+const presentCall = (seq, turn, files, time) => ({
+  type: "tool/call",
+  seq,
+  ...(time === undefined ? {} : { time }),
+  data: { turn, name: "present", arguments: JSON.stringify({ files }) },
+});
+
+test("v0.21.5：present 交付的文件列入产物，绝对路径按工作区归一", async () => {
+  const events = [
+    presentCall(1, 1, [
+      { path: "docs/report.md", description: "报告" },
+      { path: "/work/proj/out/chart.PNG", description: "图表" },
+      { path: "docs/code.ts", description: "代码" },
+      { path: "docs/archive.zip", description: "压缩包" },
+      { path: "   ", description: "空路径" },
+    ]),
+    presentCall(2, 1, ["docs/list-form.md"]),
+    { type: "tool/call", seq: 3, data: { turn: 1, name: "present", arguments: "not json" } },
+  ];
+  const output = await collectOutputs({ sessionId: "s1", cwd: "/work/proj", events, exists: async () => true });
+  assert.deepEqual(
+    plain(output.files.map((file) => file.path)).sort(),
+    ["docs/list-form.md", "docs/report.md", "out/chart.PNG"],
+    "对象与字符串两种写法都收录，绝对路径归一，白名单外与空路径丢弃",
+  );
+  assert.equal(output.total, 3);
+  assert.equal(output.files.every((file) => file.address.startsWith("dsh-resource://file/session/s1/")), true);
+});
+
+test("v0.21.5：present 的工作区外路径丢弃，同一路径保留最晚一次交付", async () => {
+  const events = [
+    presentCall(10, 1, [{ path: "docs/same.md" }], 1000),
+    presentCall(20, 2, [{ path: "/tmp/outside.md" }, { path: "../escape.md" }], 2000),
+    presentCall(30, 3, [{ path: "docs/same.md" }, { path: "docs/same.md" }], 3000),
+  ];
+  const output = await collectOutputs({ sessionId: "s1", cwd: "/work/proj", events, exists: async () => true });
+  assert.deepEqual(plain(output.files.map((file) => file.path)), ["docs/same.md"]);
+  assert.equal(output.files[0].turn, 3, "同一路径取最晚的交付事件");
+  assert.equal(output.files[0].time, 3000);
+});
+
+test("v0.21.5：present 与 write/edit 共用去重、上限与存在性检查", async () => {
+  const events = [
+    writeCall(5, 1, "docs/shared.md", "write", 500),
+    presentCall(9, 1, [{ path: "docs/shared.md" }, { path: "docs/delivered.md" }], 900),
+  ];
+  const output = await collectOutputs({
+    sessionId: "s1",
+    cwd: "/work/proj",
+    events,
+    exists: async (path) => path !== "docs/delivered.md",
+  });
+  assert.deepEqual(plain(output.files.map((file) => file.path)), ["docs/shared.md"], "交付与写出去重后只留一条，文件不存在时剔除");
+  assert.equal(output.files[0].seq, 9, "更晚的 present 事件覆盖更早的 write");
+  assert.equal(output.stats, 2, "存在性检查按候选逐个进行");
 });
 
 test("v0.21.2：宿主不再扫描工作区，产物只吃本会话证据", async () => {
