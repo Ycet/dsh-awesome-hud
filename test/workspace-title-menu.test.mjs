@@ -96,7 +96,7 @@ test('工作区菜单三项顺序固定，文案跟随宿主文件管理器', ()
     // vm 内构造的数组原型不同，先展开成本地数组再比较
     assert.deepEqual([...items.map((item) => item.key)], ['rename', 'reveal', 'copy-path']);
     assert.equal(items[1].label, label);
-    assert.equal(items[1].icon.official, 'IconFolderOpenOutlineRegular');
+    assert.equal(items[1].icon.asset, "folder");
     assert.equal(items[0].disabled, false);
     assert.equal(items[1].disabled, false);
     assert.equal(items[2].disabled, false);

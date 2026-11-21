@@ -256,7 +256,7 @@ function loadOutputsModule(dict, controls = {}, extra = {}) {
     ...extra,
   });
   vm.runInContext(
-    `${extractConst("LIST_PREVIEW_COUNT")}\n${extractConst("OUTPUT_TIP_DELAY_MS")}\n${extractFunction("fileHoverTipPlacement")}\n${extractFunction("previewListRows")}\n${extractFunction("listMoreButton")}\n${extractFunction("outputExtensionOf")}\n${extractFunction("outputFileMention")}\n${extractFunction("OutputsModule")}\nthis.OutputsModule = OutputsModule; this.outputExtensionOf = outputExtensionOf; this.outputFileMention = outputFileMention; this.previewListRows = previewListRows; this.fileHoverTipPlacement = fileHoverTipPlacement; this.OUTPUT_TIP_DELAY_MS = OUTPUT_TIP_DELAY_MS;`,
+    `${extractConst("LIST_PREVIEW_COUNT")}\n${extractConst("OUTPUT_TIP_DELAY_MS")}\n${extractFunction("fileHoverTipPlacement")}\n${extractFunction("previewListRows")}\n${extractFunction("listMoreButton")}\n${extractFunction("outputExtensionOf")}\n${extractFunction("outputFileMention")}\n${extractFunction("chatAddToastKey")}\nasync ${extractFunction("addPathToChat")}\n${extractFunction("OutputsModule")}\nthis.OutputsModule = OutputsModule; this.outputExtensionOf = outputExtensionOf; this.outputFileMention = outputFileMention; this.previewListRows = previewListRows; this.fileHoverTipPlacement = fileHoverTipPlacement; this.OUTPUT_TIP_DELAY_MS = OUTPUT_TIP_DELAY_MS;`,
     context,
   );
   // 预置「已展开」的初始 state（组件内是 useState(false)，槽位 0 即展开态）。
@@ -695,9 +695,9 @@ test("v0.21.0：产物右键菜单：五项、分割线、添加至聊天/定位
   }))));
   assert.deepEqual(items.map((item) => item.key), ["add-to-chat", "reveal", "copy-name", "copy-relative", "copy-absolute"]);
   assert.equal(items[0].icon.asset, "at");
-  assert.equal(items[1].icon.official, "IconFolderCloseMedium");
+  assert.equal(items[1].icon.asset, "folder");
   assert.equal(items[2].separatorBefore, true, "复制组前应有分割线");
-  assert.equal(items[2].icon.official, "IconCopyOutlineMedium");
+  assert.equal(items[2].icon.asset, "copy");
   assert.equal(items[4].disabled, false);
 
   // 添加至聊天：生成官方 @ 引用并通过 input.addFiles 插入。
@@ -738,7 +738,7 @@ test("v0.21.0：无目标会话 / 旧宿主绝对路径 / 带空格路径的菜�
   const menu = walk(tree).find((node) => node.type === "HudMenu");
   const items = menu.props.items;
   assert.equal(items[0].disabled, true, "无目标会话时添加至聊天置灰");
-  assert.equal(items[0].reason, zh.outputsAddNoTarget);
+  assert.equal(items[0].reason, zh.chatAddNoTarget);
   assert.equal(items[4].disabled, true, "旧宿主缺 absolutePath 时绝对路径复制置灰");
 });
 
@@ -836,4 +836,31 @@ test("v0.21.3：子会话产物与主会话共用上限、stat 预算与右侧�
     sources: [{ cwd: "/ws", events: childEvents }],
   });
   assert.equal(capped.stats, 3, "子会话候选同样受 stat 预算约束");
+});
+
+// v0.21.6：目录引用必须与官方 @ 引用同一形状（尾斜杠 + appearance "folder" + 标签带斜杠），
+// 否则输入框会把文件夹渲染成文件芯片。
+test("目录引用与官方形状一致：@dir/、appearance folder、标签带尾斜杠", async () => {
+  const inserted = [];
+  const context = vm.createContext({
+    resolveComposerTarget: async () => ({
+      input: { addFiles: (refs) => { inserted.push(refs[0]); return true; }, focus: () => {} },
+    }),
+  });
+  vm.runInContext(
+    `${extractFunction("outputFileMention")}\nasync ${extractFunction("addPathToChat")}\nthis.addPathToChat = addPathToChat; this.outputFileMention = outputFileMention;`,
+    context,
+  );
+  const status = await context.addPathToChat("s1", "docs/guides", "guides", true);
+  assert.equal(status, "ok");
+  assert.deepEqual(JSON.parse(JSON.stringify(inserted)), [{
+    source: "reference",
+    ref: "@docs/guides/",
+    label: "guides/",
+    appearance: "folder",
+    clipboardText: "@docs/guides/",
+  }]);
+  const spaced = context.outputFileMention("docs/my notes", true);
+  assert.equal(spaced, '@"docs/my notes/"', "含空格的目录用引号包住并保留尾斜杠");
+  assert.equal(context.outputFileMention("docs/a.md", false), "@docs/a.md", "文件路径不带尾斜杠");
 });

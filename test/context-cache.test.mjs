@@ -25,11 +25,18 @@ function loadContextHelpers() {
 			contextUsageOutput: "Output",
 			contextUsageLine: "{total} tok · cache hit {percent}%",
 			contextUsageLineNoCache: "{total} tok",
+			contextCatSystem: "System prompt",
+			contextCatTools: "Tool definitions",
+			contextCatUser: "User messages",
+			contextCatInject: "Injected content",
+			contextCatSkill: "Skill injections",
+			contextCatAssistant: "Messages",
+			contextCatTool: "Tool results",
 		}[key] ?? key),
 		interpolate: (text, values) => String(text).replace(/\{(\w+)\}/g, (_, key) => values?.[key] ?? ""),
 	});
 	vm.runInContext(
-		`${source.slice(start, end)}\nthis.helpers = { formatCompactTokens, formatExactTokens, contextBreakdownParts, contextStatsSpeed, contextStatsRows, contextUsageRows, contextUsageLine, formatDurationMs };`,
+		`${source.slice(start, end)}\nthis.helpers = { formatCompactTokens, formatExactTokens, contextBreakdownParts, scaleContextMessageTokens, contextStatsSpeed, contextStatsRows, contextUsageRows, contextUsageLine, formatDurationMs };`,
 		context,
 	);
 	return context.helpers;
@@ -56,6 +63,33 @@ test("contextBreakdown 三段：System prompt 石青 / Tool definitions 紫 / Me
 	assert.equal(Math.round(parts.reduce((sum, part) => sum + part.percent, 0)), 100);
 	assert.equal(contextBreakdownParts(null).length, 0);
 	assert.equal(contextBreakdownParts({ systemTokens: 0, toolsTokens: 0, messageTokens: 0 }).length, 0);
+});
+
+test("contextBreakdown 七类（v0.21.6）：官方三段 + 宿主五类明细，占比合计 100", () => {
+	const { contextBreakdownParts } = loadContextHelpers();
+	const detail = {
+		available: true,
+		tokens: { user: 400, inject: 800, skill: 1600, assistant: 24000, tool: 32000 },
+	};
+	const parts = JSON.parse(JSON.stringify(contextBreakdownParts({ systemTokens: 2500, toolsTokens: 27600, messageTokens: 58800 }, detail)));
+	assert.deepEqual(parts.map((part) => part.label), ["System prompt", "Tool definitions", "User messages", "Injected content", "Skill injections", "Messages", "Tool results"]);
+	// 五类消息之和必须等于官方 messageTokens。
+	const messageSum = parts.slice(2).reduce((sum, part) => sum + part.tokens, 0);
+	assert.equal(messageSum, 58800);
+	assert.equal(Math.round(parts.reduce((sum, part) => sum + part.percent, 0)), 100);
+	// 无明细或明细不可用时退回三段。
+	assert.equal(contextBreakdownParts({ systemTokens: 1, toolsTokens: 1, messageTokens: 1 }).length, 3);
+	assert.equal(contextBreakdownParts({ systemTokens: 1, toolsTokens: 1, messageTokens: 1 }, { available: false }).length, 3);
+});
+
+test("scaleContextMessageTokens：余数补给最大的一类且不出现负数", () => {
+	const { scaleContextMessageTokens } = loadContextHelpers();
+	const scaled = JSON.parse(JSON.stringify(scaleContextMessageTokens({ user: 1, inject: 1, skill: 1, assistant: 1, tool: 1 }, 100)));
+	assert.equal(Object.values(scaled).reduce((sum, value) => sum + value, 0), 100);
+	assert.equal(Object.values(scaled).every((value) => value >= 0), true);
+	assert.equal(scaleContextMessageTokens(null, 100), null);
+	assert.equal(scaleContextMessageTokens({ user: 0 }, 100), null);
+	assert.equal(scaleContextMessageTokens({ user: 10 }, 0), null);
 });
 
 test("会话统计与 Token 用量：格式化时长、TTFT、TPS、精确 token 数与缓存命中", () => {

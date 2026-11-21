@@ -34,7 +34,7 @@ Click to jump to a section.
 - [🔧 Tech Stack](#-tech-stack)
 - [🧪 Development and tests](#-development-and-tests)
 - [🔗 Related plugins](#-related-plugins)
-- [⬆️ Upgrade Notes (v0.11.x → v0.21.5)](#️-upgrade-notes-v011x--v0215)
+- [⬆️ Upgrade Notes (v0.11.x → v0.21.6)](#️-upgrade-notes-v011x--v0216)
 - [📄 License](#-license)
 
 ---
@@ -50,10 +50,10 @@ Click to jump to a section.
 | Module | What you see and what you can do |
 | --- | --- |
 | Session | Workspace and session names, run state, one chip for model and reasoning level; menus for rename, pin, branch, archive and copy. |
-| Context | Fill ratio and bar, session stats and token usage; one-click compaction, or a subagent that writes a handoff document. |
+| Context | Fill ratio and a seven-category bar, session stats and token usage; one-click compaction, or a subagent that writes a handoff document. |
 | Usage | DeepSeek balance, OpenCode Go quota and Codex quota; one of them can show in the title while folded. |
 | Outputs | Documents, sheets, slides and images this session and its subagents wrote, plus the files this session delivered; click to preview, right click to add to chat or copy a path. |
-| Git | Branch and change count, staged and unstaged groups, diff, commit with AI message, git graph. |
+| Git | Branch and change count, staged and unstaged groups, diff, add to chat, reveal and copy from a right click, commit with AI message, git graph. |
 | Tasks | The session task list and states, refreshed as the tasks change. |
 | Subagent tasks | Subagents of the current session with their states; open one in the right sidebar. |
 | Plan list | Plans from plan mode with three states; click a row to read the full plan. |
@@ -79,7 +79,7 @@ Shows the workspace name, the session name, the session state, and one chip with
 
 ### Context module
 
-The title shows the current fill, the limit and the ratio; the bar color shows the fill ratio. The two lines below hold the session stats (turns, steps, tok/s) and the token usage (total, cache hits). A hover on the bar switches it to segments for System prompt, Tool definitions and Messages; a hover on the lines shows the full details.
+The title shows the current fill, the limit and the ratio; the bar color shows the fill ratio. The two lines below hold the session stats (turns, steps, tok/s) and the token usage (total, cache hits). A hover on the bar switches it to seven segments with their share: system prompt, tool definitions, user messages, injected content, skill injections, assistant messages and tool results. The unused part of the window stays grey, and a hover on the lines shows the full details.
 
 - **Compact**: available while the session is idle, greyed while a task runs;
 - **Handoff**: the menu to the right of “Compact” starts a subagent that writes a handoff document into `docs/handoff/` of the workspace; progress shows in the Subagent tasks module.
@@ -115,8 +115,11 @@ The title shows the current branch and the number of changed files. Files come i
 - **Branch button**: switch to an existing branch or create a new one;
 - **Init repository**: outside a repository the button reads this; a click makes the repository and writes a `.gitignore`;
 - **Hover actions**: staged files can leave the index; unstaged files can be reverted or staged (a folder row applies this to its whole subtree);
-- **Context menu**: stage, revert, or add to the `.gitignore` in the repository root;
+- **Context menu**: stage, revert and add to the `.gitignore` in the repository root sit at the top, followed by add to chat, show in folder, and copy name / relative path / absolute path (the same icons the Outputs module uses);
 - **Diff**: a left click opens the diff in the right sidebar;
+- **Add to chat**: a right click on a file writes it into the chat input as an `@` reference, in both the staged and the unstaged group; a deleted file, a file outside the workspace, or a page without a chat input greys it out;
+- **Reveal and copy**: show in folder, and copy the name / relative path / absolute path, exactly like the Outputs module;
+- **No clipped menu**: the menu clamps to the viewport from its real item count, flips up near the bottom edge, and scrolls when it is taller than the viewport;
 - **Revert**: reverts every unstaged change (untracked files are deleted too) and asks for confirmation first.
 
 ![Git module](docs/module-git.png)
@@ -209,7 +212,7 @@ Panel behaviour:
 
 ```bash
 # 1. Install (no git required; pnpm must be on PATH for `dsh plugin`)
-dsh plugin --profile web add dsh-awesome-hud@0.21.5
+dsh plugin --profile web add dsh-awesome-hud@0.21.6
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -221,7 +224,7 @@ dsh plugin --profile web add dsh-awesome-hud@0.21.5
 
 ```bash
 # 1. Install (pinned to a release tag; requires git access to GitHub)
-dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.5"
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.6"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -239,7 +242,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 
 ```bash
 # 1. Install (use the Release asset URL directly, or pass a downloaded .tgz path)
-dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.5/dsh-awesome-hud-0.21.5.tgz"
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.6/dsh-awesome-hud-0.21.6.tgz"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -252,7 +255,7 @@ Quit DeepSeek Harness completely, then use the CLI that ships with the desktop a
 
 ```bash
 # From npm (recommended)
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.5
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.6
 
 # From local source (development)
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -333,10 +336,12 @@ dsh-awesome-hud/
 
 ---
 
-## ⬆️ Upgrade Notes (v0.11.x → v0.21.5)
+## ⬆️ Upgrade Notes (v0.11.x → v0.21.6)
 
 <details>
 <summary>Open the per-version notes</summary>
+
+**v0.21.6: The Git change-file menu matches the outputs menu.** (1) Both the staged and the unstaged group put “Add to chat” in a file's right-click menu. A click writes the file into the chat input as an official `@` reference, through the same logic the outputs module uses: the same reference shape, the same success and failure messages, and the same focus hand-back. (2) A change path comes from `git status --porcelain` and stays relative to the repository root, while an official `@` reference resolves against the session workspace. The snapshot now carries `prefix` (`git rev-parse --show-prefix`), so a session in a subfolder converts the path before the reference goes in. (3) Folder rows get the same “Add to chat”, reveal and three copy items, since an official `@` reference also accepts a folder; revealing a folder goes through the workspace directory route, so a subfolder outside the session workspace still opens. The same menu also offers “Show in folder” and copies the name, the relative path and the absolute path, with the same folder and copy icons the outputs menu uses, now bundled with the plugin and shared by the git graph copy menu and every “show in folder” item. The absolute path needs the repository root, so the snapshot also carries `root` (`git rev-parse --show-toplevel`, realpath on macOS); without it the item greys out with a reason. (4) The menu now lists the git actions (stage, revert, ignore) first, then a divider and the chat and locate actions, then a divider and the copy actions. (5) The menu no longer gets clipped: it clamps to the viewport from its real item and divider count, renders through a portal on `body` instead of inside the HUD panel scroll box, and scrolls when it is taller than the viewport. (6) A file outside the workspace reports that it cannot be referenced, and a deleted file (`D`) or a page without a chat input greys the matching item out with a reason. (7) The context bar hover now splits into seven categories: system prompt, tool definitions, user messages, injected content, skill injections, assistant messages and tool results, each with its estimate and share, while the unused part of the window stays grey. The first two come from the official `contextBreakdown`; the host adds a `context/breakdown` route that scans the session surface and estimates the other five with the official density, then scales them to the official `messageTokens` so the five always add up to the official message total. Without the route the bar falls back to the three segments. The git and context sections of the guide are updated. New cases cover the seven-category estimate, the scaling remainder, the fallback, the menu order and disabled states, and the clamp and portal wiring. Baseline: 761 tests / 758 pass / 0 fail / 3 skipped.
 
 **v0.21.5: the outputs list covers the files this session delivers.** The files the official `present` tool declares (`files[].path`, absolute or workspace-relative) now join the outputs list. They share the same workspace normalization, extension allow-list, de-duplication and ordering as `write` / `edit`, and the evidence stays the durable `tool/call` event, so a restart rebuilds the list. A delivered path outside the workspace is not listed, because the sidebar file preview resolves against the session workspace. Baseline: 748 tests / 745 passed / 0 failed / 3 skipped.
 

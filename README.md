@@ -34,7 +34,7 @@
 - [🔧 技术栈](#-技术栈)
 - [🧪 开发与测试](#-开发与测试)
 - [🔗 关联插件](#-关联插件)
-- [⬆️ 升级说明（v0.11.x → v0.21.5）](#️-升级说明v011x--v0215)
+- [⬆️ 升级说明（v0.11.x → v0.21.6）](#️-升级说明v011x--v0216)
 - [📄 许可证](#-许可证)
 
 ---
@@ -50,10 +50,10 @@
 | 模块 | 你能看到 / 能做什么 |
 | --- | --- |
 | 会话 | 工作区与会话名称、运行状态、模型与思考等级标签；菜单里重命名、置顶、分支、归档、复制。 |
-| 上下文 | 占用率与进度条、会话统计与 Token 用量；一键压缩，或派子代理写交接文档。 |
+| 上下文 | 占用率与七类分段进度条、会话统计与 Token 用量；一键压缩，或派子代理写交接文档。 |
 | 用量 | DeepSeek 余额、OpenCode Go 额度、Codex 额度；折叠后在标题展示其中一项。 |
 | 产物 | 本会话及其子会话写出的文档 / 表格 / 演示 / 图片，以及本会话交付的文件；点击预览，右键加入聊天或复制路径。 |
-| Git | 分支与变更数量、暂存与未暂存分组、diff、commit（含 AI 生成提交信息）、git graph。 |
+| Git | 分支与变更数量、暂存与未暂存分组、diff、右键添加至聊天 / 定位 / 复制、commit（含 AI 生成提交信息）、git graph。 |
 | 任务 | 会话任务清单与完成状态，随任务变化实时刷新。 |
 | 子代理任务 | 当前会话的子代理层级与状态，点击在右侧栏打开该子代理会话。 |
 | 计划清单 | plan 模式产出的计划与三种状态，点击查看计划全文。 |
@@ -79,7 +79,7 @@
 
 ### 上下文模块
 
-标题右侧是「当前占用 / 最大上下文（占用率）」，进度条用颜色表示占用率；底部两行分别是会话统计（轮数、步数、tok/s）与 Token 用量（总量、缓存命中）。鼠标悬浮在进度条上会切换成分段样式，分段表示 System prompt、Tool definitions 与 Messages；悬浮两行可看完整明细。
+标题右侧是「当前占用 / 最大上下文（占用率）」，进度条用颜色表示占用率；底部两行分别是会话统计（轮数、步数、tok/s）与 Token 用量（总量、缓存命中）。鼠标悬浮在进度条上会切换成分段样式，按七类细分并显示各自占比：系统提示词、工具定义、用户消息、注入内容、技能注入、助手消息、工具结果；未占用的窗口区域保持灰色底；悬浮两行可看完整明细。
 
 - **压缩**：会话空闲时可点，任务进行中置灰；
 - **交接**：点「压缩」右侧的下拉菜单，子代理会把交接文档写进工作区的 `docs/handoff/` 目录，进度在「子代理任务」模块里可见。
@@ -115,8 +115,11 @@
 - **分支按钮**：切换已有分支或新建分支并自动切换；
 - **初始化仓库**：工作区不是仓库时按钮变成这一项，点击即可建仓，并同时写入 `.gitignore`；
 - **悬停操作**：暂存区文件可移出暂存区，变更区文件可撤销或添加至暂存区（文件夹行对整棵子树批量执行）；
-- **右键菜单**：暂存 / 撤销 / 加入仓库根的 `.gitignore`；
+- **右键菜单**：最上方是暂存 / 撤销 / 加入仓库根的 `.gitignore`，其后是添加至聊天 / 在文件夹显示 / 复制文件名称 / 复制文件相对路径 / 复制文件绝对路径（图标与「产物」模块一致）；
 - **diff**：左键点击文件在右侧栏打开 diff；
+- **添加至聊天**：右键文件的「添加至聊天」把该文件以 `@` 引用写入输入框，暂存区与变更区都提供；已删除的文件、有仓库根之外的文件与没有可用输入框时置灰；
+- **定位与复制**：在文件夹显示、复制名称 / 相对路径 / 绝对路径，与「产物」模块的行为一致；
+- **菜单完整露出**：菜单按条目数夹取到视口内，贴近底部时自动上移，超出高度可滚动；
 - **revert**：撤销全部未暂存变更（未跟踪文件一并删除），操作前需要二次确认。
 
 ![Git 模块](docs/module-git.png)
@@ -209,7 +212,7 @@
 
 ```bash
 # 1. 安装（无需 git；本机需有 pnpm，dsh plugin 会调用它）
-dsh plugin --profile web add dsh-awesome-hud@0.21.5
+dsh plugin --profile web add dsh-awesome-hud@0.21.6
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -221,7 +224,7 @@ dsh plugin --profile web add dsh-awesome-hud@0.21.5
 
 ```bash
 # 1. 安装（锁定版本 tag，要求本机 git 可访问 GitHub）
-dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.5"
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.6"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -239,7 +242,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 
 ```bash
 # 1. 安装（可直接用 Release 资产 URL，也可先下载 .tgz 再传本地路径）
-dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.5/dsh-awesome-hud-0.21.5.tgz"
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.6/dsh-awesome-hud-0.21.6.tgz"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -252,7 +255,7 @@ dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/d
 
 ```bash
 # 从 npm 安装（推荐）
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.5
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.6
 
 # 从本地源码安装（开发）
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -333,10 +336,12 @@ dsh-awesome-hud/
 
 ---
 
-## ⬆️ 升级说明（v0.11.x → v0.21.5）
+## ⬆️ 升级说明（v0.11.x → v0.21.6）
 
 <details>
 <summary>按版本查看各版本改动要点</summary>
+
+**v0.21.6：Git 变更文件的右键菜单对齐「产物」模块**：① 「已暂存」与「未暂存」两个分组的文件右键菜单新增「添加至聊天」，点击后把该文件以官方 `@` 引用写入聊天输入框，与「产物」模块共用同一套逻辑（引用形状、成功 / 失败提示、输入框焦点回落都一致）。② 变更路径来自 `git status --porcelain`，恒相对**仓库根**；官方 `@` 引用相对**会话工作区**解析。快照因此新增 `prefix`（`git rev-parse --show-prefix`），会话在仓库子目录时先把仓库根路径换算成工作区相对路径，`@` 引用才能指向正确文件。③ 文件夹行同样有「添加至聊天」「在文件夹显示」与三个复制项（官方 `@` 引用也支持目录），定位文件夹改走工作区的目录接口（工作区外的仓库子目录也能打开）。同一菜单还提供「在文件夹显示」与「复制文件名称 / 相对路径 / 绝对路径」，图标与「产物」右键菜单一致，统一改用内置的文件夹与复制图标（git graph 的复制菜单与各处「在文件夹显示」同步）；复制绝对路径需要仓库根，快照同时新增 `root`（`git rev-parse --show-toplevel`，macOS 下取 realpath），拿不到时该项置灰并给出原因。④ 菜单顺序调整为 Git 原生动作（暂存 / 撤销 / 忽略）在最上方，其后用分割线分成「聊天与定位」「复制」两组。⑤ 修复菜单被裁：条目变多后按实际条目数与分割线数重新夹取位置，菜单改用 portal 渲染到 `body`、不再被 HUD 面板的滚动容器裁剪，高度超出视口时允许滚动。⑥ 文件在工作区之外时提示「该文件不在会话工作区内」；已删除的文件（`D`）与当前页面没有可用输入框时相应项置灰并给出原因。⑦ 上下文模块的悬浮分段条由 3 段细化为 **7 类**：系统提示词、工具定义、用户消息、注入内容、技能注入、助手消息、工具结果，每类在图例里显示估算值与占比，未占用的窗口区域仍是灰色底。前两类沿用官方 `contextBreakdown`，后五类由宿主新增的 `context/breakdown` 接口扫描当前会话 surface 后按官方口径估算（每 4 字符 1 token），再按官方 `messageTokens` 等比缩放，五类之和恒等于官方消息总量；接口拉不到时自动退回原来的三段视图。说明页 git 与上下文两节同步文案。新增上下文七类估算、缩放余数、明细缺失回退、菜单顺序与禁用态、定位夹取与 portal 用例。基线：761 tests / 758 pass / 0 fail / 3 skipped。
 
 **v0.21.5：「产物」收录本会话交付的文件**：官方 `present` 工具声明的交付文件（`files[].path`，绝对路径或工作区相对路径）现在也列入产物列表，与 `write` / `edit` 共用同一套工作区归一、扩展名白名单、去重与排序规则；证据仍然是 durable 的 `tool/call` 事件，重启 DSH 后照样重建。工作区外的交付路径不列入，因为右侧栏的文件预览按会话工作区解析、打不开。基线：748 tests / 745 pass / 0 fail / 3 skipped。
 
