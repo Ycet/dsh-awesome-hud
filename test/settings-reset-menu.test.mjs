@@ -289,7 +289,10 @@ test('「恢复 hud 模块功能设置」：只复位右栏，模块开关与排
   confirmPayload(runtime, calls);
   const [draft, usageDraft, orderDraft, , panelDraft, noteDraft, , pinnedDraft] = calls[0];
   assert.equal(draft.git, false, '模块开关保持');
-  assert.deepEqual(JSON.parse(JSON.stringify(orderDraft)), changedOrder, '排序保持');
+  // v0.21.2 修复（issue：置顶恒在首位）：pinned='context' 时落盘顺序把 context 提到最前——
+  // changedOrder 里 context 原本在 git 之后，保存后应回到首位（置顶语义的一部分）。
+  const expectedOrder = ['context', ...changedOrder.filter(key => key !== 'context')];
+  assert.deepEqual(JSON.parse(JSON.stringify(orderDraft)), expectedOrder, '排序保持（置顶键恒在首位）');
   assert.equal(usageDraft.folded, 'none');
   // v0.21.2：只复位右栏时置顶保持不动。
   assert.equal(pinnedDraft, 'context', '置顶属于左栏，右栏复位不影响它');

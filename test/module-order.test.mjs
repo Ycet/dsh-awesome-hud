@@ -202,6 +202,20 @@ test("拖动排序预览：按原始槽位定位落点，插入顺序可上下�
   assert.deepEqual(previewModuleOrder(["a", "b", "c"], "x", 1), ["a", "b", "c"]);
   // 预览只含可见键，写回完整顺序时隐藏键保持原位置。
   assert.deepEqual(mergePreviewOrder(["a", "balance", "b", "c"], ["a", "b", "c"], ["c", "a", "b"]), ["c", "balance", "a", "b"]);
+
+  // —— v0.21.2 修复（issue：置顶恒在首位）——
+  // floorIndex：置顶模块占首位（下标 0）时，其它卡片最小只能落到下标 1。
+  assert.deepEqual(previewModuleOrder(["a", "b", "c", "d"], "b", 0, 1), ["a", "b", "c", "d"], "落在下标 0 被钳到 1，顺序不变");
+  assert.deepEqual(previewModuleOrder(["a", "b", "c", "d"], "c", 0, 1), ["a", "c", "b", "d"], "实际落到下标 1（置顶下方）");
+  assert.deepEqual(previewModuleOrder(["a", "b", "c", "d"], "d", -9, 1), ["a", "d", "b", "c"], "越界负值同样钳到 floor");
+  // 不传 floorIndex 时保持旧行为（默认 0）。
+  assert.deepEqual(previewModuleOrder(["a", "b", "c", "d"], "b", 0), ["b", "a", "c", "d"]);
+  // mergePreviewOrder 带置顶键：无论预览把什么拖到哪，写回时置顶键都被提升到最前。
+  // vm 沙箱数组与本体数组原型不同，deepStrictEqual 会报 reference-equal；用 JSON 比较。
+  assert.equal(JSON.stringify(mergePreviewOrder(["p", "a", "b", "c"], ["a", "b", "c"], ["b", "c", "a"], "p")), JSON.stringify(["p", "b", "c", "a"]));
+  assert.equal(JSON.stringify(mergePreviewOrder(["p", "a", "b", "c"], ["p", "a", "b", "c"], ["c", "b", "p", "a"], "p")), JSON.stringify(["p", "c", "b", "a"]));
+  // 未置顶（空串）时不重排。
+  assert.equal(JSON.stringify(mergePreviewOrder(["a", "b", "c"], ["a", "b", "c"], ["c", "b", "a"], "")), JSON.stringify(["c", "b", "a"]));
 });
 
 // —— 客户端结构与接线 ——
@@ -276,12 +290,14 @@ test("HUD 设置弹窗：模块卡片列表、拖动排序、恢复默认均已�
   assert.match(source, /relY < top \+ step \/ 2/);
   assert.match(source, /const overIndex = moduleDropIndex\(state\.tops, state\.step, relY\);/);
   // 预览位移：不重排 DOM，松手后才写入 orderDraft。
-  assert.match(source, /const next = previewModuleOrder\(state\.order, state\.key, overIndex\);/);
+  // v0.21.2 修复：预览带 floorIndex——置顶模块占据首位时其它卡片最小落到下标 1。
+  assert.match(source, /const next = previewModuleOrder\(state\.order, state\.key, overIndex, floorIndex\);/);
+  assert.match(source, /const floorIndex = pinnedDraft !== "" \? 1 : 0;/);
   assert.match(source, /state\.order = next;/);
   assert.match(source, /const previewIndex = dragPreview === null \? -1 : dragPreview\.order\.indexOf\(key\);/);
   assert.match(source, /style: offset === 0 \? undefined : \{ transform: `translateY\(\$\{offset\}px\)` \},/);
   assert.match(source, /const offset = previewIndex === -1 \|\| previewIndex === index \? 0 : \(previewIndex - index\) \* dragPreview\.step;/);
-  assert.match(source, /if \(previewOrder !== null\) \{\n\t+setDragSettling\(true\);\n\t+setOrderDraft\(mergePreviewOrder\(orderDraft, orderedKeys, previewOrder\)\);/);
+  assert.match(source, /if \(previewOrder !== null\) \{\n\t+setDragSettling\(true\);\n\t+setOrderDraft\(mergePreviewOrder\(orderDraft, orderedKeys, previewOrder, normalizePinned\(pinnedDraft\)\)\);/);
   // 落盘当帧关闭过渡，避免「新布局 + 旧位移」二次滑动。
   assert.match(source, /"data-settling": dragSettling,/);
   // v0.18.7：拖动期间在 document 捕获阶段接管 dragover/drop，松手点落在列表外也能落到首位/末位；
@@ -320,7 +336,9 @@ test("HUD 设置弹窗：模块卡片列表、拖动排序、恢复默认均已�
   // v0.20.0：确认按钮文案改为「保存设置」，且未改动时置灰。
   assert.match(source, /t\("settingsConfirm"\)/);
   assert.match(source, /disabled: !edited,/);
-  assert.match(source, /props\.onConfirm\(draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft, gitDraft, normalizePinned\(pinnedDraft\)\);/);
+  // v0.21.2 修复（issue：置顶恒在首位）：落盘前把置顶键提升到顺序最前。
+  assert.match(source, /const savedOrder = pinnedKey !== "" \? \[pinnedKey, \.\.\.orderDraft\.filter\(\(key\) => key !== pinnedKey\)\] : orderDraft;/);
+  assert.match(source, /props\.onConfirm\(draft, usageDraft, savedOrder, contextDraft, panelDraft, noteDraft, gitDraft, pinnedKey\);/);
   assert.match(source, /onClick: props\.onClose \}, t\("settingsCancel"\)\)/);
 });
 
@@ -329,7 +347,8 @@ test("面板按 moduleOrder 渲染：不再写死模块顺序，且不漏渲染"
 
   // 渲染表 + 顺序映射
   assert.match(source, /const MODULE_RENDERERS = \{/);
-  assert.match(source, /const renderOrderedModules = \(\) => normalizeModuleOrder\(moduleOrder\)/);
+  // v0.21.2 修复：渲染顺序同样把置顶键提升到最前（历史脏顺序自愈）。
+  assert.match(source, /const pinnedFirst = pinnedKey !== "" \? \[pinnedKey, \.\.\.order\.filter\(\(key\) => key !== pinnedKey\)\] : order;/);
   assert.match(source, /\.map\(\(key\) => MODULE_RENDERERS\[key\]\?\.\(\) \?\? null\)/);
   assert.match(source, /\.filter\(\(node\) => node !== null\)/);
   assert.match(source, /renderOrderedModules\(\)\)\);/);

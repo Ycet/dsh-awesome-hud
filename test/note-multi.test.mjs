@@ -114,7 +114,7 @@ test("客户端接线：达到上限只 toast；上限调低后仍可保存", ()
   const confirmStart = source.indexOf("const confirmSettings = () => {");
   const body = source.slice(confirmStart, source.indexOf("};", confirmStart));
   assert.doesNotMatch(body, /noteCountViolations|noteCapRejected|violations/);
-  assert.match(body, /props\.onConfirm\(draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft, gitDraft, normalizePinned\(pinnedDraft\)\);/);
+  assert.match(body, /props\.onConfirm\(draft, usageDraft, savedOrder, contextDraft, panelDraft, noteDraft, gitDraft, pinnedKey\);/);
   assert.match(source, /noteLimitReached: "便笺数量已达上限 \{count\} 条，请在 HUD 设置中调整"/);
 });
 

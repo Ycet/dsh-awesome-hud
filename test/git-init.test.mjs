@@ -121,7 +121,9 @@ test("缺少会话 id 或会话无工作区时拒绝初始化", async () => {
   assert.match(missing.error, /会话 id/);
 
   const unknown = await call("git/init", { sessionId: "other" });
-  assert.equal(unknown.status, 400);
+  // v0.21.7：会话缺失统一 404 + missing-session（预期内暂态，客户端据此自愈不落错误）
+  assert.equal(unknown.status, 404);
+  assert.equal(unknown.code, "missing-session");
   assert.match(unknown.error, /找不到会话/);
   assert.equal(fake.calls.some((argv) => argv.join(" ") === "git init"), false);
 });
@@ -142,10 +144,11 @@ function extractExpression(from) {
 }
 
 // v0.21.2：标题行按钮改成「加载中 → 空 / 仓库 → 分支 / 非仓库 → 初始化」三段分流。
-const headExtra = extractExpression(source.indexOf("extra: loading") + "extra: ".length);
+// v0.21.7（issue #3）：错误终态优先于加载态，右侧为「重试」按钮。
+const headExtra = extractExpression(source.indexOf("extra: erroring") + "extra: ".length);
 
 test("Git 模块标题栏：加载中不出按钮，非仓库展示「初始化仓库」，仓库展示分支切换按钮", () => {
-  assert.ok(headExtra.startsWith("loading"), "extra 必须以「是否加载中」优先分流");
+  assert.ok(headExtra.startsWith("erroring"), "extra 必须以「错误终态」优先分流");
   const sandbox = {
     react: { createElement: (type, props, ...children) => ({ type, props, children }) },
     Icon: "Icon",
@@ -155,12 +158,24 @@ test("Git 模块标题栏：加载中不出按钮，非仓库展示「初始化�
     toggleBranchMenu: () => {},
     initRepo: () => {},
     initBusy: false,
+    retryBusy: false,
+    retryGit: () => {},
   };
+  // 错误终态：右侧是「重试」按钮
+  const retry = vm.runInNewContext(headExtra, { ...sandbox, erroring: true, loading: false, isRepo: false });
+  assert.equal(retry.type, "button");
+  assert.equal(retry.props.className, "hud-btn-small hud-git-btn");
+  assert.equal(retry.props.title, "gitRetry");
+  assert.equal(retry.children[0].props.name, "refresh");
+  assert.equal(retry.children[1], "gitRetry");
+  // 重试进行中：按钮置灰
+  const retryBusyState = vm.runInNewContext(headExtra, { ...sandbox, erroring: true, loading: false, isRepo: false, retryBusy: true });
+  assert.equal(retryBusyState.props.disabled, true);
   // 加载中：两侧都还判断不出来，标题行右侧留空
-  const pending = vm.runInNewContext(headExtra, { ...sandbox, loading: true, isRepo: false });
+  const pending = vm.runInNewContext(headExtra, { ...sandbox, erroring: false, loading: true, isRepo: false });
   assert.equal(pending, null, "加载中不得先摆「初始化仓库」或分支按钮");
   // 非仓库：同一位置渲染「初始化仓库」按钮
-  const initButton = vm.runInNewContext(headExtra, { ...sandbox, loading: false, isRepo: false });
+  const initButton = vm.runInNewContext(headExtra, { ...sandbox, erroring: false, loading: false, isRepo: false });
   assert.equal(initButton.type, "button");
   assert.equal(initButton.props.className, "hud-btn-small hud-git-btn");
   assert.equal(initButton.props.title, "gitInitRepoTitle");
@@ -171,24 +186,26 @@ test("Git 模块标题栏：加载中不出按钮，非仓库展示「初始化�
   assert.equal(initButton.children[1], "gitInitRepo");
 
   // 初始化进行中：按钮置灰
-  const busy = vm.runInNewContext(headExtra, { ...sandbox, loading: false, isRepo: false, initBusy: true });
+  const busy = vm.runInNewContext(headExtra, { ...sandbox, erroring: false, loading: false, isRepo: false, initBusy: true });
   assert.equal(busy.props.disabled, true);
 
   // 仓库：仍是分支切换按钮（位置相同），不出现「初始化仓库」
-  const repoExtra = vm.runInNewContext(headExtra, { ...sandbox, loading: false, isRepo: true, props: { git: { branch: "main" } } });
+  const repoExtra = vm.runInNewContext(headExtra, { ...sandbox, erroring: false, loading: false, isRepo: true, props: { git: { branch: "main" } } });
   assert.equal(repoExtra.props.className, "hud-btn-small hud-git-btn hud-branch-switch");
   assert.equal(repoExtra.props.ref.marker, "branchBtn");
   assert.equal(repoExtra.children[1].children[0], "main");
 
   // 仓库但无分支名（分离 HEAD 且读不到名字）：不渲染任何按钮
-  const noBranch = vm.runInNewContext(headExtra, { ...sandbox, loading: false, isRepo: true, props: { git: { branch: null } } });
+  const noBranch = vm.runInNewContext(headExtra, { ...sandbox, erroring: false, loading: false, isRepo: true, props: { git: { branch: null } } });
   assert.equal(noBranch, null);
 });
 
 test("Git 模块：加载中先给提示，非仓库只展示提示，仓库正文保留动作与统计", () => {
   // v0.21.2：快照未到（null）算加载中，正文先渲染一行加载提示
-  assert.match(source, /const loading = props\.git === null \|\| props\.git === undefined;/);
-  assert.match(source, /const isRepo = loading !== true && props\.git\.isRepo === true;/);
+  // v0.21.7（issue #3）：错误终态（props.gitError）优先于加载态，避免 403 永远转圈
+  assert.match(source, /const loading = \(props\.git === null \|\| props\.git === undefined\) && props\.gitError == null;/);
+  assert.match(source, /const erroring = \(props\.git === null \|\| props\.git === undefined\) && props\.gitError != null;/);
+  assert.match(source, /const isRepo = loading !== true && erroring !== true && props\.git\.isRepo === true;/);
   assert.match(source, /const gitFiles = isRepo && Array\.isArray\(props\.git\.files\) \? props\.git\.files : \[\];/);
   assert.match(source, /loading\n\t+\? react\.createElement\("div", \{ className: "hud-git-loading", role: "status", "aria-live": "polite" \}, t\("gitLoading"\)\)/);
   // 非仓库：正文是提示文案（不渲染 git graph / commit / revert）
@@ -217,6 +234,9 @@ test("端到端：非仓库快照渲染「初始化仓库」，init 后的快照
     toggleBranchMenu: () => {},
     initRepo: () => {},
     initBusy: false,
+    retryBusy: false,
+    retryGit: () => {},
+    erroring: false,
     loading: false,
     isRepo: snapshot.isRepo === true,
   });

@@ -217,7 +217,9 @@ test("设置弹窗接线：置顶按钮、置顶卡锁定首位、隐藏自动�
   assert.match(clientSource.slice(resetAll, resetModules), /setPinnedDraft\(""\);/);
   assert.match(clientSource.slice(resetModules, resetModules + 400), /setPinnedDraft\(""\);/);
   // 确认时把置顶键作为第 8 个草稿一起提交
-  assert.match(clientSource, /props\.onConfirm\(draft, usageDraft, orderDraft, contextDraft, panelDraft, noteDraft, gitDraft, normalizePinned\(pinnedDraft\)\);/);
+  // v0.21.2 修复（issue：置顶恒在首位）：落盘前置顶键提升到顺序最前（savedOrder）。
+  assert.match(clientSource, /const savedOrder = pinnedKey !== "" \? \[pinnedKey, \.\.\.orderDraft\.filter\(\(key\) => key !== pinnedKey\)\] : orderDraft;/);
+  assert.match(clientSource, /props\.onConfirm\(draft, usageDraft, savedOrder, contextDraft, panelDraft, noteDraft, gitDraft, pinnedKey\);/);
 });
 
 test("面板接线：置顶模块渲染在固定区、滚动区去重、隐藏时不渲染固定区", () => {

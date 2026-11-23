@@ -34,7 +34,7 @@
 - [🔧 技术栈](#-技术栈)
 - [🧪 开发与测试](#-开发与测试)
 - [🔗 关联插件](#-关联插件)
-- [⬆️ 升级说明（v0.11.x → v0.21.6）](#️-升级说明v011x--v0216)
+- [⬆️ 升级说明（v0.11.x → v0.21.7）](#️-升级说明v011x--v0217)
 - [📄 许可证](#-许可证)
 
 ---
@@ -52,7 +52,7 @@
 | 会话 | 工作区与会话名称、运行状态、模型与思考等级标签；菜单里重命名、置顶、分支、归档、复制。 |
 | 上下文 | 占用率与七类分段进度条、会话统计与 Token 用量；一键压缩，或派子代理写交接文档。 |
 | 用量 | DeepSeek 余额、OpenCode Go 额度、Codex 额度；折叠后在标题展示其中一项。 |
-| 产物 | 本会话及其子会话写出的文档 / 表格 / 演示 / 图片，以及本会话交付的文件；点击预览，右键加入聊天或复制路径。 |
+| 产物 | 本会话及其子会话写出的文档 / 表格 / 演示 / 图片、交付的文件与 AI 生成的图片；点击预览，右键加入聊天或复制路径。 |
 | Git | 分支与变更数量、暂存与未暂存分组、diff、右键添加至聊天 / 定位 / 复制、commit（含 AI 生成提交信息）、git graph。 |
 | 任务 | 会话任务清单与完成状态，随任务变化实时刷新。 |
 | 子代理任务 | 当前会话的子代理层级与状态，点击在右侧栏打开该子代理会话。 |
@@ -100,7 +100,7 @@
 
 ### 产物模块
 
-列出本会话及其子会话（子代理）**用 `write` / `edit` 写出的**文档、表格、演示与图片，以及本会话用官方 `present` 交付的文件，按最后一次改动排序，最多 10 个文件，默认先显示 3 个、可展开查看全部；没有产物时模块整体不展示。只认这两类 durable 证据：重启 DSH 后列表仍能重建，也不会把同工作区其它会话、或你自己手改的文件算进来（终端命令直接生成的文件不再自动收录）。交付路径必须落在会话工作区内，工作区外的路径不列入，因为右侧栏预览按会话工作区解析。子代理的产物取它日志里的 `write` / `edit` 记录（fork 子代理只算它自己写出的部分，不重复父会话的历史），路径换算到主会话工作区，工作区之外的（例如 worktree 里的）不收录。**分支会话**继续显示分支之前的产物：DSH 不记录分支的来源，插件用「继承前缀里 `job` 事件的 `owner` + 边界事件时间」认出源会话，从而沿用它的子代理产物。
+列出本会话及其子会话（子代理）**用 `write` / `edit` 写出的**文档、表格、演示与图片，以及本会话用官方 `present` 交付的文件、gpt_imagegen 生成的图片，按最后一次改动排序，最多 10 个文件，默认先显示 3 个、可展开查看全部；没有产物时模块整体不展示。只认这几类 durable 证据：重启 DSH 后列表仍能重建，也不会把同工作区其它会话、或你自己手改的文件算进来（终端命令直接生成的文件不再自动收录）。交付路径必须落在会话工作区内，工作区外的路径不列入，因为右侧栏预览按会话工作区解析。子代理的产物取它日志里的 `write` / `edit` 记录（fork 子代理只算它自己写出的部分，不重复父会话的历史），路径换算到主会话工作区，工作区之外的（例如 worktree 里的）不收录。**分支会话**继续显示分支之前的产物：DSH 不记录分支的来源，插件用「继承前缀里 `job` 事件的 `owner` + 边界事件时间」认出源会话，从而沿用它的子代理产物。
 
 - **悬停路径**：鼠标在文件行上停留 0.5 秒显示完整相对路径；
 - **点击打开**：在右侧栏打开文件内容；
@@ -212,7 +212,7 @@
 
 ```bash
 # 1. 安装（无需 git；本机需有 pnpm，dsh plugin 会调用它）
-dsh plugin --profile web add dsh-awesome-hud@0.21.6
+dsh plugin --profile web add dsh-awesome-hud@0.21.7
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -224,7 +224,7 @@ dsh plugin --profile web add dsh-awesome-hud@0.21.6
 
 ```bash
 # 1. 安装（锁定版本 tag，要求本机 git 可访问 GitHub）
-dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.6"
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.7"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -242,7 +242,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 
 ```bash
 # 1. 安装（可直接用 Release 资产 URL，也可先下载 .tgz 再传本地路径）
-dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.6/dsh-awesome-hud-0.21.6.tgz"
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.7/dsh-awesome-hud-0.21.7.tgz"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -255,7 +255,7 @@ dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/d
 
 ```bash
 # 从 npm 安装（推荐）
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.6
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.7
 
 # 从本地源码安装（开发）
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -336,10 +336,12 @@ dsh-awesome-hud/
 
 ---
 
-## ⬆️ 升级说明（v0.11.x → v0.21.6）
+## ⬆️ 升级说明（v0.11.x → v0.21.7）
 
 <details>
 <summary>按版本查看各版本改动要点</summary>
+
+**v0.21.7：上下文明细与官方口径对齐**：① 修复明细冻结：宿主缓存原先只看 surface 的 `contentGeneration`，而它只在替换 / 投影时递增，普通追加不动，导致七类数字停在首次快照上（例如技能注入 142K、助手与工具结果恒为 0）。缓存键改为「generation + 节点数 + 末尾节点序号」并用序号给每个节点单独记价，追加即失效、只补算新增节点。② 估算逐条对齐官方 `dsh-token-meter/src/estimate.ts`：推理块与文本块同价、工具调用参数按字符串长度计、system 消息按纯文本密度加角色开销。真实会话回放中七类合计与官方 `messageTokens` 完全相等（40682 = 40682），系统提示词也一致（2501 = 2501）。③ gpt_imagegen 生成的图片纳入产物模块：该 MCP 的 `generate_image`/`edit_image` 只返回任务 id，图片路径在轮询 `get_image_task` 完成时才写进结果文本的 `## result` JSON 块；宿主扫描 `tool/result` 事件并经 `callId` 关联工具名后解析 `filePath`/`filePaths`，绝对路径按会话工作区归一，工作区外或已删除的图片自动排除，与 `write`/`present` 证据共用去重、排序与上限。④ 修复 Git 模块在 LAN 地址访问下永远转圈（issue #3）：信任围栏优先改用官方 `connection.admit`（0.2.3-alpha.1 起官方移除了 `requestRejection`），本地回退补上「监听绑定 IP 放行」（对齐官方 `isBindAddressAuthority`），LAN 自绑定部署不再被误拒 403。⑤ Git 轮询持续失败（连续 2 拍且无快照）时给出错误终态与重试按钮，不再永远停在加载态；首拍失败（宿主未就绪/网络抖动）保持加载态自愈，会话缺失（宿主重启后快照滞后、会话刚归档）按 404 `missing-session` 归为暂态不误报。⑥ 修复置顶模块被拖动排序压低：拖动预览、落盘与面板渲染三层都保证置顶恒在首位，历史脏顺序打开面板自动纠正。基线：776 tests / 773 pass / 0 fail / 3 skipped。
 
 **v0.21.6：Git 变更文件的右键菜单对齐「产物」模块**：① 「已暂存」与「未暂存」两个分组的文件右键菜单新增「添加至聊天」，点击后把该文件以官方 `@` 引用写入聊天输入框，与「产物」模块共用同一套逻辑（引用形状、成功 / 失败提示、输入框焦点回落都一致）。② 变更路径来自 `git status --porcelain`，恒相对**仓库根**；官方 `@` 引用相对**会话工作区**解析。快照因此新增 `prefix`（`git rev-parse --show-prefix`），会话在仓库子目录时先把仓库根路径换算成工作区相对路径，`@` 引用才能指向正确文件。③ 文件夹行同样有「添加至聊天」「在文件夹显示」与三个复制项（官方 `@` 引用也支持目录），定位文件夹改走工作区的目录接口（工作区外的仓库子目录也能打开）。同一菜单还提供「在文件夹显示」与「复制文件名称 / 相对路径 / 绝对路径」，图标与「产物」右键菜单一致，统一改用内置的文件夹与复制图标（git graph 的复制菜单与各处「在文件夹显示」同步）；复制绝对路径需要仓库根，快照同时新增 `root`（`git rev-parse --show-toplevel`，macOS 下取 realpath），拿不到时该项置灰并给出原因。④ 菜单顺序调整为 Git 原生动作（暂存 / 撤销 / 忽略）在最上方，其后用分割线分成「聊天与定位」「复制」两组。⑤ 修复菜单被裁：条目变多后按实际条目数与分割线数重新夹取位置，菜单改用 portal 渲染到 `body`、不再被 HUD 面板的滚动容器裁剪，高度超出视口时允许滚动。⑥ 文件在工作区之外时提示「该文件不在会话工作区内」；已删除的文件（`D`）与当前页面没有可用输入框时相应项置灰并给出原因。⑦ 上下文模块的悬浮分段条由 3 段细化为 **7 类**：系统提示词、工具定义、用户消息、注入内容、技能注入、助手消息、工具结果，每类在图例里显示估算值与占比，未占用的窗口区域仍是灰色底。前两类沿用官方 `contextBreakdown`，后五类由宿主新增的 `context/breakdown` 接口扫描当前会话 surface 后按官方口径估算（每 4 字符 1 token），再按官方 `messageTokens` 等比缩放，五类之和恒等于官方消息总量；接口拉不到时自动退回原来的三段视图。说明页 git 与上下文两节同步文案。新增上下文七类估算、缩放余数、明细缺失回退、菜单顺序与禁用态、定位夹取与 portal 用例。基线：761 tests / 758 pass / 0 fail / 3 skipped。
 

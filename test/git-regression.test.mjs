@@ -522,7 +522,9 @@ test('越权与非法输入：非回环来源、缺会话、路径注入都被�
   try {
     const { call } = createHarness(root);
     const foreign = await call('git', { sessionId: 'other' });
-    assert.equal(foreign.status, 400);
+    // v0.21.7：会话缺失是预期内暂态，返回 404 + missing-session，客户端据此不落错误终态。
+    assert.equal(foreign.status, 404);
+    assert.equal(foreign.code, 'missing-session');
     assert.match(foreign.error, /找不到会话/);
 
     const noSession = await call('git', { sessionId: '' });

@@ -65,6 +65,12 @@ test("failed polling retains modules; responses after session cleanup are ignore
   const context = vm.createContext({
     sessionId: "A", gitKey: "git:A", gitRevision: { current: 0 },
     moduleSessionId: "A", newSessionPage: false,
+    // v0.21.7：依赖数组加入 git（错误终态需要判断是否已有快照）
+    git: null,
+    // v0.21.7 交互修正：快照有无与失败计数改用 ref 跟踪，effect 开头复位
+    gitSnapshotRef: { current: false },
+    gitFailuresRef: { current: 0 },
+    setGitError: () => {},
     singleFlight: fn => fn,
     react: { useEffect(fn) { cleanup = fn(); } },
     window: { setInterval(fn) { refresh = fn; }, clearInterval() {} },
@@ -91,6 +97,132 @@ test("failed polling retains modules; responses after session cleanup are ignore
   cleanup();
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(values.git.isRepo, true);
+});
+
+// v0.21.7（issue #3 交互修正）：首拍失败（重启后宿主未就绪）保持加载态自愈，
+// 连续失败满 2 次且无快照才落终态错误；错误出现后成功即清除。
+test("git poll: first failure stays loading; two consecutive failures raise terminal error; success clears it", async () => {
+  let refresh, cleanup, fail = true, calls = 0;
+  const errors = [];
+  const context = vm.createContext({
+    sessionId: "A", gitKey: "git:A", gitRevision: { current: 0 },
+    moduleSessionId: "A", newSessionPage: false,
+    git: null,
+    gitSnapshotRef: { current: false },
+    gitFailuresRef: { current: 0 },
+    setGitError: value => { errors.push(value); },
+    singleFlight: fn => fn,
+    react: { useEffect(fn) { cleanup = fn(); } },
+    window: { setInterval(fn) { refresh = fn; }, clearInterval() {} },
+    call: async method => { if (method !== "git") return {}; calls += 1; if (fail) throw new Error("offline"); return { isRepo: true }; },
+    setGit: value => { },
+    setSubagents: () => {}, setMcp: () => {}, setPlans: () => {},
+  });
+  const marker = source.indexOf('// git / 子代理 / 计划');
+  const start = source.indexOf('react.useEffect(() => {', marker);
+  const endMarker = '}, [sessionId, gitKey, moduleSessionId, newSessionPage]);';
+  const end = source.indexOf(endMarker, start) + endMarker.length;
+  vm.runInContext(source.slice(start, end), context);
+  // 第 1 拍失败：不得落错误（保持加载态，交给 5s 轮询自愈）
+  // （一轮 refresh 触发 4 个 poller，git 只发 1 次 call）
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls, 1);
+  // effect 开头的复位会先写一次 null（清理上一轮错误缓存），属于预期行为；
+  // 断言「没有落 Error 终态」：错误栈里除复位 null 外不得出现真实错误。
+  assert.equal(errors.filter(error => error !== null).length, 0, "首拍失败必须保持加载态");
+  // 第 2 拍仍失败：落终态错误（错误栈 = 复位 null + 1 个真实错误）
+  refresh();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls, 2);
+  const realErrors = errors.filter(error => error !== null);
+  assert.equal(realErrors.length, 1);
+  assert.match(realErrors[0].message, /offline/);
+  // 恢复：成功清空错误
+  fail = false;
+  refresh();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(errors[errors.length - 1], null, "成功后必须清空终态错误");
+  cleanup();
+});
+
+// v0.21.7：会话缺失（宿主重启后客户端快照滞后 / 会话刚归档）是预期内暂态——
+// 不计入失败、不落错误终态，模块停在加载态等轮询自愈；换到有效会话后正常展示。
+test("git poll: missing-session is transient and never raises the terminal error", async () => {
+  let refresh, cleanup, fail = true, calls = 0;
+  const errors = [];
+  const context = vm.createContext({
+    sessionId: "A", gitKey: "git:A", gitRevision: { current: 0 },
+    moduleSessionId: "A", newSessionPage: false,
+    git: null,
+    gitSnapshotRef: { current: false },
+    gitFailuresRef: { current: 0 },
+    setGitError: value => { errors.push(value); },
+    singleFlight: fn => fn,
+    react: { useEffect(fn) { cleanup = fn(); } },
+    window: { setInterval(fn) { refresh = fn; }, clearInterval() {} },
+    call: async method => {
+      if (method !== "git") return {};
+      calls += 1;
+      if (fail) throw Object.assign(new Error("找不到会话 session-x"), { code: "missing-session" });
+      return { isRepo: true };
+    },
+    setGit: () => {}, setSubagents: () => {}, setMcp: () => {}, setPlans: () => {},
+  });
+  const marker = source.indexOf('// git / 子代理 / 计划');
+  const start = source.indexOf('react.useEffect(() => {', marker);
+  const endMarker = '}, [sessionId, gitKey, moduleSessionId, newSessionPage]);';
+  const end = source.indexOf(endMarker, start) + endMarker.length;
+  vm.runInContext(source.slice(start, end), context);
+  // 连续多拍 missing-session：错误栈只应包含 effect 开头复位写入的 null，不得出现真实错误
+  refresh();
+  await new Promise(resolve => setImmediate(resolve));
+  refresh();
+  await new Promise(resolve => setImmediate(resolve));
+  refresh();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.ok(calls >= 3, "轮询在会话缺失期间应持续进行");
+  assert.equal(errors.filter(error => error !== null).length, 0, "missing-session 不得落终态错误");
+  // 换到有效会话后：正常展示并清错误
+  fail = false;
+  refresh();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(errors[errors.length - 1], null);
+  cleanup();
+});
+
+// 旧宿主不带 code：按消息文本兜底识别同类暂态。
+test("git poll: legacy host session-not-found (no code) is also transient", async () => {
+  let refresh, cleanup, calls = 0;
+  const errors = [];
+  const context = vm.createContext({
+    sessionId: "A", gitKey: "git:A", gitRevision: { current: 0 },
+    moduleSessionId: "A", newSessionPage: false,
+    git: null,
+    gitSnapshotRef: { current: false },
+    gitFailuresRef: { current: 0 },
+    setGitError: value => { errors.push(value); },
+    singleFlight: fn => fn,
+    react: { useEffect(fn) { cleanup = fn(); } },
+    window: { setInterval(fn) { refresh = fn; }, clearInterval() {} },
+    call: async method => {
+      if (method !== "git") return {};
+      calls += 1;
+      throw new Error("找不到会话 session-4fa90791");
+    },
+    setGit: () => {}, setSubagents: () => {}, setMcp: () => {}, setPlans: () => {},
+  });
+  const marker = source.indexOf('// git / 子代理 / 计划');
+  const start = source.indexOf('react.useEffect(() => {', marker);
+  const endMarker = '}, [sessionId, gitKey, moduleSessionId, newSessionPage]);';
+  const end = source.indexOf(endMarker, start) + endMarker.length;
+  vm.runInContext(source.slice(start, end), context);
+  refresh();
+  await new Promise(resolve => setImmediate(resolve));
+  refresh();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.ok(calls >= 2);
+  assert.equal(errors.filter(error => error !== null).length, 0, "旧宿主的消息兜底同样不得落终态错误");
+  cleanup();
 });
 
 test("Git transient failure is not reported as a non-repository", async () => {
