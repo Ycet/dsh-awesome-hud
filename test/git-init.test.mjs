@@ -256,7 +256,7 @@ test("端到端：非仓库快照渲染「初始化仓库」，init 后的快照
 test("初始化仓库的调用、提示与中英文案齐备", () => {
   assert.match(source, /const initRepo = async \(event\) => \{/);
   assert.match(source, /event\?\.stopPropagation\?\.\(\); \/\/ 避免触发模块折叠/);
-  assert.match(source, /const snapshot = await call\("git\/init", \{ sessionId: props\.sessionId \}\);/);
+  assert.match(source, /const snapshot = await call\("git\/init", \{ sessionId: props\.sessionId, cwd: props\.cwd \}\);/);
   // v0.21.2：成功提示按宿主回报的 .gitignore 结果分流（新建 / 补全 / 未改动 / 写盘失败）。
   assert.match(source, /toast\(t\(mode === "created" \? "gitInitIgnoreCreated" : mode === "merged" \? "gitInitIgnoreMerged" : "gitInitDone"\), "success"\);/);
   assert.match(source, /if \(mode === "failed"\) toast\(interpolate\(t\("gitIgnoreFailed"\), \{ detail: ignore\?\.error \?\? "" \}\), "error"\);/);

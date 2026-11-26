@@ -107,6 +107,8 @@ test("git poll: first failure stays loading; two consecutive failures raise term
   const context = vm.createContext({
     sessionId: "A", gitKey: "git:A", gitRevision: { current: 0 },
     moduleSessionId: "A", newSessionPage: false,
+    // v0.21.8：轮询请求带工作区路径（宿主用于非 live 会话兜底）
+    summary: { cwd: "/workspace" }, target: { path: "/workspace" },
     git: null,
     gitSnapshotRef: { current: false },
     gitFailuresRef: { current: 0 },
@@ -145,14 +147,15 @@ test("git poll: first failure stays loading; two consecutive failures raise term
   cleanup();
 });
 
-// v0.21.7：会话缺失（宿主重启后客户端快照滞后 / 会话刚归档）是预期内暂态——
-// 不计入失败、不落错误终态，模块停在加载态等轮询自愈；换到有效会话后正常展示。
-test("git poll: missing-session is transient and never raises the terminal error", async () => {
-  let refresh, cleanup, fail = true, calls = 0;
+// v0.21.8：会话缺失是**有界**暂态——宿主会用工作区路径兜底；若仍缺失（路径也不是
+// 已注册工作区），给 3 拍余量后落终态，避免「永远停在加载态」（issue #3 的可见症状）。
+test("git poll: missing-session stays loading for 3 beats then raises a terminal error", async () => {
+  let refresh, cleanup, calls = 0, fail = true;
   const errors = [];
   const context = vm.createContext({
     sessionId: "A", gitKey: "git:A", gitRevision: { current: 0 },
     moduleSessionId: "A", newSessionPage: false,
+    summary: { cwd: "/workspace" }, target: { path: "/workspace" },
     git: null,
     gitSnapshotRef: { current: false },
     gitFailuresRef: { current: 0 },
@@ -173,30 +176,30 @@ test("git poll: missing-session is transient and never raises the terminal error
   const endMarker = '}, [sessionId, gitKey, moduleSessionId, newSessionPage]);';
   const end = source.indexOf(endMarker, start) + endMarker.length;
   vm.runInContext(source.slice(start, end), context);
-  // 连续多拍 missing-session：错误栈只应包含 effect 开头复位写入的 null，不得出现真实错误
-  refresh();
-  await new Promise(resolve => setImmediate(resolve));
-  refresh();
-  await new Promise(resolve => setImmediate(resolve));
-  refresh();
-  await new Promise(resolve => setImmediate(resolve));
-  assert.ok(calls >= 3, "轮询在会话缺失期间应持续进行");
-  assert.equal(errors.filter(error => error !== null).length, 0, "missing-session 不得落终态错误");
-  // 换到有效会话后：正常展示并清错误
+  const beat = async () => { await new Promise(resolve => setImmediate(resolve)); };
+  await beat();
+  refresh(); await beat();
+  assert.ok(calls >= 2, "会话缺失期间轮询应持续进行");
+  assert.equal(errors.filter(error => error !== null).length, 0, "前 2 拍不得落终态错误");
+  refresh(); await beat();
+  const realErrors = errors.filter(error => error !== null);
+  assert.equal(realErrors.length, 1, "第 3 拍仍缺失必须落终态，不能永久转圈");
+  assert.match(realErrors[0].message, /找不到会话/);
+  // 恢复：成功清空错误
   fail = false;
-  refresh();
-  await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(errors[errors.length - 1], null);
+  refresh(); await beat();
+  assert.deepEqual(errors[errors.length - 1], null, "成功后必须清空终态错误");
   cleanup();
 });
 
-// 旧宿主不带 code：按消息文本兜底识别同类暂态。
-test("git poll: legacy host session-not-found (no code) is also transient", async () => {
+// 旧宿主不带 code：按消息文本兜底识别同类暂态（同样有界，3 拍后落终态）。
+test("git poll: legacy host session-not-found (no code) is bounded too", async () => {
   let refresh, cleanup, calls = 0;
   const errors = [];
   const context = vm.createContext({
     sessionId: "A", gitKey: "git:A", gitRevision: { current: 0 },
     moduleSessionId: "A", newSessionPage: false,
+    summary: { cwd: "/workspace" }, target: { path: "/workspace" },
     git: null,
     gitSnapshotRef: { current: false },
     gitFailuresRef: { current: 0 },
@@ -216,12 +219,13 @@ test("git poll: legacy host session-not-found (no code) is also transient", asyn
   const endMarker = '}, [sessionId, gitKey, moduleSessionId, newSessionPage]);';
   const end = source.indexOf(endMarker, start) + endMarker.length;
   vm.runInContext(source.slice(start, end), context);
-  refresh();
-  await new Promise(resolve => setImmediate(resolve));
-  refresh();
-  await new Promise(resolve => setImmediate(resolve));
+  const beat = async () => { await new Promise(resolve => setImmediate(resolve)); };
+  await beat();
+  refresh(); await beat();
   assert.ok(calls >= 2);
-  assert.equal(errors.filter(error => error !== null).length, 0, "旧宿主的消息兜底同样不得落终态错误");
+  assert.equal(errors.filter(error => error !== null).length, 0, "前 2 拍不得落终态");
+  refresh(); await beat();
+  assert.equal(errors.filter(error => error !== null).length, 1, "第 3 拍必须落终态");
   cleanup();
 });
 

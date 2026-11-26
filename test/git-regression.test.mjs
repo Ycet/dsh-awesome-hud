@@ -551,3 +551,38 @@ test('越权与非法输入：非回环来源、缺会话、路径注入都被�
     assert.equal(recovered.status, 200, JSON.stringify(recovered));
   } finally { await cleanupRepo(root); }
 });
+
+// v0.21.8（issue #3 残留）：宿主 sessions.get() 只认已加载的 live 会话，客户端却可能挑到
+// 磁盘上未加载的会话。此时 git 接口必须用客户端上报的**已注册工作区路径**兜底，
+// 否则每次轮询都 404，Git 模块永远停在加载态。
+test('会话不在 live 表时用已注册工作区路径兜底（未注册路径仍拒绝）', { timeout: 30000 }, async () => {
+  const root = await createRepo('hud-reg-fallback-');
+  try {
+    // 幽灵会话不在 live 表（模拟宿主重启后客户端快照滞后 / 旧会话已卸载）；
+    // fixture 仍按正常 live 会话返回，用于验证「live 优先于 cwd 提示」。
+    const { call } = createHarness(root, {
+      sessions: { get: (id) => (id === 'fixture' ? { header: { cwd: root } } : undefined) },
+      workspaceRegistry: { list: () => [{ path: root }] },
+    });
+
+    // 只有 cwd 提示：走兜底，正常返回快照
+    const viaCwd = await call('git', { sessionId: 'session-ghost', cwd: root });
+    assert.equal(viaCwd.status, 200);
+    assert.equal(viaCwd.isRepo, true);
+
+    // 未注册路径：拒绝（安全边界与 workspace/reveal 一致）
+    const outside = await call('git', { sessionId: 'session-ghost', cwd: '/tmp' });
+    assert.equal(outside.status, 403);
+    assert.equal(outside.code, 'unregistered-path');
+
+    // 没有任何兜底信息：仍是 missing-session（客户端据此计入有界暂态）
+    const bare = await call('git', { sessionId: 'session-ghost' });
+    assert.equal(bare.status, 404);
+    assert.equal(bare.code, 'missing-session');
+
+    // 回归：live 会话仍优先于 cwd 提示（用未注册的 cwd 也不应影响会话路径解析）
+    const live = await call('git', { sessionId: 'fixture', cwd: '/tmp' });
+    assert.equal(live.status, 200);
+    assert.equal(live.isRepo, true);
+  } finally { await cleanupRepo(root); }
+});

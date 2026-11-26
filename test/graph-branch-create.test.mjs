@@ -94,7 +94,7 @@ test("Enter never submits the inline branch input and Escape cancels it first", 
 test("successful creation toasts, closes the menu and refreshes snapshot plus graph", async () => {
   const client = await readFile(join(root, "lib/client.js"), "utf8");
 
-  assert.match(client, /call\("git\/create-branch", \{ sessionId: props\.sessionId, branch: name, commit: hash \}\)/);
+  assert.match(client, /call\("git\/create-branch", \{ sessionId: props\.sessionId, cwd: props\.cwd, branch: name, commit: hash \}\)/);
   assert.match(client, /toast\(interpolate\(t\("gitBranchCreatedHere"\), \{ branch: name, commit: hash\.slice\(0, 7\) \}\), "success"\)/);
   assert.match(client, /props\.onGit\?\.\(body\);/);
   assert.match(client, /const succeeded = await onCreateBranch\(menu\.commit, name\);[\s\S]{0,90}if \(succeeded === true\) closeMenu\(false\);/);

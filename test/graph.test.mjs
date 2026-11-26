@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseRefs, parseNameStatusLine, parseGitLogOutput, layoutGraph, slicePage } from "../lib/graph.js";
+import { parseRefs, parseNameStatusLine, parseGitLogOutput, layoutGraph, slicePage, nextLoadMoreVisible, GRAPH_MORE_SHOW_PX, GRAPH_MORE_HIDE_PX } from "../lib/graph.js";
 
 test("parseRefs：HEAD -> 分支 / 标签 / 远程分支", () => {
 	assert.deepEqual(parseRefs("HEAD -> dev"), [
@@ -153,4 +153,22 @@ test("layoutGraph：分页累计追加后首页各行布局完全不变（跨页
 	// 夹具有效性：剩余页非空、累计行数与提交总数一致
 	assert.equal(commits.length - 80, 13);
 	assert.equal(layoutGraph(commits).rows.length, 93);
+});
+
+test("nextLoadMoreVisible：迟滞阈值让「加载更多」按钮不再抖动", () => {
+	assert.equal(GRAPH_MORE_SHOW_PX, 24);
+	assert.equal(GRAPH_MORE_HIDE_PX, 120);
+	// 到底（距离 0）立即显示；按钮挂载后距离被抬高（约 44px）仍保持显示
+	assert.equal(nextLoadMoreVisible(false, 0), true);
+	assert.equal(nextLoadMoreVisible(true, 44), true);
+	// 只有离开足够远（>120px）才隐藏
+	assert.equal(nextLoadMoreVisible(true, 100), true);
+	assert.equal(nextLoadMoreVisible(true, 121), false);
+	// 隐藏态在中间区间不提前显示
+	assert.equal(nextLoadMoreVisible(false, 100), false);
+	assert.equal(nextLoadMoreVisible(false, 24), true);
+	assert.equal(nextLoadMoreVisible(false, 25), false);
+	// 非有限数（容器被卸载等）保持上一次状态
+	assert.equal(nextLoadMoreVisible(true, Number.NaN), true);
+	assert.equal(nextLoadMoreVisible(false, undefined), false);
 });

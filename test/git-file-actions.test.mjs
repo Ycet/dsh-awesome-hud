@@ -37,7 +37,7 @@ test('文件行左键先开官方「第 N 轮改动」review，再回退 diff ta
   assert.ok(official > 0 && fallback > official, '官方 review 必须排在 better-sidebar 回退之前');
   assert.ok(preview > fallback, 'better-sidebar 之后退回官方文件预览');
   assert.match(source, /sidebarRight\.openResource\(review\.address, \{ params: \{ index: review\.index \} \}\)/);
-  assert.match(source, /call\("git\/file-preview", \{ sessionId: props\.sessionId, path: file\.path \}\)/);
+  assert.match(source, /call\("git\/file-preview", \{ sessionId: props\.sessionId, cwd: props\.cwd, path: file\.path \}\)/);
 });
 
 test('悬停文件行 0.5s 后在鼠标位置显示完整路径（v0.17.0）', () => {

@@ -34,7 +34,7 @@ Click to jump to a section.
 - [🔧 Tech Stack](#-tech-stack)
 - [🧪 Development and tests](#-development-and-tests)
 - [🔗 Related plugins](#-related-plugins)
-- [⬆️ Upgrade Notes (v0.11.x → v0.21.7)](#️-upgrade-notes-v011x--v0217)
+- [⬆️ Upgrade Notes (v0.11.x → v0.21.8)](#️-upgrade-notes-v011x--v0218)
 - [📄 License](#-license)
 
 ---
@@ -50,7 +50,7 @@ Click to jump to a section.
 | Module | What you see and what you can do |
 | --- | --- |
 | Session | Workspace and session names, run state, one chip for model and reasoning level; menus for rename, pin, branch, archive and copy. |
-| Context | Fill ratio and a seven-category bar, session stats and token usage; one-click compaction, or a subagent that writes a handoff document. |
+| Context | Fill ratio and a seven-category bar, session stats and token usage; one-click compaction (with billion-context installed it explains that manual compaction is taken over), or a subagent that writes a handoff document. |
 | Usage | DeepSeek balance, OpenCode Go quota and Codex quota; one of them can show in the title while folded. |
 | Outputs | Documents, sheets, slides and images this session and its subagents wrote, delivered files and AI-generated images; click to preview, right click to add to chat or copy a path. |
 | Git | Branch and change count, staged and unstaged groups, diff, add to chat, reveal and copy from a right click, commit with AI message, git graph. |
@@ -81,7 +81,7 @@ Shows the workspace name, the session name, the session state, and one chip with
 
 The title shows the current fill, the limit and the ratio; the bar color shows the fill ratio. The two lines below hold the session stats (turns, steps, tok/s) and the token usage (total, cache hits). A hover on the bar switches it to seven segments with their share: system prompt, tool definitions, user messages, injected content, skill injections, assistant messages and tool results. The unused part of the window stays grey, and a hover on the lines shows the full details.
 
-- **Compact**: available while the session is idle, greyed while a task runs;
+- **Compact**: available while the session is idle, greyed while a task runs; a click runs the upstream `/compact`. When billion-context is installed and enabled, it owns compaction and the upstream command is disabled, so the button instead shows a notice that billion-context has taken over the official compact command and manual compaction is unavailable, without attempting anything;
 - **Handoff**: the menu to the right of “Compact” starts a subagent that writes a handoff document into `docs/handoff/` of the workspace; progress shows in the Subagent tasks module.
 
 ![Context module](docs/module-context.png)
@@ -126,7 +126,7 @@ The title shows the current branch and the number of changed files. Files come i
 
 #### Graph page
 
-The “git graph” button opens the commit list, loaded page by page (80 commits per page, more when you reach the bottom). The current branch is a blue chip and other branches are grey. A right click on a commit copies the short or full hash or the subject, creates a branch from it, merges it into the current branch, or runs a soft, mixed or hard reset.
+The “git graph” button opens the commit list, loaded page by page (80 commits per page; scrolling the list to the bottom reveals a “Load more” button that loads the next page). The current branch is a blue chip and other branches are grey. A right click on a commit copies the short or full hash or the subject, creates a branch from it, merges it into the current branch, or runs a soft, mixed or hard reset.
 
 ![Git graph page](docs/git-graph.png)
 
@@ -212,7 +212,7 @@ Panel behaviour:
 
 ```bash
 # 1. Install (no git required; pnpm must be on PATH for `dsh plugin`)
-dsh plugin --profile web add dsh-awesome-hud@0.21.7
+dsh plugin --profile web add dsh-awesome-hud@0.21.8
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -224,7 +224,7 @@ dsh plugin --profile web add dsh-awesome-hud@0.21.7
 
 ```bash
 # 1. Install (pinned to a release tag; requires git access to GitHub)
-dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.7"
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.8"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -242,7 +242,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 
 ```bash
 # 1. Install (use the Release asset URL directly, or pass a downloaded .tgz path)
-dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.7/dsh-awesome-hud-0.21.7.tgz"
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.8/dsh-awesome-hud-0.21.8.tgz"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -255,7 +255,7 @@ Quit DeepSeek Harness completely, then use the CLI that ships with the desktop a
 
 ```bash
 # From npm (recommended)
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.7
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.8
 
 # From local source (development)
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -310,9 +310,9 @@ npm run changelog:date -- --check
 npm run changelog:date
 ```
 
-`scripts/changelog-date.mjs` guards the date of the newest changelog entry: while that version has uncommitted changes in `lib/client.js`, `lib/index.js` or `package.json` the date is the file write date, and on a clean tree it is the last commit date of those files. A mismatch is corrected to the modification date, released versions keep their own dates, and the check is skipped while `package.json` has a version without a changelog entry. The `pretest` hook aligns it before `npm test`.
+`scripts/changelog-date.mjs` guards the date of the newest changelog entry. Once a version is published to npm its date is frozen for good; while it is still unpublished the date follows uncommitted changes in `lib/client.js`, `lib/index.js` or `package.json` (file write date), or the last commit date of those files on a clean tree, and a mismatch is aligned automatically. When npm cannot be reached the check skips without writing anything, and it also skips while `package.json` has a version without a changelog entry. The `pretest` hook runs it before `npm test`.
 
-Current baseline: **748 tests / 745 passed / 0 failed / 3 skipped**.
+Current baseline: **800 tests / 797 passed / 0 failed / 3 skipped**.
 
 ```
 dsh-awesome-hud/
@@ -336,10 +336,12 @@ dsh-awesome-hud/
 
 ---
 
-## ⬆️ Upgrade Notes (v0.11.x → v0.21.7)
+## ⬆️ Upgrade Notes (v0.11.x → v0.21.8)
 
 <details>
 <summary>Open the per-version notes</summary>
+
+**v0.21.8: The remaining cause of the git module loading forever (issue #3).** The host `sessions.get()` only returns **live, loaded sessions**, while the client picks its git target from the session-list snapshot, which also contains sessions that exist on disk but are not loaded (older sessions, right after a host restart, and the proxy session of the new-session page). Those ids answered 404 on every poll, so the git module stayed on "Loading git status…" forever. The host now falls back to the **registered workspace path** the client reports when the session is not live (validated like `workspace/reveal`: registered workspaces only, with the macOS `/var` → `/private/var` symlink mismatch fixed), and all ten git and outputs routes resolve through it; the client sends the workspace path on its poll and every git action. If that also fails, the error state is **bounded**: a hint appears after three consecutive misses instead of spinning forever. Follow-up fixes in the same version (no version bump): ① **The git graph “Load more” button flickered** because it was gated on “within 16px of the bottom”, while the button itself sits inside the scroll container: mounting it raises `scrollHeight`, the next scroll event finds itself no longer at the bottom, unmounts the button, and the user has to scroll repeatedly to catch it. It now uses hysteresis (show at ≤24px from the bottom, hide only beyond 120px, keep the previous state in between). ② **billion-context taking over compaction**: bili disables the upstream `@deepseek-ai/dsh-compaction-basic` and `@deepseek-ai/dsh-command-compact`, so manual compaction can only fail. The host now decides who owns compaction (the bili global flag first, falling back to “no compaction service + no compact command + an acp command”), answers `bili-managed` when bili owns it, and the button shows an explanatory notice instead of “Compaction failed: command not registered (/compact)”. ③ **Official compaction results were misread**: `commands.execute()` returns `{ commandId, result: { kind, text } }`, and the old code read `result.kind`, which is always `undefined`, so failures looked like success. It now reads `result.result.kind`, and `active compaction` still maps to a 409 busy. Baseline: 800 tests / 797 pass / 0 fail / 3 skipped.
 
 **v0.21.7: The context figures match the official density.** (1) The detail figures no longer freeze: the host cache keyed only on the surface `contentGeneration`, which rises on a replace or a projection and stays put on a plain append, so the seven figures stopped at the first snapshot (skill injections at 142K, assistant and tool results stuck at zero). The cache key now covers the generation, the node count and the last node, and each node is priced once by sequence, so an append invalidates the figures and only new nodes are priced. (2) The estimate now follows the official `dsh-token-meter/src/estimate.ts` line by line: a reasoning block prices as a text block, tool-call arguments count by string length, and a system message counts as plain text density plus role framing. On a real session replay the seven figures add up to the official `messageTokens` exactly (40682 = 40682), and the system prompt matches too (2501 = 2501). (3) Images generated by gpt_imagegen join the outputs module: the MCP's `generate_image` / `edit_image` calls only return a task id, and the image path lands in the `## result` JSON block of the completed `get_image_task` text. The host now scans `tool/result` events, resolves the tool name through the `callId`, and parses `filePath` / `filePaths`; absolute paths normalize against the session workspace, images outside it or already deleted are dropped, and the records share dedupe, ordering and limits with the `write` / `present` evidence. (4) The Git module no longer spins forever when the panel is served from a LAN address (issue #3): the trust fence prefers the official `connection.admit` (DSH removed `requestRejection` in 0.2.3-alpha.1) and the local fallback now accepts the listener bind address like the official `isBindAddressAuthority`, so a self-hosted LAN bind is no longer refused with 403. (5) A git poll that keeps failing (two consecutive beats with no snapshot) ends in an error state with a retry control instead of an eternal spinner; the first failed beat stays on the loading state and heals itself, and a missing session (stale client snapshots after a host restart, just-archived sessions) counts as transient via the 404 `missing-session` code. (6) Drag-reorder can no longer push a pinned module below the top: the drag preview, the saved order and the panel render all keep the pinned module first, and a stale order from an older release is corrected the next time the panel opens. Baseline: 776 tests / 773 pass / 0 fail / 3 skipped.
 

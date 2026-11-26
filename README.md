@@ -34,7 +34,7 @@
 - [🔧 技术栈](#-技术栈)
 - [🧪 开发与测试](#-开发与测试)
 - [🔗 关联插件](#-关联插件)
-- [⬆️ 升级说明（v0.11.x → v0.21.7）](#️-升级说明v011x--v0217)
+- [⬆️ 升级说明（v0.11.x → v0.21.8）](#️-升级说明v011x--v0218)
 - [📄 许可证](#-许可证)
 
 ---
@@ -50,7 +50,7 @@
 | 模块 | 你能看到 / 能做什么 |
 | --- | --- |
 | 会话 | 工作区与会话名称、运行状态、模型与思考等级标签；菜单里重命名、置顶、分支、归档、复制。 |
-| 上下文 | 占用率与七类分段进度条、会话统计与 Token 用量；一键压缩，或派子代理写交接文档。 |
+| 上下文 | 占用率与七类分段进度条、会话统计与 Token 用量；一键压缩（装了 billion-context 时改为说明不可手动压缩），或派子代理写交接文档。 |
 | 用量 | DeepSeek 余额、OpenCode Go 额度、Codex 额度；折叠后在标题展示其中一项。 |
 | 产物 | 本会话及其子会话写出的文档 / 表格 / 演示 / 图片、交付的文件与 AI 生成的图片；点击预览，右键加入聊天或复制路径。 |
 | Git | 分支与变更数量、暂存与未暂存分组、diff、右键添加至聊天 / 定位 / 复制、commit（含 AI 生成提交信息）、git graph。 |
@@ -81,7 +81,7 @@
 
 标题右侧是「当前占用 / 最大上下文（占用率）」，进度条用颜色表示占用率；底部两行分别是会话统计（轮数、步数、tok/s）与 Token 用量（总量、缓存命中）。鼠标悬浮在进度条上会切换成分段样式，按七类细分并显示各自占比：系统提示词、工具定义、用户消息、注入内容、技能注入、助手消息、工具结果；未占用的窗口区域保持灰色底；悬浮两行可看完整明细。
 
-- **压缩**：会话空闲时可点，任务进行中置灰；
+- **压缩**：会话空闲时可点，任务进行中置灰；点击后走上游 `/compact`。装了并启用了 billion-context 时，压缩由它接管、上游命令已被禁用，按钮改为弹出一条「billion-context 已接管官方 compact 指令，无法进行手动压缩」的说明，不做任何压缩尝试；
 - **交接**：点「压缩」右侧的下拉菜单，子代理会把交接文档写进工作区的 `docs/handoff/` 目录，进度在「子代理任务」模块里可见。
 
 ![上下文模块](docs/module-context.png)
@@ -126,7 +126,7 @@
 
 #### graph 页面
 
-点模块里的「git graph」打开提交列表，分页加载（每页最多 80 条，滚动到底部继续加载）；当前分支为蓝底白字，其他分支为灰底黑字。右键点击提交可复制短哈希 / 全哈希 / 提交标题，或从此处创建分支、合并至当前分支，以及 soft / mixed / hard reset。
+点模块里的「git graph」打开提交列表，分页加载（每页最多 80 条，滑到列表底部即出现「加载更多」按钮，点击加载下一页）；当前分支为蓝底白字，其他分支为灰底黑字。右键点击提交可复制短哈希 / 全哈希 / 提交标题，或从此处创建分支、合并至当前分支，以及 soft / mixed / hard reset。
 
 ![git graph 页面](docs/git-graph.png)
 
@@ -212,7 +212,7 @@
 
 ```bash
 # 1. 安装（无需 git；本机需有 pnpm，dsh plugin 会调用它）
-dsh plugin --profile web add dsh-awesome-hud@0.21.7
+dsh plugin --profile web add dsh-awesome-hud@0.21.8
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -224,7 +224,7 @@ dsh plugin --profile web add dsh-awesome-hud@0.21.7
 
 ```bash
 # 1. 安装（锁定版本 tag，要求本机 git 可访问 GitHub）
-dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.7"
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.8"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -242,7 +242,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 
 ```bash
 # 1. 安装（可直接用 Release 资产 URL，也可先下载 .tgz 再传本地路径）
-dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.7/dsh-awesome-hud-0.21.7.tgz"
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.8/dsh-awesome-hud-0.21.8.tgz"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -255,7 +255,7 @@ dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/d
 
 ```bash
 # 从 npm 安装（推荐）
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.7
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.8
 
 # 从本地源码安装（开发）
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -310,9 +310,9 @@ npm run changelog:date -- --check
 npm run changelog:date
 ```
 
-「更新日志」最新版本的日期由 `scripts/changelog-date.mjs` 把关：该版本改过（`lib/client.js`、`lib/index.js`、`package.json` 有未提交改动）时取写入日期，工作树干净时取这三个文件最后一次提交的日期；不一致就改成修改日期，已发布版本的历史日期不动（`package.json` 升了版本但还没补更新日志条目时跳过）。`npm test` 的 `pretest` 会先自动对齐。
+「更新日志」最新版本的日期由 `scripts/changelog-date.mjs` 把关：已发布到 npm 的版本日期永久冻结；尚未发布的版本在有未提交改动（`lib/client.js`、`lib/index.js`、`package.json`）时取写入日期，工作树干净时取这三个文件最后一次提交的日期，不一致就自动对齐；npm 查询失败时跳过不改、只给提示（`package.json` 升了版本但还没补更新日志条目时同样跳过）。`npm test` 的 `pretest` 会先跑这一步。
 
-当前基线：**748 tests / 745 pass / 0 fail / 3 skipped**。
+当前基线：**800 tests / 797 pass / 0 fail / 3 skipped**。
 
 ```
 dsh-awesome-hud/
@@ -336,10 +336,12 @@ dsh-awesome-hud/
 
 ---
 
-## ⬆️ 升级说明（v0.11.x → v0.21.7）
+## ⬆️ 升级说明（v0.11.x → v0.21.8）
 
 <details>
 <summary>按版本查看各版本改动要点</summary>
+
+**v0.21.8：修复 Git 模块「永远加载」的剩余成因（issue #3）**：宿主 `sessions.get()` 只返回**已加载的 live 会话**，而客户端从会话列表快照挑目标会话，快照包含磁盘上未加载的会话（旧会话、宿主重启后、新建会话页的代理会话）。这些 id 每次轮询都返回 404，Git 模块就永久停在「正在加载 git 状态」。现在宿主新增工作区兜底：会话不在 live 表时，改用客户端上报的**已注册工作区路径**解析目标目录（校验同 `workspace/reveal`，只接受已注册工作区，并修正 macOS `/var` → `/private/var` 软链导致的误拒），10 个 git/产物接口统一走该解析器；客户端轮询与全部 Git 操作都会带上工作区路径。若仍解析不到，错误态改为**有界**：连续 3 次后才提示「找不到可用会话或工作区」，不再永久转圈。同版后续修复（未升版本号）：① **git graph「加载更多」按钮抖动**——按钮原先由「距底 < 16px」门控，而按钮自身就在滚动容器内，挂载后会抬高 `scrollHeight`，下一次滚动事件立刻判定「不在底部」并卸载按钮，用户必须反复上下滑动才碰巧看到；现改为迟滞判定（距底 ≤24px 显示、>120px 才隐藏），中间区间维持原状态。② **billion-context 接管压缩时的提示**——bili 会禁用上游 `@deepseek-ai/dsh-compaction-basic` 与 `@deepseek-ai/dsh-command-compact`，手动压缩必然失败；现在宿主先判定压缩归属（bili 全局标记为主，缺失时用「无 compaction 服务 + 无 compact 命令 + 有 acp 命令」兜底），接管时直接回 `bili-managed`，按钮弹出说明而不再显示「压缩失败：命令未注册：/compact」。③ **官方压缩结果误读**——`commands.execute()` 返回 `{ commandId, result: { kind, text } }`，旧代码读 `result.kind` 恒为 `undefined`，把失败当成功；现改为读 `result.result.kind`，`active compaction` 仍映射为 409 busy。基线：800 tests / 797 pass / 0 fail / 3 skipped。
 
 **v0.21.7：上下文明细与官方口径对齐**：① 修复明细冻结：宿主缓存原先只看 surface 的 `contentGeneration`，而它只在替换 / 投影时递增，普通追加不动，导致七类数字停在首次快照上（例如技能注入 142K、助手与工具结果恒为 0）。缓存键改为「generation + 节点数 + 末尾节点序号」并用序号给每个节点单独记价，追加即失效、只补算新增节点。② 估算逐条对齐官方 `dsh-token-meter/src/estimate.ts`：推理块与文本块同价、工具调用参数按字符串长度计、system 消息按纯文本密度加角色开销。真实会话回放中七类合计与官方 `messageTokens` 完全相等（40682 = 40682），系统提示词也一致（2501 = 2501）。③ gpt_imagegen 生成的图片纳入产物模块：该 MCP 的 `generate_image`/`edit_image` 只返回任务 id，图片路径在轮询 `get_image_task` 完成时才写进结果文本的 `## result` JSON 块；宿主扫描 `tool/result` 事件并经 `callId` 关联工具名后解析 `filePath`/`filePaths`，绝对路径按会话工作区归一，工作区外或已删除的图片自动排除，与 `write`/`present` 证据共用去重、排序与上限。④ 修复 Git 模块在 LAN 地址访问下永远转圈（issue #3）：信任围栏优先改用官方 `connection.admit`（0.2.3-alpha.1 起官方移除了 `requestRejection`），本地回退补上「监听绑定 IP 放行」（对齐官方 `isBindAddressAuthority`），LAN 自绑定部署不再被误拒 403。⑤ Git 轮询持续失败（连续 2 拍且无快照）时给出错误终态与重试按钮，不再永远停在加载态；首拍失败（宿主未就绪/网络抖动）保持加载态自愈，会话缺失（宿主重启后快照滞后、会话刚归档）按 404 `missing-session` 归为暂态不误报。⑥ 修复置顶模块被拖动排序压低：拖动预览、落盘与面板渲染三层都保证置顶恒在首位，历史脏顺序打开面板自动纠正。基线：776 tests / 773 pass / 0 fail / 3 skipped。
 
