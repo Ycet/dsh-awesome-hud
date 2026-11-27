@@ -1,6 +1,6 @@
 {
   "name": "dsh-awesome-hud",
-  "version": "0.21.8",
+  "version": "0.21.9",
   "icon": "icon.png",
   "description": "DSH Web/桌面端插件：聊天页右上角「HUD面板」悬浮面板，展示会话与状态、上下文占用、一键压缩与交接、git 分支与变更、产物、子代理任务、任务、计划清单、MCP 开关、用量、便笺与待办；模块可置顶，面板开合与折叠状态按会话记忆，新建会话页提供悬浮入口。",
   "type": "module",

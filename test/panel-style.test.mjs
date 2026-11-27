@@ -249,7 +249,8 @@ test('镜像容错：旧镜像无 style 用默认卡片，非法样式回落到�
 
 test('CSS：边栏样式透明无圆角、朝向内容一侧 1px 官方边框色、模块间分隔线左右内缩 14px', () => {
   // 面板本体：去掉圆角卡片外观，只保留一条分隔线。
-  assert.match(clientSource, /\.hud-panel\[data-style=sidebar\]\{border:0;border-radius:0;background:transparent;max-height:none\}/);
+  assert.match(clientSource, /\.hud-panel\[data-style=sidebar\]\{border:0;border-radius:0;background:transparent;max-height:none;box-shadow:none\}/);
+  // 边栏贴边，不叠加卡片投影。
   assert.match(clientSource, /\.hud-panel\[data-style=sidebar\]\[data-side=right\]\{border-left:1px solid var\(--dsw-alias-border-l2\)\}/);
   assert.match(clientSource, /\.hud-panel\[data-style=sidebar\]\[data-side=left\]\{border-right:1px solid var\(--dsw-alias-border-l2\)\}/);
   // 内部模块分隔线：左右各缩进 14px 的浅色细线（颜色沿用 label-primary 9%）。

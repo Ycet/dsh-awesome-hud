@@ -191,11 +191,12 @@ test("面板顶部跟随真实标题栏，侧位由设置决定（v0.18.2）", (
   assert.match(source, /useLayoutEffect\(\(\) => \{\s*\n\s*const headerEl = document\.querySelector/);
 });
 
-test("主 HUD 面板使用主题描边并移除外投影", () => {
+test("主 HUD 面板保留主题描边并叠加柔和投影", () => {
   const panelRule = source.match(/\.hud-panel\{[^}]*\}/)?.[0];
   assert.ok(panelRule, "the .hud-panel CSS rule must exist");
   assert.match(panelRule, /border:0\.5px solid var\(--dsw-alias-border-l2\)/);
-  assert.doesNotMatch(panelRule, /box-shadow:/);
+  // 描边保持不变，投影用于把卡片从页面内容上浮起。
+  assert.match(panelRule, /box-shadow:var\(--hud-panel-shadow\)/);
 });
 
 test("新建页按钮保持在页眉原位，官方边栏展开时移到可见面板左侧", () => {

@@ -134,7 +134,8 @@ test("列表视图：便笺条结构（拖动条/标题/悬停按钮）、空态
   assert.match(source, /className: "hud-note-list-actions"/);
   assert.match(source, /className: "hud-btn-small hud-note-delete-all"/);
   // 悬停显示 / 键盘与触屏降级
-  assert.match(source, /\.hud-note-bar:hover \.hud-note-bar-actions,\.hud-note-bar:focus-within \.hud-note-bar-actions/);
+  // v0.21.9：行级 :focus-within 会让关闭弹窗后的删除按钮残留，改为键盘可见焦点判定。
+  assert.match(source, /\.hud-note-bar:hover \.hud-note-bar-actions,\.hud-note-bar:has\(:focus-visible\) \.hud-note-bar-actions/);
   assert.match(source, /@media\(hover:none\)\{\.hud-note-bar-title\{padding-right:52px\}/);
 });
 

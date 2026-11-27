@@ -34,7 +34,7 @@ Click to jump to a section.
 - [🔧 Tech Stack](#-tech-stack)
 - [🧪 Development and tests](#-development-and-tests)
 - [🔗 Related plugins](#-related-plugins)
-- [⬆️ Upgrade Notes (v0.11.x → v0.21.8)](#️-upgrade-notes-v011x--v0218)
+- [⬆️ Upgrade Notes (v0.11.x → v0.21.9)](#️-upgrade-notes-v011x--v0219)
 - [📄 License](#-license)
 
 ---
@@ -49,7 +49,7 @@ Click to jump to a section.
 
 | Module | What you see and what you can do |
 | --- | --- |
-| Session | Workspace and session names, run state, one chip for model and reasoning level; menus for rename, pin, branch, archive and copy. |
+| Session | Workspace and session names, run state, one chip for model and reasoning level (plus an Agent Team chip while teamwork is on); menus for rename, pin, branch, archive and copy. |
 | Context | Fill ratio and a seven-category bar, session stats and token usage; one-click compaction (with billion-context installed it explains that manual compaction is taken over), or a subagent that writes a handoff document. |
 | Usage | DeepSeek balance, OpenCode Go quota and Codex quota; one of them can show in the title while folded. |
 | Outputs | Documents, sheets, slides and images this session and its subagents wrote, delivered files and AI-generated images; click to preview, right click to add to chat or copy a path. |
@@ -69,7 +69,7 @@ The panel also offers **module folding and pinning**, **card and sidebar panel s
 
 ### Session module
 
-Shows the workspace name, the session name, the session state, and one chip with the model name and reasoning level (the chip color follows the level). Both names are clickable and open a menu at the pointer:
+Shows the workspace name, the session name, the session state, and one chip with the model name and reasoning level (the chip color follows the level). While agent teamwork is on for the session, a purple `Agent Team` chip follows the model chip, with the hover title “Agent teamwork is on for this session”; it is a status label and is not clickable, and it disappears when teamwork is off or when an older DSH build has no such projection. When the model chip is too wide for both to share a line, the team chip drops to the next line. Both names are clickable and open a menu at the pointer:
 
 - **Workspace menu**: rename, show in the file manager, copy path;
 - **Session menu**: pin or unpin, rename, branch session, copy session ID, copy session name, archive session;
@@ -212,7 +212,7 @@ Panel behaviour:
 
 ```bash
 # 1. Install (no git required; pnpm must be on PATH for `dsh plugin`)
-dsh plugin --profile web add dsh-awesome-hud@0.21.8
+dsh plugin --profile web add dsh-awesome-hud@0.21.9
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -224,7 +224,7 @@ dsh plugin --profile web add dsh-awesome-hud@0.21.8
 
 ```bash
 # 1. Install (pinned to a release tag; requires git access to GitHub)
-dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.8"
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.9"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -242,7 +242,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 
 ```bash
 # 1. Install (use the Release asset URL directly, or pass a downloaded .tgz path)
-dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.8/dsh-awesome-hud-0.21.8.tgz"
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.9/dsh-awesome-hud-0.21.9.tgz"
 
 # 2. Restart the DSH Web service and refresh the page
 ```
@@ -255,7 +255,7 @@ Quit DeepSeek Harness completely, then use the CLI that ships with the desktop a
 
 ```bash
 # From npm (recommended)
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.8
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.9
 
 # From local source (development)
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -336,10 +336,12 @@ dsh-awesome-hud/
 
 ---
 
-## ⬆️ Upgrade Notes (v0.11.x → v0.21.8)
+## ⬆️ Upgrade Notes (v0.11.x → v0.21.9)
 
 <details>
 <summary>Open the per-version notes</summary>
+
+**v0.21.9: the Agent Team chip in the session module, and no truncation hint in outputs.** (1) Once the current session turns agent teamwork on, a purple `Agent Team` chip joins the model chip in the session module. It is display-only, not clickable, and its tooltip reads "Agent teamwork is on for this session"; it hides itself when teamwork is off, on an older DSH without the projection, or when the projection data is malformed. When the model chip is too wide, the team chip drops to the next line. (2) The outputs list no longer ends with "Only the 10 most recent files are shown." The list behaves the same (three rows first, the rest expandable) and the host keeps the `truncated` field. (3) The card-style HUD panel keeps its outline and gains a soft shadow, so it reads more clearly above the page. (4) Closing the note editor no longer leaves the delete button on the note row. Baseline: 811 tests / 808 passed / 0 failed / 3 skipped.
 
 **v0.21.8: The remaining cause of the git module loading forever (issue #3).** The host `sessions.get()` only returns **live, loaded sessions**, while the client picks its git target from the session-list snapshot, which also contains sessions that exist on disk but are not loaded (older sessions, right after a host restart, and the proxy session of the new-session page). Those ids answered 404 on every poll, so the git module stayed on "Loading git status…" forever. The host now falls back to the **registered workspace path** the client reports when the session is not live (validated like `workspace/reveal`: registered workspaces only, with the macOS `/var` → `/private/var` symlink mismatch fixed), and all ten git and outputs routes resolve through it; the client sends the workspace path on its poll and every git action. If that also fails, the error state is **bounded**: a hint appears after three consecutive misses instead of spinning forever. Follow-up fixes in the same version (no version bump): ① **The git graph “Load more” button flickered** because it was gated on “within 16px of the bottom”, while the button itself sits inside the scroll container: mounting it raises `scrollHeight`, the next scroll event finds itself no longer at the bottom, unmounts the button, and the user has to scroll repeatedly to catch it. It now uses hysteresis (show at ≤24px from the bottom, hide only beyond 120px, keep the previous state in between). ② **billion-context taking over compaction**: bili disables the upstream `@deepseek-ai/dsh-compaction-basic` and `@deepseek-ai/dsh-command-compact`, so manual compaction can only fail. The host now decides who owns compaction (the bili global flag first, falling back to “no compaction service + no compact command + an acp command”), answers `bili-managed` when bili owns it, and the button shows an explanatory notice instead of “Compaction failed: command not registered (/compact)”. ③ **Official compaction results were misread**: `commands.execute()` returns `{ commandId, result: { kind, text } }`, and the old code read `result.kind`, which is always `undefined`, so failures looked like success. It now reads `result.result.kind`, and `active compaction` still maps to a 409 busy. Baseline: 800 tests / 797 pass / 0 fail / 3 skipped.
 

@@ -204,51 +204,57 @@ test('版本数据：倒序、版本号格式、首条等于 package.json 版本
   assert.ok(entries.length >= 2, '至少覆盖 v0.20.1 与 v0.20.0');
   // v0.21.0：数据源只保留最新 20 个版本（更旧记录删除，避免持续膨胀）。
   assert.ok(entries.length <= 20, `版本条目不得超过 20 条，实际 ${entries.length}`);
-  // v0.21.8（同版后续修复）：Git 分页按钮抖动 + bili 接管压缩时的说明。
+  // v0.21.9：会话模块追加 Agent Team 标签 + 产物截断提示移除；面板投影、便笺按钮修复各单列一组。
   assert.deepEqual(
     JSON.parse(JSON.stringify(entries[0].groups.map(group => group.title))),
+    ['changelog0219GroupSession', 'changelog0219GroupPanel', 'changelog0219GroupNotes'],
+    'v0.21.9 的三个分组',
+  );
+  // v0.21.8（同版后续修复）：Git 分页按钮抖动 + bili 接管压缩时的说明。
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(entries[1].groups.map(group => group.title))),
     ['changelog0218GroupSession', 'changelog0218GroupCompact'],
     'v0.21.8 的两个分组',
   );
   // v0.21.7：上下文明细口径修复 + Git 信任围栏与加载错误终态（issue #3）。
   assert.deepEqual(
-    JSON.parse(JSON.stringify(entries[1].groups.map(group => group.title))),
+    JSON.parse(JSON.stringify(entries[2].groups.map(group => group.title))),
     ['changelog0217GroupContext', 'changelog0217GroupGit', 'changelog0217GroupPin'],
     'v0.21.7 的三个分组',
   );
   // v0.21.6：分「Git：右键菜单」「Git：图标与路径」「上下文：分段条」三组。
   assert.deepEqual(
-    JSON.parse(JSON.stringify(entries[2].groups.map(group => group.title))),
+    JSON.parse(JSON.stringify(entries[3].groups.map(group => group.title))),
     ['changelog0216GroupMenu', 'changelog0216GroupIconPath', 'changelog0216GroupContext'],
     'v0.21.6 的三个分组',
   );
   assert.deepEqual(
-    JSON.parse(JSON.stringify(entries[3].groups.map(group => group.title))),
+    JSON.parse(JSON.stringify(entries[4].groups.map(group => group.title))),
     ['changelog0215GroupOutputs'],
     'v0.21.5 的一个分组',
   );
   assert.deepEqual(
-    JSON.parse(JSON.stringify(entries[4].groups.map(group => group.title))),
+    JSON.parse(JSON.stringify(entries[5].groups.map(group => group.title))),
     ['changelog0214GroupMcp', 'changelog0214GroupGit', 'changelog0214GroupOutputs'],
     'v0.21.4 的三个分组',
   );
   assert.deepEqual(
-    JSON.parse(JSON.stringify(entries[5].groups.map(group => group.title))),
+    JSON.parse(JSON.stringify(entries[6].groups.map(group => group.title))),
     ['changelog0213GroupOutputs', 'changelog0213GroupBranch', 'changelog0213GroupChangelog'],
     'v0.21.3 的三个分组',
   );
   assert.deepEqual(
-    JSON.parse(JSON.stringify(entries[6].groups.map(group => group.title))),
+    JSON.parse(JSON.stringify(entries[7].groups.map(group => group.title))),
     ['changelog0212GroupSession', 'changelog0212GroupPanel', 'changelog0212GroupGit', 'changelog0212GroupContext', 'changelog0212GroupPin'],
     'v0.21.2 的五个分组',
   );
   assert.deepEqual(
-    JSON.parse(JSON.stringify(entries[7].groups.map(group => group.title))),
+    JSON.parse(JSON.stringify(entries[8].groups.map(group => group.title))),
     ['changelog0211GroupNote', 'changelog0211GroupGit'],
     'v0.21.1 的两个分组',
   );
   assert.deepEqual(
-    JSON.parse(JSON.stringify(entries[8].groups.map(group => group.title))),
+    JSON.parse(JSON.stringify(entries[9].groups.map(group => group.title))),
     ['changelog021GroupNote', 'changelog021GroupReset', 'changelog021GroupChangelog', 'changelog021GroupUsage', 'changelog021GroupGit', 'changelog021GroupOutputs', 'changelog021GroupPanel'],
     'v0.21.0 的七个分组',
   );

@@ -98,7 +98,8 @@ test("样式：三档配色与单行省略都在样式表里", () => {
 });
 
 test("渲染接线：只渲染一个合并标签，旧的等级胶囊与函数已移除", () => {
-  assert.match(source, /props\.modelBadge === null \? null : react\.createElement\("div", \{ className: "hud-model-chips" \},/);
+  // v0.21.9：容器条件改为「模型标签或 Agent Team 标签任一存在」。
+  assert.match(source, /props\.modelBadge === null && props\.agentTeamEnabled !== true \? null : react\.createElement\("div", \{ className: "hud-model-chips" \},/);
   assert.match(source, /"data-level": props\.modelBadge\.level,/);
   assert.match(source, /modelBadge: resolveModelBadge\(selection, modelSnapshot\.groups \?\? \[\], t\),/);
   assert.doesNotMatch(source, /effortLabel/);

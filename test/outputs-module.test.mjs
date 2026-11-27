@@ -184,7 +184,7 @@ test("客户端接线：默认位于 git 之上、新建会话页不展示、说
   assert.deepEqual(plain(sections.find((section) => section.key === "outputs").groups.map((group) => group.key)), ["module"]);
   // 中英文案成对
   const { zh, en } = hudClient().dictionaries[0];
-  for (const key of ["outputsModule", "outputsLimitHint", "outputsOpenFailed",
+  for (const key of ["outputsModule", "outputsOpenFailed",
     "guideOutputsTitle", "guideOutputsShowList", "guideOutputsShowOrder", "guideOutputsOpen", "guideOutputsScope"]) {
     assert.equal(typeof zh[key], "string", `${key} 需要中文`);
     assert.equal(typeof en[key], "string", `${key} 需要英文`);
@@ -328,7 +328,9 @@ test("组件：计数、文件名与目录、截断提示；无产物时整个�
   assert.equal(rows[1].children[0].children[0], "png");
   rows[0].props.onClick();
   assert.deepEqual(opened, ["docs/a.md"]);
-  assert.match(textOf(tree), /仅展示最近改动的 10 个文件/, "截断时给出提示");
+  // v0.21.9：截断提示已移除，列表底部只留展开 / 收起入口。
+  assert.doesNotMatch(textOf(tree), /仅展示最近改动的/);
+  assert.equal(walk(tree).find((node) => node.props?.className === "hud-output-hint"), undefined, "不再渲染截断提示");
 
   // v0.19.2：没有产物时整个模块不渲染（与子代理 / 任务 / 计划清单一致）。
   assert.equal(runtime.render({ files: [], limit: 10, truncated: false, fold: false }), null, "无产物时不渲染模块");
@@ -384,8 +386,8 @@ test("v0.19.2：列表默认只给前 3 个，超过时提供「展开其余 n �
   assert.match(textOf(collapse), /收起/);
   collapse.props.onClick();
   assert.equal(openControls.next, false, "点击收起");
-  // 截断提示仍在最后一行下方。
-  assert.match(textOf(expandedTree), /仅展示最近改动的 10 个文件/);
+  // v0.21.9：截断提示已移除，展开态同样没有该行。
+  assert.doesNotMatch(textOf(expandedTree), /仅展示最近改动的/);
 
   // 3 个及以内不出现任何展开 / 收起入口。
   const smallTree = expandedModule.render({ files: files.slice(0, 3), limit: 10, truncated: false, fold: false });

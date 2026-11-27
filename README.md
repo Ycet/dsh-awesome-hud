@@ -34,7 +34,7 @@
 - [🔧 技术栈](#-技术栈)
 - [🧪 开发与测试](#-开发与测试)
 - [🔗 关联插件](#-关联插件)
-- [⬆️ 升级说明（v0.11.x → v0.21.8）](#️-升级说明v011x--v0218)
+- [⬆️ 升级说明（v0.11.x → v0.21.9）](#️-升级说明v011x--v0219)
 - [📄 许可证](#-许可证)
 
 ---
@@ -49,7 +49,7 @@
 
 | 模块 | 你能看到 / 能做什么 |
 | --- | --- |
-| 会话 | 工作区与会话名称、运行状态、模型与思考等级标签；菜单里重命名、置顶、分支、归档、复制。 |
+| 会话 | 工作区与会话名称、运行状态、模型与思考等级标签（团队协作开启时追加 Agent Team 标签）；菜单里重命名、置顶、分支、归档、复制。 |
 | 上下文 | 占用率与七类分段进度条、会话统计与 Token 用量；一键压缩（装了 billion-context 时改为说明不可手动压缩），或派子代理写交接文档。 |
 | 用量 | DeepSeek 余额、OpenCode Go 额度、Codex 额度；折叠后在标题展示其中一项。 |
 | 产物 | 本会话及其子会话写出的文档 / 表格 / 演示 / 图片、交付的文件与 AI 生成的图片；点击预览，右键加入聊天或复制路径。 |
@@ -61,7 +61,7 @@
 | 待办 | 按工作区共享的待办清单，勾选、编辑、拖动排序、清空已完成。 |
 | MCP | 已接入的 MCP 服务与全局启停开关。 |
 
-面板另提供：**模块折叠与置顶**、**卡片 / 边栏两种面板样式**、**左 / 右两种展开位置**、**内置使用说明页与更新日志页**。
+面板另提供：**模块折叠与置顶**、**卡片 / 边栏两种面板样式（卡片样式带描边与投影）**、**左 / 右两种展开位置**、**内置使用说明页与更新日志页**。
 
 ---
 
@@ -69,7 +69,7 @@
 
 ### 会话模块
 
-显示工作区名称、会话名称、会话状态，以及合并成一个标签的模型名与思考等级（按等级着色）。两个名称都可以点击，在鼠标位置打开操作菜单：
+显示工作区名称、会话名称、会话状态，以及合并成一个标签的模型名与思考等级（按等级着色）。当前会话开启「智能体团队协作」后，模型标签右侧追加一个紫色 `Agent Team` 标签，鼠标悬浮提示「本会话已开启智能体团队协作」，纯展示、不可点击；关闭协作或旧版 DSH 没有该投影时自动隐藏；模型标签过宽、一行放不下两个标签时，团队标签自动换到下一行。两个名称都可以点击，在鼠标位置打开操作菜单：
 
 - **工作区菜单**：重命名、在文件管理器中显示、复制路径；
 - **会话菜单**：置顶 / 取消置顶、重命名、分支会话、复制会话 ID、复制会话名称、归档会话；
@@ -212,7 +212,7 @@
 
 ```bash
 # 1. 安装（无需 git；本机需有 pnpm，dsh plugin 会调用它）
-dsh plugin --profile web add dsh-awesome-hud@0.21.8
+dsh plugin --profile web add dsh-awesome-hud@0.21.9
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -224,7 +224,7 @@ dsh plugin --profile web add dsh-awesome-hud@0.21.8
 
 ```bash
 # 1. 安装（锁定版本 tag，要求本机 git 可访问 GitHub）
-dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.8"
+dsh plugin --profile web add "github:Ycet/dsh-awesome-hud#v0.21.9"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -242,7 +242,7 @@ dsh plugin --profile web add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
 
 ```bash
 # 1. 安装（可直接用 Release 资产 URL，也可先下载 .tgz 再传本地路径）
-dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.8/dsh-awesome-hud-0.21.8.tgz"
+dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/download/v0.21.9/dsh-awesome-hud-0.21.9.tgz"
 
 # 2. 重启 DSH Web 服务并刷新页面
 ```
@@ -255,7 +255,7 @@ dsh plugin --profile web add "https://github.com/Ycet/dsh-awesome-hud/releases/d
 
 ```bash
 # 从 npm 安装（推荐）
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.8
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-awesome-hud@0.21.9
 
 # 从本地源码安装（开发）
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "dsh-awesome-hud@link:<absolute-path-to-plugin>"
@@ -336,10 +336,12 @@ dsh-awesome-hud/
 
 ---
 
-## ⬆️ 升级说明（v0.11.x → v0.21.8）
+## ⬆️ 升级说明（v0.11.x → v0.21.9）
 
 <details>
 <summary>按版本查看各版本改动要点</summary>
+
+**v0.21.9：会话模块追加 Agent Team 标签，产物去掉截断提示**：① 在当前会话开启「智能体团队协作」后，「会话」模块的模型标签右侧追加紫色 `Agent Team` 标签，纯展示、不可点击，悬浮提示「本会话已开启智能体团队协作」；协作关闭、旧版 DSH 无该投影或投影数据异常时自动隐藏；模型标签过宽、一行放不下两个标签时自动换到下一行。② 产物列表底部的「仅展示最近改动的 10 个文件。」提示已移除，列表行为不变（默认先显示 3 个、可展开查看全部），宿主返回的 `truncated` 字段保留。③ 卡片样式的 HUD 面板保留原有描边，叠加一层柔和投影，与页面内容的层次更清楚。④ 关闭便笺编辑弹窗后，便笺条右侧的删除按钮不再残留。基线：811 tests / 808 pass / 0 fail / 3 skipped。
 
 **v0.21.8：修复 Git 模块「永远加载」的剩余成因（issue #3）**：宿主 `sessions.get()` 只返回**已加载的 live 会话**，而客户端从会话列表快照挑目标会话，快照包含磁盘上未加载的会话（旧会话、宿主重启后、新建会话页的代理会话）。这些 id 每次轮询都返回 404，Git 模块就永久停在「正在加载 git 状态」。现在宿主新增工作区兜底：会话不在 live 表时，改用客户端上报的**已注册工作区路径**解析目标目录（校验同 `workspace/reveal`，只接受已注册工作区，并修正 macOS `/var` → `/private/var` 软链导致的误拒），10 个 git/产物接口统一走该解析器；客户端轮询与全部 Git 操作都会带上工作区路径。若仍解析不到，错误态改为**有界**：连续 3 次后才提示「找不到可用会话或工作区」，不再永久转圈。同版后续修复（未升版本号）：① **git graph「加载更多」按钮抖动**——按钮原先由「距底 < 16px」门控，而按钮自身就在滚动容器内，挂载后会抬高 `scrollHeight`，下一次滚动事件立刻判定「不在底部」并卸载按钮，用户必须反复上下滑动才碰巧看到；现改为迟滞判定（距底 ≤24px 显示、>120px 才隐藏），中间区间维持原状态。② **billion-context 接管压缩时的提示**——bili 会禁用上游 `@deepseek-ai/dsh-compaction-basic` 与 `@deepseek-ai/dsh-command-compact`，手动压缩必然失败；现在宿主先判定压缩归属（bili 全局标记为主，缺失时用「无 compaction 服务 + 无 compact 命令 + 有 acp 命令」兜底），接管时直接回 `bili-managed`，按钮弹出说明而不再显示「压缩失败：命令未注册：/compact」。③ **官方压缩结果误读**——`commands.execute()` 返回 `{ commandId, result: { kind, text } }`，旧代码读 `result.kind` 恒为 `undefined`，把失败当成功；现改为读 `result.result.kind`，`active compaction` 仍映射为 409 busy。基线：800 tests / 797 pass / 0 fail / 3 skipped。
 
